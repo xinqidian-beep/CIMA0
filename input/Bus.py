@@ -1,37 +1,7 @@
-import time
 import random
 import numpy as np
 
-
-class Stimulus:
-    """
-    外部刺激统一格式
-
-    vision:
-        512维
-
-    audio:
-        384维
-
-    text:
-        384维
-
-    keyboard:
-        128维
-    """
-
-    def __init__(
-        self,
-        kind,
-        vector,
-        intensity=1.0
-    ):
-
-        self.kind = kind
-        self.vector = vector
-        self.intensity = intensity
-        self.timestamp = time.time()
-
+from core.stimulus import Stimulus
 
 
 class InputBus:
