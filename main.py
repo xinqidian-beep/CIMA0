@@ -15,7 +15,7 @@ while True:
 
         kind="test",
 
-        vector=np.random.rand(128),
+        vector=np.random.rand(512),
 
         intensity=1.0
 

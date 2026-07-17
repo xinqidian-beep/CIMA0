@@ -10,20 +10,22 @@ class Cloud:
 
     def __init__(
         self,
-        cells=64
+        cells=64,
+        dim=512
     ):
 
+        self.dim=dim
 
         self.cells=[
 
-            Cell(i)
+            Cell(i, dim=dim)
 
             for i in range(cells)
 
         ]
 
 
-        self.attractor=AttractorGraph()
+        self.attractor=AttractorGraph(dim=dim)
 
 
 

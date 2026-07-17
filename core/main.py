@@ -1,7 +1,7 @@
 import time
 
 
-from input.bus import InputBus
+from input.bus import InputBus  # 注意：文件名统一为小写 bus.py（原 Bus.py，Windows不区分大小写掩盖了这个问题，Linux/云端会报 ModuleNotFoundError）
 
 from core.cloud import Cloud
 
