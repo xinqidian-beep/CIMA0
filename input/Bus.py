@@ -1,7 +1,4 @@
-import random
-import numpy as np
-
-from core.stimulus import Stimulus
+from queue import Queue
 
 
 class InputBus:
@@ -9,51 +6,31 @@ class InputBus:
 
     def __init__(self):
 
-        self.queue=[]
+        self.queue=Queue()
 
 
-    def push(self, stimulus):
 
-        self.queue.append(stimulus)
+    def publish(
+        self,
+        stimulus
+    ):
+
+        self.queue.put(
+            stimulus
+        )
 
 
 
     def poll(self):
 
-        """
-        当前先模拟输入
+        items=[]
 
-        后面替换:
-        
-        camera.py
-        whisper.py
-        keyboard.py
 
-        """
+        while not self.queue.empty():
 
-        if random.random()<0.2:
-
-            kind=random.choice(
-                [
-                    "vision",
-                    "audio",
-                    "text"
-                ]
+            items.append(
+                self.queue.get()
             )
 
 
-            vector=np.random.normal(
-                0,
-                1,
-                512
-            )
-
-
-            return Stimulus(
-                kind,
-                vector,
-                random.random()
-            )
-
-
-        return None
+        return items

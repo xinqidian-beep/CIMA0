@@ -27,6 +27,8 @@ class DevelopmentController:
 
         # 已解锁到第几层（0-based，包含这一层本身）
         self.unlocked_index = 0
+        
+        self.finished = False
 
         self.window = window
 
@@ -48,7 +50,7 @@ class DevelopmentController:
             k: None
             for k in self.order
         }
-
+        
         self.steps_since_unlock = 0
 
 
@@ -95,12 +97,17 @@ class DevelopmentController:
 
         self.steps_since_unlock += 1
 
-        kind = self.current_layer()
 
-        if kind is None:
+        # 全部解锁以后保持运行状态
+        if self.finished:
             return None
 
+
+
+        kind = self.order[self.unlocked_index]
+
         hist = self.history[kind]
+
 
         if (
             len(hist) < self.window
@@ -109,46 +116,60 @@ class DevelopmentController:
         ):
             return None
 
+
+
         current_std = float(np.std(hist))
 
         baseline = self.baseline_std[kind]
 
+
+
         if baseline is None:
+
             self.baseline_std[kind] = current_std
+
             return None
 
-        # 持续更新这一层"通常"有多不稳定，标准本身也在跟着走
+
+
         self.baseline_std[kind] = (
             baseline * 0.98
             +
             current_std * 0.02
         )
 
-        # 只有比自己历史上明显更平静，才算这一层"稳定下来了"
+
+
         if current_std < baseline * self.settle_ratio:
 
-            is_last = (
-                self.unlocked_index >= len(self.order) - 1
-            )
 
-            next_kind = (
-                None
-                if is_last
-                else self.order[self.unlocked_index + 1]
-            )
+            # 已经是最后一层
+            if self.unlocked_index == len(self.order)-1:
 
-            # 就算是最后一层，也要记录"它自己稳定下来了"这件事，
-            # 只是不再有下一层可以解锁——不能因为没有下一步，
-            # 就连这一层本身有没有成熟都不算了
-            if not is_last:
-                self.unlocked_index += 1
+                self.finished = True
+
+                return {
+                    "settled": kind,
+                    "unlocked": "ALL_LAYERS_ACTIVE"
+                }
+
+
+
+            next_kind = self.order[
+                self.unlocked_index + 1
+            ]
+
+
+            self.unlocked_index += 1
 
             self.steps_since_unlock = 0
+
 
             return {
                 "settled": kind,
                 "unlocked": next_kind
             }
+
 
         return None
 

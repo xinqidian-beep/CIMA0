@@ -1,0 +1,12 @@
+models:
+  llm:
+    name: qwen2.5-3b-instruct-q2_k.gguf
+    path: models/qwen/
+
+  vision:
+    name: open_clip_pytorch_model.bin
+    path: models/clip/
+
+  audio:
+    name: faster-whisper-small.bin
+    path: models/whisper/

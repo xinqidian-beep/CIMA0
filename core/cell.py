@@ -1,70 +1,181 @@
 import numpy as np
 
 
-
 class Cell:
 
+    def __init__(
+        self,
+        id,
+        dim=512
+    ):
 
-    def __init__(self,id,dim=512):
+        self.id = id
 
-        self.id=id
-
-        self.state=np.random.normal(
-            0,
-            0.1,
-            dim
+        # 振荡状态
+        self.x = np.random.uniform(
+            -1.8,
+            1.8
         )
 
-        self.energy=1.0
+        self.v = np.random.uniform(
+            -0.8,
+            0.8
+        )
 
-        self.activity=0
+
+        # 自然频率微差
+        self.omega = np.random.uniform(
+            0.97,
+            1.03
+        )
+
+
+        # Van der Pol 参数
+
+        self.mu = 0.6
+
+
+        # 积分步长
+
+        self.dt = 0.02
+
+
+        # 能量观察量
+
+        self.energy = 1.0
+
+
+        # 输入活动计数
+
+        self.activity = 0
 
 
 
     def stimulate(
         self,
         vector,
-        strength
+        strength=1.0
     ):
 
-        self.state += (
+        """
+        外部 IO 扰动
+
+        byte field
+             |
+             v
+            Cell
+        """
+
+        value = np.mean(
             vector
+        )
+
+
+        # 微扰振幅
+
+        self.v += (
+            value
             *
             strength
             *
-            0.05
+            0.02
         )
 
-        self.energy += strength*0.01
 
-        self.activity+=1
-
-
-
-    def step(self):
-
-        # 自然衰减
-
-        self.state*=0.999
-
-        self.energy*=0.999
-
-
-
-    def similarity(self,vector):
-
-        a=self.state
-        b=vector
-
-
-        return (
-            np.dot(a,b)
-            /
-            (
-            np.linalg.norm(a)
+        self.energy += (
+            abs(value)
             *
-            np.linalg.norm(b)
-            +
-            1e-8
+            strength
+            *
+            0.001
+        )
+
+
+        self.activity += 1
+
+
+
+    def step(
+        self,
+        coupling_force=0.0
+    ):
+
+        """
+        单个 Cell 自身动力
+        """
+
+        # Van der Pol
+
+        accel = (
+
+            self.mu
+            *
+            (
+                1
+                -
+                self.x**2
             )
+            *
+            self.v
+
+            -
+            self.omega**2
+            *
+            self.x
+
+            +
+            coupling_force
+
+        )
+
+
+        # 积分
+
+        self.v += (
+            accel
+            *
+            self.dt
+        )
+
+
+        self.x += (
+            self.v
+            *
+            self.dt
+        )
+
+
+        # 能量自然变化
+
+        self.energy *= 0.999
+
+
+
+    def phase(self):
+
+        """
+        当前相位
+        """
+
+        return np.arctan2(
+            self.v,
+            self.x
+        )
+
+
+
+    def state(self):
+
+        """
+        对外观察接口
+
+        不参与动力
+        """
+
+        return np.array(
+            [
+                self.x,
+                self.v
+            ],
+            dtype=np.float32
         )
