@@ -7,19 +7,17 @@ class Cloud:
 
     def __init__(
         self,
-        cells=64,
-        dim=512,
-        coupling=0.12,
-        avg_degree=6
-    ):
+        cells,
+        dim,
+        coupling,
+        avg_degree
+        ):
+应该保持。
 
         self.dim = dim
 
         self.cells = [
-            Cell(
-                i,
-                dim=dim
-            )
+            Cell(i)
             for i in range(cells)
         ]
 
