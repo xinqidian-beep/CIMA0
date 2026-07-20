@@ -10,7 +10,11 @@ class Cell:
     ):
 
         self.id = id
-
+        self.input_indices = np.random.choice(
+            512,
+            size=8,
+            replace=False
+        )
         # 振荡状态
         self.x = np.random.uniform(
             -1.8,
@@ -66,15 +70,18 @@ class Cell:
             Cell
         """
 
-        value = np.mean(
-            vector
+        
+
+        local_value = np.mean(
+            vector[self.input_indices]
         )
 
+        
 
         # 微扰振幅
 
         self.v += (
-            value
+            local_value
             *
             strength
             *
@@ -83,7 +90,7 @@ class Cell:
 
 
         self.energy += (
-            abs(value)
+            abs(local_value)
             *
             strength
             *
@@ -179,3 +186,7 @@ class Cell:
             ],
             dtype=np.float32
         )
+    print(
+        self.id,
+        self.input_indices
+    )   

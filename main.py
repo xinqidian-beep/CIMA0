@@ -1,99 +1,6 @@
 import numpy as np
 
-class OscillatorOrgan:
-
-    def __init__(
-        self,
-        name,
-        dim=16
-    ):
-
-        self.name = name
-
-        self.dim = dim
-
-        self.state = np.random.normal(
-            0,
-            0.01,
-            dim
-        )
-
-        self.phase = np.random.uniform(
-            0,
-            6.28,
-            dim
-        )
-
-        self.frequency = np.random.uniform(
-            0.95,
-            1.05,
-            dim
-        )
-
-        self.activity = 0
-
-        self.history = []
-
-
-    def receive(self, field):
-
-        pass
-
-
-    def step(self):
-
-        self.phase += self.frequency * 0.01
-
-        internal = np.sin(self.phase)
-
-        self.state += internal * 0.001
-
-        self.state *= 0.995
-
-        self.history.append(
-            self.state.copy()
-        )
-
-        if len(self.history) > 100:
-            self.history.pop(0)
-
-        self.activity += 1
-
-
-    def emit(self):
-
-        return self.state
-
-
-    def snapshot(self):
-
-        return {
-
-            "name": self.name,
-
-            "mean": round(
-                float(np.mean(self.state)),
-                5
-            ),
-
-            "std": round(
-                float(np.std(self.state)),
-                5
-            ),
-
-            "phase_mean": round(
-                float(np.mean(self.phase)),
-                5
-            ),
-
-            "phase_std": round(
-                float(np.std(self.phase)),
-                5
-            ),
-
-            "activity": self.activity
-        }
-
+from organs.oscillator_organ import OscillatorOrgan
 
 # ==========================
 # 参数
@@ -103,9 +10,9 @@ NUM_ORGANS = 64
 
 DIM = 16
 
-TOTAL_STEPS = 10_000_000
-
-SNAPSHOT_INTERVAL = 100_000
+TOTAL_STEPS = 500_000
+field = np.random.normal(0,1,512)
+SNAPSHOT_INTERVAL = 20_000
 
 
 # ==========================

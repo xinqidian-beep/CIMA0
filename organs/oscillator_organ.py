@@ -59,9 +59,9 @@ class OscillatorOrgan:
         # 外部场扰动
 
         self.state += (
-            value
+            np.tanh(value)
             *
-            0.01
+            0.001
         )
 
 
