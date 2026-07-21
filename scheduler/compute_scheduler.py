@@ -1,7 +1,19 @@
 import numpy as np
 
 
+
 class ComputeField:
+
+
+    """
+    Resource environment.
+
+    Only decides computation opportunity.
+
+    Does not modify organism.
+
+    """
+
 
     def __init__(
         self,
@@ -9,27 +21,35 @@ class ComputeField:
         capacity=8
     ):
 
-        self.organs = organs
-        self.capacity = capacity
+        self.organs=organs
+        self.capacity=capacity
 
-        self.rng = np.random.default_rng(42)
+        self.rng=np.random.default_rng(42)
+
 
 
     def step(self):
 
+
         scores=[]
 
-        for i,o in enumerate(self.organs):
 
-            # 这里只读取动力学状态
-            # 不改变 organ
-            score = (
+        for o in self.organs:
+
+            score=(
+
                 abs(o.prediction_error)
+
                 +
+
                 o.uncertainty
+
                 +
+
                 0.01*self.rng.random()
+
             )
+
 
             scores.append(score)
 
@@ -38,14 +58,16 @@ class ComputeField:
         scores=np.array(scores)
 
 
-        # soft selection
-        # 不是排名治理
-        prob=scores/(scores.sum()+1e-12)
+        prob=(
+            scores
+            /
+            (scores.sum()+1e-12)
+        )
 
 
         active=self.rng.choice(
             len(self.organs),
-            size=self.capacity,
+            self.capacity,
             replace=False,
             p=prob
         )

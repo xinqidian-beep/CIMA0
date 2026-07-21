@@ -1,231 +1,348 @@
 import numpy as np
 
 
+
 class OscillatorOrgan:
 
-    def __init__(self, name, dim=16):
 
-        self.name = name
-        self.dim = dim
+    """
+    Minimal autonomous organism.
 
-
-        # =========================
-        # Core oscillator state
-        # =========================
-
-        self.state = np.random.randn(dim) * 0.01
-
-        self.velocity = np.zeros(dim)
-
-        self.phase = np.random.random() * np.pi * 2
+    No:
+        reward
+        target
+        supervision
+        external control
 
 
-        self.activity = 0
+    Internal closure:
+
+        energy
+          |
+          v
+    nonlinear oscillator
+          |
+          v
+       activity
+          |
+          v
+     metabolism
 
 
-        # prediction system
+    External input in future:
+        only perturbation
+        never state replacement
 
-        self.prediction = self.state.copy()
-
-        self.prediction_error = 0.0
-
-        self.error = 0.0
-
-
-        # uncertainty
-
-        self.uncertainty = 0.01
-
-
-        # =========================
-        # Metabolism
-        # =========================
-
-        self.fatigue = 0.0
-
-        self.energy = 1.0
-
-        self.energy_max = 1.0
-
-
-        self.consume_rate = 0.00005
-
-        self.recovery_rate = 0.00003
-
-        self.fatigue_gain = 0.0001
-
-        self.fatigue_decay = 0.99995
+    """
 
 
 
-        # oscillator parameters
+    def __init__(
+        self,
+        name,
+        dim=16
+    ):
 
-        self.omega = 0.05
 
-        self.damping = 0.001
+        self.name=name
+
+        self.dim=dim
 
 
 
-    # =========================
-    # local metabolism
-    # =========================
+        # --------------------
+        # local state
+        # --------------------
+
+        self.state=np.random.randn(dim)*0.1
+
+        self.velocity=np.random.randn(dim)*0.01
+
+
+        self.phase=np.random.random()*np.pi*2
+        self.position = np.random.randn(3)
+
+
+        # --------------------
+        # internal prediction
+        # --------------------
+
+        self.prediction=self.state.copy()
+
+        self.prediction_error=0.0
+
+        self.uncertainty=0.05
+
+
+
+        self.error=0.0
+
+
+
+        # --------------------
+        # metabolism
+        # --------------------
+
+        self.energy=1.0
+
+        self.energy_max=1.0
+
+
+        self.fatigue=0.0
+
+
+
+        self.activity=0
+
+
+
+        # --------------------
+        # internal physics
+        # --------------------
+
+        self.omega=0.05
+
+
+        # nonlinear strength
+        self.mu=0.8
+
+
+        self.damping=0.02
+
+
+
+        self.dt=0.05
+
+
+
+    # =================================
+    # internal metabolism
+    # =================================
+
 
     def metabolic_step(self):
 
-        # activity consumes energy
 
-        if self.activity > 0:
-
-            self.energy -= self.consume_rate
-
-            self.fatigue += self.fatigue_gain
-
-
-
-        # natural recovery
-
-        self.energy += (
-            self.recovery_rate *
-            np.exp(-self.fatigue)
+        activity_cost = (
+            np.mean(
+                np.abs(self.velocity)
+            )
+            *
+            0.0005
         )
 
 
-        # fatigue naturally decays
-
-        self.fatigue *= self.fatigue_decay
+        self.energy -= activity_cost
 
 
 
-        # only physical boundary
+        # internal recovery
+        # not a goal
+        # just metabolism
 
-        self.energy = np.clip(
+        self.energy += (
+            0.0003
+            *
+            (1.0-self.energy)
+        )
+
+
+        self.energy=np.clip(
             self.energy,
-            -1.0,
+            0.0,
             self.energy_max
         )
 
 
 
-    # =========================
-    # oscillator evolution
-    # =========================
+        self.fatigue += (
+            activity_cost
+        )
+
+
+        self.fatigue*=0.9999
+
+
+
+    # =================================
+    # autonomous dynamics
+    # =================================
+
 
     def step(self):
 
-        old = self.state.copy()
+
+        old=self.state.copy()
 
 
-        # local oscillator
 
-        acceleration = (
-            -self.omega * self.state
-            -self.damping * self.velocity
+        # ---------------------------------
+        # Van der Pol like local dynamics
+        # ---------------------------------
+
+        amplitude=np.mean(
+            self.state*self.state
         )
 
 
-        self.velocity += acceleration
+        nonlinear = (
+
+            self.mu
+            *
+            (
+                1.0-amplitude
+            )
+            *
+            self.velocity
+
+        )
 
 
-        self.state += self.velocity
+
+        acceleration=(
+
+            nonlinear
+
+            -
+
+            self.omega*self.omega*self.state
+
+            -
+
+            self.damping*self.velocity
+
+        )
 
 
 
+        self.velocity += (
+            acceleration
+            *
+            self.dt
+        )
+
+
+        self.state += (
+            self.velocity
+            *
+            self.dt
+        )
+
+        
+
+        # -------------------------------
         # prediction
+        # -------------------------------
 
-        self.prediction = (
-            0.99 * self.prediction
-            + 0.01 * self.state
+        self.prediction=(
+
+            0.98*self.prediction
+
+            +
+
+            0.02*self.state
+
         )
 
 
-        self.prediction_error = float(
+        self.prediction_error=float(
+
             np.mean(
+
                 np.abs(
-                    self.state -
+                    self.state
+                    -
                     self.prediction
                 )
+
             )
+
         )
 
 
-        self.error = self.prediction_error
+        self.error=self.prediction_error
 
 
 
+        self.uncertainty=(
+
+            0.99*self.uncertainty
+
+            +
+
+            0.01*self.prediction_error
+
+        )
+
+
+
+        # -------------------------------
         # activity
+        # -------------------------------
 
-        delta = np.mean(
+        delta=np.mean(
             np.abs(
                 self.state-old
             )
         )
 
 
-        if delta > 0.001:
+        if delta>1e-5:
 
-            self.activity += 1
-
-
-
-        # uncertainty
-
-        self.uncertainty = (
-            0.99*self.uncertainty
-            +
-            0.01*self.prediction_error
-        )
+            self.activity+=1
 
 
-        # metabolism
 
         self.metabolic_step()
 
-
-
-    # =========================
-    # interface for ComputeField
-    # =========================
+        self.position += (
+            np.random.randn(3)
+            *
+            0.0001
+        )
 
     def snapshot(self):
+        
 
         return {
 
-            "name": self.name,
+            "name":self.name,
+            "position":
+            [
+                round(float(x),3)
+                for x in self.position
+            ],
 
-            "std": round(
+            "std":round(
                 float(np.std(self.state)),
                 5
             ),
 
-            "activity": self.activity,
+
+            "activity":self.activity,
 
 
-            "error": round(
-                float(self.error),
+            "prediction_error":round(
+                self.prediction_error,
                 5
             ),
 
 
-            "prediction_error": round(
-                float(self.prediction_error),
+            "uncertainty":round(
+                self.uncertainty,
                 5
             ),
 
 
-            "uncertainty": round(
-                float(self.uncertainty),
+            "energy":round(
+                self.energy,
                 5
             ),
 
 
-            "fatigue": round(
-                float(self.fatigue),
-                5
-            ),
-
-
-            "energy": round(
-                float(self.energy),
+            "fatigue":round(
+                self.fatigue,
                 5
             )
+
         }
