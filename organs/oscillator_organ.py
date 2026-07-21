@@ -3,176 +3,229 @@ import numpy as np
 
 class OscillatorOrgan:
 
-    def __init__(
-        self,
-        name,
-        dim=16
-    ):
+    def __init__(self, name, dim=16):
 
         self.name = name
-
         self.dim = dim
 
 
-        # 内部状态
+        # =========================
+        # Core oscillator state
+        # =========================
 
-        self.state = np.random.normal(
-            0,
-            0.01,
-            dim
-        )
+        self.state = np.random.randn(dim) * 0.01
 
+        self.velocity = np.zeros(dim)
 
-        # 每个内部单元拥有自己的时间
-
-        self.phase = np.random.uniform(
-            0,
-            6.28,
-            dim
-        )
-
-
-        self.frequency = np.random.uniform(
-            0.95,
-            1.05,
-            dim
-        )
+        self.phase = np.random.random() * np.pi * 2
 
 
         self.activity = 0
 
 
-        self.history = []
+        # prediction system
+
+        self.prediction = self.state.copy()
+
+        self.prediction_error = 0.0
+
+        self.error = 0.0
+
+
+        # uncertainty
+
+        self.uncertainty = 0.01
+
+
+        # =========================
+        # Metabolism
+        # =========================
+
+        self.fatigue = 0.0
+
+        self.energy = 1.0
+
+        self.energy_max = 1.0
+
+
+        self.consume_rate = 0.00005
+
+        self.recovery_rate = 0.00003
+
+        self.fatigue_gain = 0.0001
+
+        self.fatigue_decay = 0.99995
 
 
 
-    def receive(
-        self,
-        field
-    ):
+        # oscillator parameters
 
-        value = np.mean(
-            field
+        self.omega = 0.05
+
+        self.damping = 0.001
+
+
+
+    # =========================
+    # local metabolism
+    # =========================
+
+    def metabolic_step(self):
+
+        # activity consumes energy
+
+        if self.activity > 0:
+
+            self.energy -= self.consume_rate
+
+            self.fatigue += self.fatigue_gain
+
+
+
+        # natural recovery
+
+        self.energy += (
+            self.recovery_rate *
+            np.exp(-self.fatigue)
         )
 
 
-        # 外部场扰动
+        # fatigue naturally decays
 
-        self.state += (
-            np.tanh(value)
-            *
-            0.001
+        self.fatigue *= self.fatigue_decay
+
+
+
+        # only physical boundary
+
+        self.energy = np.clip(
+            self.energy,
+            -1.0,
+            self.energy_max
         )
 
 
-        self.activity += 1
 
-
+    # =========================
+    # oscillator evolution
+    # =========================
 
     def step(self):
 
+        old = self.state.copy()
 
-        # 内部节律推进
 
-        self.phase += (
-            self.frequency
-            *
-            0.01
+        # local oscillator
+
+        acceleration = (
+            -self.omega * self.state
+            -self.damping * self.velocity
         )
 
 
-        internal = np.sin(
-            self.phase
+        self.velocity += acceleration
+
+
+        self.state += self.velocity
+
+
+
+        # prediction
+
+        self.prediction = (
+            0.99 * self.prediction
+            + 0.01 * self.state
         )
 
 
-        # 每个维度独立受到内部振荡
-
-        self.state += (
-            internal
-            *
-            0.001
+        self.prediction_error = float(
+            np.mean(
+                np.abs(
+                    self.state -
+                    self.prediction
+                )
+            )
         )
 
 
-        # 自然衰减
-
-        self.state *= 0.995
+        self.error = self.prediction_error
 
 
-        self.history.append(
-            self.state.copy()
+
+        # activity
+
+        delta = np.mean(
+            np.abs(
+                self.state-old
+            )
         )
 
 
-        if len(self.history) > 100:
+        if delta > 0.001:
 
-            self.history.pop(0)
-
-
-        self.activity += 1
+            self.activity += 1
 
 
 
-    def emit(self):
+        # uncertainty
 
-        return self.state
+        self.uncertainty = (
+            0.99*self.uncertainty
+            +
+            0.01*self.prediction_error
+        )
 
 
+        # metabolism
+
+        self.metabolic_step()
+
+
+
+    # =========================
+    # interface for ComputeField
+    # =========================
 
     def snapshot(self):
 
         return {
 
-            "name":
-            self.name,
+            "name": self.name,
+
+            "std": round(
+                float(np.std(self.state)),
+                5
+            ),
+
+            "activity": self.activity,
 
 
-            "mean":
-            round(
-                float(
-                    np.mean(
-                        self.state
-                    )
-                ),
+            "error": round(
+                float(self.error),
                 5
             ),
 
 
-            "std":
-            round(
-                float(
-                    np.std(
-                        self.state
-                    )
-                ),
+            "prediction_error": round(
+                float(self.prediction_error),
                 5
             ),
 
 
-            "phase_mean":
-            round(
-                float(
-                    np.mean(
-                        self.phase
-                    )
-                ),
+            "uncertainty": round(
+                float(self.uncertainty),
                 5
             ),
 
 
-            "phase_std":
-            round(
-                float(
-                    np.std(
-                        self.phase
-                    )
-                ),
+            "fatigue": round(
+                float(self.fatigue),
                 5
             ),
 
 
-            "activity":
-            self.activity
-
+            "energy": round(
+                float(self.energy),
+                5
+            )
         }
