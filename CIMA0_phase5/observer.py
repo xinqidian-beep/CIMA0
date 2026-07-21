@@ -62,10 +62,7 @@ class Observer:
 
             "active_count":
                 len(
-                    getattr(
-                        scheduler,
-                        "active_ids",
-                        []
-                    )
+                    scheduler.active_ids
+                   
                 )
         }
