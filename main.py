@@ -1,144 +1,91 @@
 import numpy as np
 
 from organs.oscillator_organ import OscillatorOrgan
+from scheduler.compute_scheduler import ComputeField
 
-# ==========================
-# 参数
-# ==========================
+
+np.random.seed(42)
+
 
 NUM_ORGANS = 64
-
 DIM = 16
-
-TOTAL_STEPS = 500_000
-field = np.random.normal(0,1,512)
-SNAPSHOT_INTERVAL = 20_000
+TOTAL_STEPS = 500000
+SNAPSHOT_INTERVAL = 20000
 
 
-# ==========================
-# 创建系统
-# ==========================
 
-organs = []
+organs=[OscillatorOrgan(f"organ_{i}",DIM)
+    for i in range(16)]
+
 
 for i in range(NUM_ORGANS):
 
     organs.append(
         OscillatorOrgan(
-            name=f"organ_{i}",
-            dim=DIM
+            f"organ_{i}",
+            DIM
         )
     )
 
 
 
-# ==========================
-# 初始状态
-# ==========================
-
-print("INITIAL")
-
-print(
-    [
-        o.snapshot()
-        for o in organs[:8]
-    ]
+field = ComputeField(
+    organs,
+    capacity=8
 )
 
 
 
-# ==========================
-# 演化
-# ==========================
+print("INITIAL")
+
+
+for o in organs[:8]:
+    print(o.snapshot())
+
+
+
+history={}
+
+
 
 for step in range(TOTAL_STEPS):
 
 
-    # 当前场
-
-    field = np.concatenate(
-        [
-            o.emit()
-            for o in organs
-        ]
-    )
-
-
-    # 每个organ接受场
-
-    for o in organs:
-
-        o.receive(field)
+    active=field.step()
 
 
 
-    # 内部演化
+    for idx in active:
 
-    for o in organs:
-
-        o.step()
+        organs[idx].step()
 
 
 
-    # 观察窗口
-
-    if step % SNAPSHOT_INTERVAL == 0:
+        history[idx]=history.get(idx,0)+1
 
 
-        means = np.array(
-            [
-                np.mean(o.state)
-                for o in organs
-            ]
-        )
 
-
-        phases = np.array(
-            [
-                o.phase
-                for o in organs
-            ]
-        )
+    if step % SNAPSHOT_INTERVAL==0:
 
 
         print(
             {
-                "step": step,
+            "step":step,
+            "active":active,
 
-                "organs":
-                    NUM_ORGANS,
+            "top_activity":
+            sorted(
+                history.items(),
+                key=lambda x:x[1],
+                reverse=True
+            )[:10]
 
-                "mean":
-                    round(float(np.mean(means)),5),
-
-                "organ_std":
-                    round(float(np.std(means)),5),
-
-                "phase_std":
-                    round(float(np.std(phases)),5),
-
-                "state_std":
-                    round(
-                        float(
-                            np.mean(
-                                [
-                                    np.std(o.state)
-                                    for o in organs
-                                ]
-                            )
-                        ),
-                       5
-                    )
             }
         )
 
 
-
-# ==========================
-# 最终
-# ==========================
-
 print("FINAL")
+
 
 for o in organs[:16]:
 
