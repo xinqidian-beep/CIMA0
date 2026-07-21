@@ -37,6 +37,7 @@ class Scheduler:
 
 
         self.update_count[ids]+=1
+        self.active_ids = ids
 
 
         return ids
