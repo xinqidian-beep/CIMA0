@@ -1,7 +1,4 @@
-import numpy as np
-
 from core.oscillator import Oscillator
-
 
 
 class Cell:
@@ -18,7 +15,15 @@ class Cell:
             v
         )
 
+
+        # slow variables
+
         self.g = 0.0
+
+        self.fatigue = 0.0
+
+
+        # external perturbation
 
         self.field = 0.0
 
@@ -54,33 +59,34 @@ class Cell:
 
 
 
-    def apply_field(
-        self,
-        value
-    ):
-
-        self.field += value
-
-
-
-    def apply_velocity_field(
-        self,
-        value
-    ):
-
-        self.oscillator.v += value
-
-
-
     def step(self):
 
-        self.oscillator.step(
+
+        #
+        # fatigue changes sensitivity
+        #
+        effective_field = (
             self.field
+            /
+            (1.0 + self.fatigue)
         )
 
 
+        self.oscillator.step(
+            effective_field
+        )
+
+
+        #
+        # consume perturbation
+        #
+
         self.field = 0.0
 
+
+        #
+        # slow evolution
+        #
 
         self.update_slow()
 
@@ -88,55 +94,79 @@ class Cell:
 
     def update_slow(self):
 
+
         activity = abs(self.x)
 
 
-        self.g += 0.00001 * (
-            activity - self.g
+
+        #
+        # local history trace
+        #
+
+        self.g += (
+
+            0.00001 *
+
+            (
+                activity
+                -
+                self.g
+            )
+
         )
 
 
 
-    def state_vector(self):
+        #
+        # activity creates fatigue
+        #
 
-        return np.array(
-            [
-                self.x,
-                self.v,
-                self.g,
-                self.energy
-            ],
-            dtype=float
+        self.fatigue += (
+
+            0.00005 *
+            activity
+
         )
+
+
+
+        #
+        # natural recovery
+        #
+
+        self.fatigue -= (
+
+            0.00001 *
+            self.fatigue
+
+        )
+
+
+
+        if self.fatigue < 0:
+
+            self.fatigue = 0.0
 
 
 
     def snapshot(self):
 
+
         return {
 
             "x":
-                round(
-                    float(self.x),
-                    6
-                ),
+                round(self.x,6),
 
             "v":
-                round(
-                    float(self.v),
-                    6
-                ),
+                round(self.v,6),
 
             "g":
-                round(
-                    float(self.g),
-                    6
-                ),
+                round(self.g,6),
 
             "energy":
-                round(
-                    float(self.energy),
-                    6
-                )
+                round(self.energy,6),
+
+            "fatigue":
+                round(self.fatigue,6)
 
         }
