@@ -1,33 +1,22 @@
 import numpy as np
-import heapq
-
 
 from core.cell import Cell
 from core.coupling import LocalCoupling
-from core.topology import AdaptiveTopology
-
 
 
 class CellNetwork:
 
 
-
     def __init__(
         self,
         n=128,
-        degree=4,
-        coupling_strength=0.01,
-        active_ratio=0.25,
-        seed=42
+        degree=4
     ):
 
-
-        np.random.seed(seed)
+        np.random.seed(42)
 
 
         self.n=n
-
-        self.active_ratio=active_ratio
 
 
         self.cells=[]
@@ -36,50 +25,38 @@ class CellNetwork:
 
 
         self.coupling=LocalCoupling(
-            strength=coupling_strength
+            strength=0.01
         )
 
 
-        for _ in range(n):
+        for i in range(n):
 
             self.cells.append(
 
                 Cell(
+
                     x=np.random.uniform(-1,1),
-                    v=np.random.uniform(-0.5,0.5)
+
+                    v=np.random.uniform(
+                        -0.5,
+                        0.5
+                    )
+
                 )
 
             )
 
 
-
-        self._create_graph(
+        self.create_graph(
             degree
         )
 
 
-        self.topology=AdaptiveTopology(
 
-            n=self.n,
-
-            initial_edges=self.edges
-
-        )
-
-
-
-        self.active_queue=[]
-
-
-
-    def _create_graph(
-        self,
-        degree
-    ):
+    def create_graph(self,degree):
 
 
         for i in range(self.n):
-
 
             neighbors=np.random.choice(
 
@@ -92,12 +69,10 @@ class CellNetwork:
                 size=degree,
 
                 replace=False
-
             )
 
 
             for j in neighbors:
-
 
                 if i<j:
 
@@ -107,206 +82,41 @@ class CellNetwork:
 
 
 
-    #
-    # observer only
-    #
-
-    def active_cells(self):
+    def step(self):
 
 
-        queue=[]
+        self.coupling.clear()
 
-
-        for i,c in enumerate(self.cells):
-
-
-            activity=(
-
-                abs(c.x)
-                +
-                0.1*abs(c.v)
-
-            )
-
-
-            heapq.heappush(
-
-                queue,
-
-                (
-                    -activity,
-                    i
-                )
-
-            )
-
-
-
-        result=[]
-
-
-        count=max(
-
-            1,
-
-            int(
-                self.n*self.active_ratio
-            )
-
-        )
-
-
-        for _ in range(count):
-
-
-            if queue:
-
-                _,idx=heapq.heappop(queue)
-
-                result.append(idx)
-
-
-
-        return result
-
-
-
-    def step(
-        self,
-        step_count
-    ):
-
-
-
-        active=self.active_cells()
-
-
-
-        #
-        # small natural exploration
-        #
-
-        random_count=max(
-
-            1,
-
-            self.n//20
-
-        )
-
-
-        random_cells=np.random.choice(
-
-            self.n,
-
-            random_count,
-
-            replace=False
-
-        )
-
-
-        update_set=set(active)
-
-        update_set.update(
-            random_cells
-        )
-
-
-
-        #
-        # local coupling
-        #
 
         for a,b in self.edges:
 
 
-            if (
+            self.coupling.connect(
 
-                a in update_set
-                or
-                b in update_set
+                self.cells[a],
 
-            ):
+                self.cells[b]
 
-
-                w=self.topology.get_weight(
-                    a,b
-                )
-
-
-                self.coupling.connect(
-
-                    self.cells[a],
-
-                    self.cells[b],
-
-                    strength=w
-
-                )
-
+            )
 
 
         self.coupling.apply()
 
 
 
-        #
-        # evolve selected cells
-        #
+        for c in self.cells:
 
-        for idx in update_set:
-
-
-            self.cells[idx].step()
-
-
-
-        #
-        # very slow topology observation
-        #
-
-        if step_count % 5000 == 0:
-
-
-            self.topology.update(
-
-                [
-                    c.x
-                    for c in self.cells
-                ]
-
-            )
+            c.step()
 
 
 
     def snapshot(self):
 
 
-        xs=np.array(
+        activity=np.array(
 
             [
-                c.x
-                for c in self.cells
-            ]
-
-        )
-
-
-        gs=np.array(
-
-            [
-                c.g
-                for c in self.cells
-            ]
-
-        )
-
-
-        fs=np.array(
-
-            [
-                c.fatigue
+                c.activity()
                 for c in self.cells
             ]
 
@@ -323,51 +133,50 @@ class CellNetwork:
         )
 
 
-        top_id=int(
-            np.argmax(
-                np.abs(xs)
-            )
+        fatigue=np.array(
+
+            [
+                c.fatigue
+                for c in self.cells
+            ]
+
+        )
+
+
+        top=int(
+            np.argmax(activity)
         )
 
 
         return {
 
 
-            "cells":
-                self.n,
+            "cells":self.n,
+
+            "edges":len(self.edges),
 
 
-            "edges":
-                len(self.edges),
+            "activity_mean":
+            float(activity.mean()),
 
 
-            "x_std":
-                float(xs.std()),
-
-
-            "g_mean":
-                float(gs.mean()),
+            "activity_std":
+            float(activity.std()),
 
 
             "energy_mean":
-                float(energy.mean()),
+            float(energy.mean()),
 
 
             "fatigue_mean":
-                float(fs.mean()),
-
-
-            "fatigue_std":
-                float(fs.std()),
+            float(fatigue.mean()),
 
 
             "top_cell":
-                top_id,
+            top,
 
 
             "top_activity":
-                float(
-                    abs(xs[top_id])
-                )
+            float(activity[top])
 
         }
