@@ -1,72 +1,10 @@
 import numpy as np
+import heapq
+
 
 from core.cell import Cell
-
-
-class Edge:
-
-
-    def __init__(
-        self,
-        a,
-        b,
-        weight=0.5
-    ):
-
-        self.a=a
-        self.b=b
-
-        self.weight=weight
-
-        self.activity=0.0
-
-        self.age=0
-
-
-
-    def update(
-        self,
-        signal
-    ):
-
-        self.activity += (
-            0.001 *
-            (
-                abs(signal)
-                -
-                self.activity
-            )
-        )
-
-
-        self.weight += (
-            0.00001 *
-            (
-                self.activity
-                -
-                0.05
-            )
-        )
-
-
-        self.weight *= 0.999999
-
-
-        if self.weight < 0:
-            self.weight=0
-
-
-
-        self.age += 1
-
-
-
-    def alive(self):
-
-        return self.weight > 0.05
-
-
-
+from core.coupling import LocalCoupling
+from core.topology import AdaptiveTopology
 
 
 
@@ -79,19 +17,30 @@ class CellNetwork:
         n=128,
         degree=4,
         coupling_strength=0.01,
+        active_ratio=0.25,
         seed=42
     ):
+
 
         np.random.seed(seed)
 
 
         self.n=n
 
+        self.active_ratio=active_ratio
+
 
         self.cells=[]
 
+        self.edges=[]
 
-        for i in range(n):
+
+        self.coupling=LocalCoupling(
+            strength=coupling_strength
+        )
+
+
+        for _ in range(n):
 
             self.cells.append(
 
@@ -104,16 +53,22 @@ class CellNetwork:
 
 
 
-        self.edges=[]
-
-
         self._create_graph(
             degree
         )
 
 
+        self.topology=AdaptiveTopology(
 
-        self.coupling_strength=coupling_strength
+            n=self.n,
+
+            initial_edges=self.edges
+
+        )
+
+
+
+        self.active_queue=[]
 
 
 
@@ -124,6 +79,7 @@ class CellNetwork:
 
 
         for i in range(self.n):
+
 
             neighbors=np.random.choice(
 
@@ -146,17 +102,72 @@ class CellNetwork:
                 if i<j:
 
                     self.edges.append(
-
-                        Edge(
-                            i,
-                            j,
-                            np.random.uniform(
-                                0.3,
-                                0.7
-                            )
-                        )
-
+                        (i,j)
                     )
+
+
+
+    #
+    # observer only
+    #
+
+    def active_cells(self):
+
+
+        queue=[]
+
+
+        for i,c in enumerate(self.cells):
+
+
+            activity=(
+
+                abs(c.x)
+                +
+                0.1*abs(c.v)
+
+            )
+
+
+            heapq.heappush(
+
+                queue,
+
+                (
+                    -activity,
+                    i
+                )
+
+            )
+
+
+
+        result=[]
+
+
+        count=max(
+
+            1,
+
+            int(
+                self.n*self.active_ratio
+            )
+
+        )
+
+
+        for _ in range(count):
+
+
+            if queue:
+
+                _,idx=heapq.heappop(queue)
+
+                result.append(idx)
+
+
+
+        return result
 
 
 
@@ -167,83 +178,105 @@ class CellNetwork:
 
 
 
-        fields=np.zeros(
-            self.n
+        active=self.active_cells()
+
+
+
+        #
+        # small natural exploration
+        #
+
+        random_count=max(
+
+            1,
+
+            self.n//20
+
+        )
+
+
+        random_cells=np.random.choice(
+
+            self.n,
+
+            random_count,
+
+            replace=False
+
+        )
+
+
+        update_set=set(active)
+
+        update_set.update(
+            random_cells
         )
 
 
 
-        # ----------------
-        # edge interaction
-        # ----------------
+        #
+        # local coupling
+        #
 
-        for e in self.edges:
-
-
-            a=self.cells[e.a]
-
-            b=self.cells[e.b]
+        for a,b in self.edges:
 
 
+            if (
 
-            diff=b.x-a.x
+                a in update_set
+                or
+                b in update_set
 
-
-
-            force=(
-                diff*
-                e.weight*
-                self.coupling_strength
-            )
+            ):
 
 
-
-            fields[e.a]+=force
-
-            fields[e.b]-=force
-
+                w=self.topology.get_weight(
+                    a,b
+                )
 
 
-            e.update(
-                force
-            )
+                self.coupling.connect(
+
+                    self.cells[a],
+
+                    self.cells[b],
+
+                    strength=w
+
+                )
 
 
 
-
-        # apply field
-
-
-        for i,c in enumerate(self.cells):
-
-            c.add_field(
-                fields[i]
-            )
+        self.coupling.apply()
 
 
 
-        # cell evolution
+        #
+        # evolve selected cells
+        #
+
+        for idx in update_set:
 
 
-        for c in self.cells:
-
-            c.step()
+            self.cells[idx].step()
 
 
 
-        # slow topology evolution
+        #
+        # very slow topology observation
+        #
 
         if step_count % 5000 == 0:
 
 
-            self.edges=[
+            self.topology.update(
 
-                e
-                for e in self.edges
-                if e.alive()
+                [
+                    c.x
+                    for c in self.cells
+                ]
 
-            ]
-
+            )
 
 
 
@@ -251,43 +284,50 @@ class CellNetwork:
 
 
         xs=np.array(
+
             [
                 c.x
                 for c in self.cells
             ]
+
         )
 
 
         gs=np.array(
+
             [
                 c.g
                 for c in self.cells
             ]
+
         )
 
 
-        weights=np.array(
+        fs=np.array(
 
             [
-                e.weight
-                for e in self.edges
+                c.fatigue
+                for c in self.cells
             ]
 
         )
 
 
+        energy=np.array(
 
-        degree=np.zeros(
-            self.n
+            [
+                c.energy
+                for c in self.cells
+            ]
+
         )
 
 
-        for e in self.edges:
-
-            degree[e.a]+=1
-
-            degree[e.b]+=1
-
+        top_id=int(
+            np.argmax(
+                np.abs(xs)
+            )
+        )
 
 
         return {
@@ -309,44 +349,25 @@ class CellNetwork:
                 float(gs.mean()),
 
 
-            "g_std":
-                float(gs.std()),
-
-
-
             "energy_mean":
+                float(energy.mean()),
+
+
+            "fatigue_mean":
+                float(fs.mean()),
+
+
+            "fatigue_std":
+                float(fs.std()),
+
+
+            "top_cell":
+                top_id,
+
+
+            "top_activity":
                 float(
-                    np.mean(
-                        [
-                            c.energy
-                            for c in self.cells
-                        ]
-                    )
-                ),
-
-
-
-            "weight_mean":
-                float(
-                    weights.mean()
-                )
-                if len(weights)
-                else 0,
-
-
-
-            "active":
-                int(
-                    np.sum(
-                        abs(xs)>0.1
-                    )
-                ),
-
-
-
-            "degree_mean":
-                float(
-                    degree.mean()
+                    abs(xs[top_id])
                 )
 
         }

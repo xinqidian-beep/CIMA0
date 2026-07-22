@@ -3,47 +3,52 @@ import numpy as np
 
 class AdaptiveTopology:
 
+
     def __init__(
         self,
         n,
-        initial_edges,
-        max_edges=None,
-        seed=42
+        initial_edges
     ):
-
-        np.random.seed(seed)
 
         self.n = n
 
-        self.edges = set(
-            tuple(sorted(e))
-            for e in initial_edges
-        )
 
-        self.max_edges = (
-            max_edges
-            if max_edges
-            else n * 6
-        )
+        # connection weights
 
         self.weights = {}
 
-        for e in self.edges:
-            self.weights[e] = 1.0
+
+        for a,b in initial_edges:
+
+            key = (
+                min(a,b),
+                max(a,b)
+            )
+
+            self.weights[key] = 0.5
 
 
 
-    def weight(
+        self.update_count = 0
+
+
+
+    def get_weight(
         self,
         a,
         b
     ):
 
-        key = tuple(sorted((a,b)))
+
+        key = (
+            min(a,b),
+            max(a,b)
+        )
+
 
         return self.weights.get(
             key,
-            0.0
+            0.5
         )
 
 
@@ -54,121 +59,139 @@ class AdaptiveTopology:
     ):
 
         """
-        Local topology evolution.
+        slow local topology drift
 
-        states:
-        [
-            [x,v,g,energy],
-            ...
-        ]
+        no goal
+        no optimization
+        no pruning
 
-        no target
-        no reward
         """
 
-        remove = []
-
-        # ---- edge weakening ----
-
-        for e,w in list(self.weights.items()):
-
-            a,b=e
-
-            sa=states[a]
-            sb=states[b]
-
-
-            distance=np.linalg.norm(
-                sa-sb
-            )
-
-
-            if distance > 3.0:
-
-                self.weights[e] *= 0.995
-
-
-            else:
-
-                self.weights[e] *= 1.001
+        self.update_count += 1
 
 
 
-            if self.weights[e] < 0.2:
-
-                remove.append(e)
-
-
-
-        for e in remove:
-
-            self.edges.remove(e)
-
-            del self.weights[e]
+        xs=np.asarray(
+            states,
+            dtype=float
+        )
 
 
-
-        # ---- local reconnection ----
-
-        while len(self.edges)<self.max_edges:
-
-            a=np.random.randint(
-                0,self.n
-            )
-
-            b=np.random.randint(
-                0,self.n
-            )
+        for key,w in list(
+            self.weights.items()
+        ):
 
 
-            if a==b:
+            a,b=key
+
+
+            if (
+                a>=len(xs)
+                or
+                b>=len(xs)
+            ):
                 continue
 
 
-            e=tuple(sorted((a,b)))
+
+            #
+            # local correlation
+            #
+
+            interaction = (
+
+                abs(
+                    xs[a]*xs[b]
+                )
+
+            )
 
 
-            if e not in self.edges:
 
-                self.edges.add(e)
+            #
+            # slow drift
+            #
 
-                self.weights[e]=0.5
+            dw = (
 
-                break
+                0.00001 *
+
+                (
+                    interaction
+                    -
+                    w
+                )
+
+            )
 
 
 
-    def edge_list(self):
+            self.weights[key] += dw
 
-        return list(self.edges)
+
+
+            #
+            # physical lower/upper boundary
+            #
+
+            if self.weights[key] < 0:
+
+                self.weights[key]=0.0
+
+
+            if self.weights[key] > 2:
+
+                self.weights[key]=2.0
+
 
 
 
     def stats(self):
 
-        degree=np.zeros(
-            self.n
+
+        if len(self.weights)==0:
+
+
+            return {
+
+                "weight_mean":0.0,
+
+                "weight_std":0.0
+
+            }
+
+
+
+        values=np.array(
+
+            list(
+                self.weights.values()
+            )
+
         )
-
-        for a,b in self.edges:
-
-            degree[a]+=1
-            degree[b]+=1
 
 
         return {
 
-            "edges":
-                len(self.edges),
 
-            "degree_mean":
+            "weight_mean":
+
                 float(
-                    degree.mean()
+                    values.mean()
                 ),
 
-            "degree_std":
+
+            "weight_std":
+
                 float(
-                    degree.std()
+                    values.std()
+                ),
+
+
+            "connections":
+
+                len(
+                    values
                 )
 
         }
