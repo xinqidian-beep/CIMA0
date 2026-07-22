@@ -8,7 +8,13 @@ class LocalCoupling:
 
         self.strength=strength
 
-        self.pending=[]
+        self.links=[]
+
+
+
+    def clear(self):
+
+        self.links=[]
 
 
 
@@ -23,7 +29,7 @@ class LocalCoupling:
             strength=self.strength
 
 
-        self.pending.append(
+        self.links.append(
             (
                 a,
                 b,
@@ -35,23 +41,16 @@ class LocalCoupling:
 
     def apply(self):
 
-        for a,b,s in self.pending:
+        for a,b,w in self.links:
 
 
-            da = (
-                b.x-a.x
-            )*s
+            dx=(b.x-a.x)*w
 
 
-            db = (
-                a.x-b.x
-            )*s
+            a.add_field(
+                dx
+            )
 
-
-            a.add_field(da)
-
-            b.add_field(db)
-
-
-
-        self.pending.clear()
+            b.add_field(
+                -dx
+            )
