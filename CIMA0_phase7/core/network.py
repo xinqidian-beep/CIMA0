@@ -6,6 +6,11 @@ from core.topology import AdaptiveTopology
 
 
 
+# 每个节点允许的总连接强度
+EDGE_BUDGET = 6.0
+
+
+
 class Edge:
 
 
@@ -34,14 +39,14 @@ class Edge:
         cb = cells[self.b]
 
 
-        # 局部相关性
+        # 局部相关
         correlation = (
             ca.x *
             cb.x
         )
 
 
-        # Hebbian-like
+        # 局部增强
         self.weight += (
             0.00001 *
             correlation
@@ -52,20 +57,15 @@ class Edge:
         self.weight *= 0.999995
 
 
+        if self.weight < 0:
+            self.weight = 0
+
+
         self.age += 1
 
 
 
-        # 防止异常
-        if self.weight < 0:
-
-            self.weight = 0
-
-
-
-    def alive(
-        self
-    ):
+    def alive(self):
 
         return self.weight > 0.01
 
@@ -98,20 +98,24 @@ class CellNetwork:
         self.edges = []
 
 
+
         self.coupling = LocalCoupling(
+
             strength=coupling_strength
+
         )
 
 
 
         #
-        # 创建 cell
+        # 创建局部主体
         #
         for _ in range(n):
 
             self.cells.append(
 
                 Cell(
+
                     x=np.random.uniform(
                         -1,
                         1
@@ -121,32 +125,42 @@ class CellNetwork:
                         -0.5,
                         0.5
                     )
+
                 )
 
             )
 
 
 
+        #
+        # 初始稀疏关系
+        #
         self._create_graph(
             degree
         )
 
 
 
+        #
+        # 拓扑观察层
+        #
         self.topology = AdaptiveTopology(
 
             n=self.n,
 
             initial_edges=[
+
                 (
                     e.a,
                     e.b
                 )
 
                 for e in self.edges
+
             ]
 
         )
+
 
 
 
@@ -164,8 +178,11 @@ class CellNetwork:
 
                 [
                     j
+
                     for j in range(self.n)
-                    if j!=i
+
+                    if j != i
+
                 ],
 
                 size=degree,
@@ -173,6 +190,7 @@ class CellNetwork:
                 replace=False
 
             )
+
 
 
             for j in neighbors:
@@ -184,12 +202,109 @@ class CellNetwork:
                     self.edges.append(
 
                         Edge(
+
                             i,
                             j,
+
                             weight=0.5
+
                         )
 
                     )
+
+
+
+
+
+
+    def _limit_connection_budget(self):
+
+
+        totals=[
+
+            0.0
+
+            for _ in range(self.n)
+
+        ]
+
+
+
+        for e in self.edges:
+
+            totals[e.a]+=e.weight
+
+            totals[e.b]+=e.weight
+
+
+
+        #
+        # 局部资源竞争
+        #
+        for i in range(self.n):
+
+
+            excess = (
+                totals[i]
+                -
+                EDGE_BUDGET
+            )
+
+
+            if excess <= 0:
+
+                continue
+
+
+
+            related=[
+
+                e
+
+                for e in self.edges
+
+                if e.a == i
+                or e.b == i
+
+            ]
+
+
+
+            #
+            # 弱边优先减少
+            #
+            related.sort(
+
+                key=lambda x:x.weight
+
+            )
+
+
+
+            for e in related:
+
+
+                if excess <= 0:
+
+                    break
+
+
+
+                reduce=min(
+
+                    e.weight,
+
+                    excess
+
+                )
+
+
+                e.weight-=reduce
+
+
+                excess-=reduce
+
+
 
 
 
@@ -202,7 +317,8 @@ class CellNetwork:
 
 
         #
-        # 1. 更新边关系
+        # 1.
+        # 关系自身演化
         #
         for e in self.edges:
 
@@ -213,12 +329,23 @@ class CellNetwork:
 
 
         #
-        # 2. 删除弱关系
+        # 2.
+        # 资源限制
+        #
+        if step_count % 100 == 0:
+
+            self._limit_connection_budget()
+
+
+
+        #
+        # 3.
+        # 删除死亡关系
         #
         if step_count % 100 == 0:
 
 
-            self.edges = [
+            self.edges=[
 
                 e
 
@@ -231,7 +358,8 @@ class CellNetwork:
 
 
         #
-        # 3. 根据当前关系施加扰动
+        # 4.
+        # 局部耦合
         #
         for e in self.edges:
 
@@ -249,16 +377,18 @@ class CellNetwork:
 
 
         #
-        # 4. cell自身演化
+        # 5.
+        # cell自身动力学
         #
-        for cell in self.cells:
+        for c in self.cells:
 
-            cell.step()
+            c.step()
 
 
 
         #
-        # 5. 慢拓扑观察
+        # 6.
+        # 慢观察
         #
         if step_count % 1000 == 0:
 
@@ -266,8 +396,11 @@ class CellNetwork:
             self.topology.update(
 
                 [
+
                     c.x
+
                     for c in self.cells
+
                 ]
 
             )
@@ -276,16 +409,19 @@ class CellNetwork:
 
 
 
-    def snapshot(
-        self
-    ):
+
+
+    def snapshot(self):
 
 
         xs=np.array(
 
             [
+
                 c.x
+
                 for c in self.cells
+
             ]
 
         )
@@ -294,8 +430,24 @@ class CellNetwork:
         gs=np.array(
 
             [
+
                 c.g
+
                 for c in self.cells
+
+            ]
+
+        )
+
+
+        energies=np.array(
+
+            [
+
+                c.energy
+
+                for c in self.cells
+
             ]
 
         )
@@ -304,11 +456,28 @@ class CellNetwork:
         weights=np.array(
 
             [
+
                 e.weight
+
                 for e in self.edges
+
             ]
 
         )
+
+
+        degree=np.zeros(
+
+            self.n
+
+        )
+
+
+        for e in self.edges:
+
+            degree[e.a]+=1
+
+            degree[e.b]+=1
 
 
 
@@ -316,48 +485,44 @@ class CellNetwork:
 
 
             "cells":
+
                 self.n,
 
 
             "edges":
+
                 len(self.edges),
 
 
 
             "x_std":
-                float(
-                    xs.std()
-                ),
+
+                float(xs.std()),
 
 
 
             "g_mean":
-                float(
-                    gs.mean()
-                ),
+
+                float(gs.mean()),
 
 
 
             "g_std":
-                float(
-                    gs.std()
-                ),
+
+                float(gs.std()),
 
 
 
             "energy_mean":
+
                 float(
-                    np.mean(
-                        [
-                            c.energy
-                            for c in self.cells
-                        ]
-                    )
+                    energies.mean()
                 ),
 
 
 
             "weight_mean":
+
                 float(
                     weights.mean()
                 )
@@ -367,6 +532,7 @@ class CellNetwork:
 
 
             "weight_std":
+
                 float(
                     weights.std()
                 )
@@ -388,10 +554,15 @@ class CellNetwork:
             "degree_mean":
 
                 float(
-                    2*
-                    len(self.edges)
-                    /
-                    self.n
+                    degree.mean()
+                ),
+
+
+
+            "degree_std":
+
+                float(
+                    degree.std()
                 )
 
         }
