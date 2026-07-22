@@ -1,13 +1,15 @@
+import numpy as np
+
 from core.oscillator import Oscillator
 
 
 class Cell:
 
-
     def __init__(
         self,
         x,
-        v
+        v,
+        energy=1.0
     ):
 
         self.oscillator = Oscillator(
@@ -15,78 +17,115 @@ class Cell:
             v
         )
 
-
-        # slow variables
-
+        # slow memory trace
         self.g = 0.0
 
+        # internal resources
+        self.energy = energy
+
+        # accumulated fatigue
         self.fatigue = 0.0
 
-
-        # external perturbation
-
+        # temporary field
         self.field = 0.0
 
 
 
     @property
     def x(self):
-
         return self.oscillator.x
-
 
 
     @property
     def v(self):
-
         return self.oscillator.v
 
 
 
-    @property
-    def energy(self):
-
-        return self.oscillator.energy
-
-
-
-    def add_field(
-        self,
-        value
-    ):
+    def add_field(self,value):
 
         self.field += value
 
 
 
+    def activity(self):
+
+        return abs(self.x)+abs(self.v)
+
+
+
     def step(self):
 
+        activity = self.activity()
 
-        #
-        # fatigue changes sensitivity
-        #
-        effective_field = (
-            self.field
-            /
-            (1.0 + self.fatigue)
+
+        # ------------------
+        # energy metabolism
+        # ------------------
+
+        consume = (
+            0.00005 *
+            activity
+        )
+
+
+        recover = (
+            0.00001 *
+            (1.0-self.energy)
+        )
+
+
+        self.energy += recover
+        self.energy -= consume
+
+
+        # boundary only physical limit
+        self.energy = np.clip(
+            self.energy,
+            0.05,
+            2.0
+        )
+
+
+        # ------------------
+        # fatigue
+        # ------------------
+
+        self.fatigue += (
+            0.0001 *
+            activity
+        )
+
+
+        self.fatigue -= (
+            0.00005 *
+            self.fatigue
+        )
+
+
+        self.fatigue=max(
+            0.0,
+            self.fatigue
+        )
+
+
+        # ------------------
+        # effective drive
+        # ------------------
+
+        drive = (
+            self.energy /
+            (1.0+self.fatigue)
         )
 
 
         self.oscillator.step(
-            effective_field
+            self.field * drive
         )
 
 
-        #
-        # consume perturbation
-        #
+        self.field=0.0
 
-        self.field = 0.0
-
-
-        #
-        # slow evolution
-        #
 
         self.update_slow()
 
@@ -94,79 +133,35 @@ class Cell:
 
     def update_slow(self):
 
+        activity=self.activity()
 
-        activity = abs(self.x)
-
-
-
-        #
-        # local history trace
-        #
 
         self.g += (
-
-            0.00001 *
-
+            0.00001*
             (
-                activity
-                -
+                activity-
                 self.g
             )
-
         )
-
-
-
-        #
-        # activity creates fatigue
-        #
-
-        self.fatigue += (
-
-            0.00005 *
-            activity
-
-        )
-
-
-
-        #
-        # natural recovery
-        #
-
-        self.fatigue -= (
-
-            0.00001 *
-            self.fatigue
-
-        )
-
-
-
-        if self.fatigue < 0:
-
-            self.fatigue = 0.0
 
 
 
     def snapshot(self):
 
-
         return {
 
             "x":
-                round(self.x,6),
+            round(float(self.x),5),
 
             "v":
-                round(self.v,6),
+            round(float(self.v),5),
 
             "g":
-                round(self.g,6),
+            round(float(self.g),5),
 
             "energy":
-                round(self.energy,6),
+            round(float(self.energy),5),
 
             "fatigue":
-                round(self.fatigue,6)
-
+            round(float(self.fatigue),5)
         }
