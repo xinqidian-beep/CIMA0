@@ -1,8 +1,10 @@
 import numpy as np
 
+
 from core.cell import Cell
 from core.coupling import LocalCoupling
 from core.topology import AdaptiveTopology
+from core.scheduler import DualTimeScheduler
 
 
 
@@ -11,67 +13,146 @@ class CellNetwork:
 
     def __init__(
         self,
-        n=32,
-        degree=4
+        n=128,
+        degree=4,
+        coupling_strength=0.01,
+        seed=42
     ):
 
-        self.n=n
-
-        self.cells=[]
-
-        self.edges=[]
+        np.random.seed(seed)
 
 
-        for i in range(n):
+        self.n = n
+
+
+        self.cells = []
+
+        self.edges = []
+
+
+
+        # -----------------
+        # create cells
+        # -----------------
+
+        for _ in range(n):
 
             self.cells.append(
+
                 Cell(
-                    np.random.uniform(-1,1),
-                    np.random.uniform(-0.5,0.5)
+
+                    x=np.random.uniform(
+                        -1,
+                        1
+                    ),
+
+                    v=np.random.uniform(
+                        -0.5,
+                        0.5
+                    )
+
                 )
+
             )
 
+
+
+        # -----------------
+        # initial topology
+        # -----------------
 
         self._create_graph(
             degree
         )
 
 
-        self.topology=AdaptiveTopology(
-            n,
-            self.edges
+
+        self.coupling = LocalCoupling(
+
+            strength=coupling_strength
+
         )
 
 
-        self.coupling=LocalCoupling()
+
+        self.topology = AdaptiveTopology(
+
+            n=self.n,
+
+            initial_edges=self.edges
+
+        )
 
 
+
+        # -----------------
+        # dual time scheduler
+        # -----------------
+
+        self.scheduler = DualTimeScheduler(
+
+            self.cells
+
+        )
+
+
+
+        self.scheduler.update()
+
+
+
+    # ==================================================
+    # random initial graph
+    # ==================================================
 
     def _create_graph(
         self,
         degree
     ):
 
+
         for i in range(self.n):
 
-            ns=np.random.choice(
+
+            neighbors = np.random.choice(
+
                 [
-                    j for j in range(self.n)
-                    if j!=i
+
+                    j
+
+                    for j in range(self.n)
+
+                    if j != i
+
                 ],
-                degree,
+
+                size=degree,
+
                 replace=False
+
             )
 
 
-            for j in ns:
 
-                if i<j:
+            for j in neighbors:
+
+
+                if i < j:
+
                     self.edges.append(
-                        (i,j)
+
+                        (
+                            i,
+                            j
+                        )
+
                     )
 
 
+
+    # ==================================================
+    # one evolution step
+    # ==================================================
 
     def step(
         self,
@@ -79,27 +160,79 @@ class CellNetwork:
     ):
 
 
-        # local dynamics
+        # -----------------
+        # refresh time structure
+        # -----------------
 
-        for c in self.cells:
-            c.step()
+        if step_count % 100 == 0:
+
+            self.scheduler.update()
 
 
 
-        # relations
+        fast = set(
+
+            self.scheduler.fast_ids()
+
+        )
+
+
+        medium = set(
+
+            self.scheduler.medium_ids()
+
+        )
+
+
+        slow = set(
+
+            self.scheduler.slow_ids()
+
+        )
+
+
+
+        active = (
+
+            fast
+            |
+            medium
+            |
+            slow
+
+        )
+
+
+
+        # -----------------
+        # local coupling
+        # -----------------
+
+        self.coupling.clear()
+
+
 
         for a,b in self.edges:
 
-            w=self.topology.weight(
-                a,b
-            )
+
+            if (
+
+                a in active
+
+                or
+
+                b in active
+
+            ):
 
 
-            self.coupling.connect(
-                self.cells[a],
-                self.cells[b],
-                w
-            )
+                self.coupling.connect(
+
+                    self.cells[a],
+
+                    self.cells[b]
+
+                )
 
 
 
@@ -107,45 +240,168 @@ class CellNetwork:
 
 
 
-        if step_count%100==0:
+        # -----------------
+        # multi-timescale update
+        # -----------------
+
+
+        # fast cells
+
+        for i in fast:
+
+            self.cells[i].step()
+
+
+
+        # medium cells
+
+        if step_count % 10 == 0:
+
+
+            for i in medium:
+
+                self.cells[i].step()
+
+
+
+        # slow cells
+
+        if step_count % 1000 == 0:
+
+
+            for i in slow:
+
+                self.cells[i].step()
+
+
+
+        # -----------------
+        # slow topology evolution
+        # -----------------
+
+        if step_count % 1000 == 0:
+
 
             self.topology.update(
+
                 [
+
                     c.x
+
                     for c in self.cells
+
                 ]
+
             )
 
 
+
+    # ==================================================
+    # observation
+    # ==================================================
 
     def snapshot(self):
 
-        xs=np.array(
+
+        xs = np.array(
+
             [
-                c.x for c in self.cells
+
+                c.x
+
+                for c in self.cells
+
             ]
+
         )
 
-        gs=np.array(
+
+        gs = np.array(
+
             [
-                c.g for c in self.cells
+
+                c.g
+
+                for c in self.cells
+
             ]
+
         )
 
 
-        return {
 
-            "cells":self.n,
+        data = {
 
-            "edges":len(self.edges),
 
-            "x_std":float(xs.std()),
+            "cells":
 
-            "g_mean":float(gs.mean()),
+                self.n,
 
-            "g_std":float(gs.std()),
 
-            "active":int(
-                np.sum(abs(xs)>0.1)
-            )
+            "edges":
+
+                len(self.edges),
+
+
+
+            "x_std":
+
+                float(
+                    xs.std()
+                ),
+
+
+
+            "g_mean":
+
+                float(
+                    gs.mean()
+                ),
+
+
+
+            "g_std":
+
+                float(
+                    gs.std()
+                ),
+
+
+
+            "energy_mean":
+
+                float(
+
+                    np.mean(
+
+                        [
+
+                            c.energy
+
+                            for c in self.cells
+
+                        ]
+
+                    )
+
+                )
+
         }
+
+
+
+        data.update(
+
+            self.scheduler.stats()
+
+        )
+
+
+        data.update(
+
+            self.topology.stats()
+
+        )
+
+
+        return data
