@@ -4,16 +4,19 @@ from core.cell import Cell
 from core.coupling import LocalCoupling
 
 
-class CellNetwork:
+
+class NaturalObserverNetwork:
 
 
     def __init__(
         self,
         n=128,
-        degree=4
+        degree=4,
+        coupling_strength=0.01,
+        seed=42
     ):
 
-        np.random.seed(42)
+        np.random.seed(seed)
 
 
         self.n=n
@@ -21,27 +24,22 @@ class CellNetwork:
 
         self.cells=[]
 
+
         self.edges=[]
 
 
         self.coupling=LocalCoupling(
-            strength=0.01
+            strength=coupling_strength
         )
 
 
-        for i in range(n):
+        for _ in range(n):
 
             self.cells.append(
 
                 Cell(
-
                     x=np.random.uniform(-1,1),
-
-                    v=np.random.uniform(
-                        -0.5,
-                        0.5
-                    )
-
+                    v=np.random.uniform(-0.5,0.5)
                 )
 
             )
@@ -53,8 +51,14 @@ class CellNetwork:
 
 
 
-    def create_graph(self,degree):
+        self.top_history=[]
 
+
+
+    def create_graph(
+        self,
+        degree
+    ):
 
         for i in range(self.n):
 
@@ -69,6 +73,7 @@ class CellNetwork:
                 size=degree,
 
                 replace=False
+
             )
 
 
@@ -82,61 +87,108 @@ class CellNetwork:
 
 
 
-    def step(self):
+    def step(
+        self,
+        step_count
+    ):
 
 
-        self.coupling.clear()
-
+        #
+        # local interaction
+        #
 
         for a,b in self.edges:
 
 
-            self.coupling.connect(
-
-                self.cells[a],
-
-                self.cells[b]
-
+            dx=(
+                self.cells[b].x
+                -
+                self.cells[a].x
             )
 
 
-        self.coupling.apply()
+            force=(
+                self.coupling.strength
+                *
+                dx
+            )
+
+
+            self.cells[a].add_field(
+                force
+            )
+
+
+            self.cells[b].add_field(
+                -force
+            )
 
 
 
-        for c in self.cells:
+        #
+        # local evolution
+        #
 
-            c.step()
+        for cell in self.cells:
 
+            cell.step()
+
+
+
+        #
+        # observer only
+        #
+
+        if step_count % 1000 ==0:
+
+            self.observe()
+
+
+
+    def observe(self):
+
+
+        index=max(
+
+            range(self.n),
+
+            key=lambda i:
+                self.cells[i].activity_memory
+
+        )
+
+
+        value=self.cells[index].activity_memory
+
+
+        self.top_history.append(
+            index
+        )
 
 
     def snapshot(self):
 
 
-        activity=np.array(
-
+        xs=np.array(
             [
-                c.activity()
+                c.x
                 for c in self.cells
             ]
-
         )
 
 
-        energy=np.array(
-
+        gs=np.array(
             [
-                c.energy
+                c.g
                 for c in self.cells
             ]
-
         )
 
 
-        fatigue=np.array(
+        memories=np.array(
 
             [
-                c.fatigue
+                c.activity_memory
                 for c in self.cells
             ]
 
@@ -144,39 +196,33 @@ class CellNetwork:
 
 
         top=int(
-            np.argmax(activity)
+            np.argmax(
+                memories
+            )
         )
 
 
         return {
 
-
             "cells":self.n,
 
             "edges":len(self.edges),
 
+            "x_std":
+                float(xs.std()),
+
+            "g_mean":
+                float(gs.mean()),
 
             "activity_mean":
-            float(activity.mean()),
-
+                float(memories.mean()),
 
             "activity_std":
-            float(activity.std()),
-
-
-            "energy_mean":
-            float(energy.mean()),
-
-
-            "fatigue_mean":
-            float(fatigue.mean()),
-
+                float(memories.std()),
 
             "top_cell":
-            top,
-
+                top,
 
             "top_activity":
-            float(activity[top])
-
+                float(memories[top])
         }

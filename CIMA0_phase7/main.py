@@ -1,19 +1,21 @@
 import time
 
-from core.network import CellNetwork
+from core.network import NaturalObserverNetwork
 
 
 
 def main():
 
+
     print(
-        "=== CIMA0 Phase7.5 Endogenous Competition ==="
+        "=== CIMA0 Phase7.6 Natural Observer ==="
     )
 
 
-    net=CellNetwork(
+    net=NaturalObserverNetwork(
         n=128,
-        degree=4
+        degree=4,
+        coupling_strength=0.01
     )
 
 
@@ -25,8 +27,7 @@ def main():
 
     for i in range(steps):
 
-
-        net.step()
+        net.step(i)
 
 
         if i%100000==0:
@@ -39,7 +40,10 @@ def main():
 
     print(
         "runtime:",
-        round(time.time()-start,3)
+        round(
+            time.time()-start,
+            3
+        )
     )
 
 
