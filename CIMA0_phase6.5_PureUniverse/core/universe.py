@@ -170,10 +170,7 @@ class Universe:
 
             "cells":
                 self.n,
-
-            "edges":
-                len(self.edges),
-
+            
             "x_std":
                 float(xs.std()),
 
