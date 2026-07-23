@@ -2,45 +2,76 @@ import numpy as np
 
 
 class Cell:
+    """
+    Pure physical cell
+
+    Only:
+        x
+        v
+        omega
+
+    No:
+        reward
+        memory
+        ranking
+        selection
+    """
 
     def __init__(
         self,
-        pos,
-        vel
+        x,
+        v,
+        omega=1.0,
+        dt=0.02
     ):
 
-        self.pos = np.array(
-            pos,
-            dtype=np.float64
+        self.x = x
+        self.v = v
+        self.omega = omega
+        self.dt = dt
+
+
+        self.energy = (
+            0.5 *
+            (
+                x*x +
+                v*v
+            )
         )
-
-        self.vel = np.array(
-            vel,
-            dtype=np.float64
-        )
-
-
-        self.mass = 1.0
 
 
     def step(
         self,
-        force,
-        dt
+        local_force=0.0
     ):
 
-        self.vel += force * dt
+        # simple oscillator dynamics
 
-        self.pos += self.vel * dt
+        accel = (
+            -self.omega*self.omega*self.x
+            +
+            local_force
+        )
 
 
+        self.v += accel*self.dt
 
-    def energy(self):
+        self.x += self.v*self.dt
 
-        return (
+
+        self.energy = (
             0.5 *
-            np.dot(
-                self.vel,
-                self.vel
+            (
+                self.x*self.x +
+                self.v*self.v
             )
         )
+
+
+    def observe(self):
+
+        return {
+            "x": float(self.x),
+            "v": float(self.v),
+            "energy": float(self.energy)
+        }
