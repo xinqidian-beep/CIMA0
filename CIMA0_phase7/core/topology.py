@@ -6,57 +6,62 @@ class AdaptiveTopology:
 
     def __init__(
         self,
-        n
+        n,
+        avg_degree=4
     ):
 
-        self.n=n
-
-        self.edges={}
-
-        self.weights={}
+        self.n = n
 
 
-        for i in range(n):
+        self.edges = {}
 
-            self.edges[i]=set()
-
+        self.weights = {}
 
 
         for i in range(n):
 
-            for _ in range(4):
+            self.edges[i] = set()
 
-                j=random.randrange(n)
 
-                if j!=i:
+        # 初始局部网络
+
+        for i in range(n):
+
+            targets = random.sample(
+                range(n),
+                min(
+                    avg_degree,
+                    n-1
+                )
+            )
+
+
+            for j in targets:
+
+                if j != i:
 
                     self.edges[i].add(j)
 
                     self.weights[
                         (i,j)
-                    ]=0.5
+                    ] = random.uniform(
+                        0.1,
+                        1.0
+                    )
 
 
 
-
-    def neighbors(
-        self,
-        i
-    ):
+    def neighbors(self,i):
 
         return self.edges[i]
 
 
 
-    def weight(
-        self,
-        i,
-        j
-    ):
+    def weight(self,i,j):
 
         return self.weights.get(
             (i,j),
-            0.0
+            0.1
         )
 
 
@@ -66,4 +71,4 @@ class AdaptiveTopology:
         return sum(
             len(v)
             for v in self.edges.values()
-        )//2
+        )
