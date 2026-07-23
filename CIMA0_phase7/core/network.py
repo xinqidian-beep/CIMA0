@@ -1,120 +1,92 @@
 import random
 import numpy as np
 
-from core.cell import Cell
-from core.topology import AdaptiveTopology
+from .cell import Cell
+from .topology import AdaptiveTopology
 
 
-class NaturalAsyncNetwork:
-
+class AsyncEvolutionNetwork:
 
     def __init__(
         self,
-        n=128
+        cells=1024,
+        avg_degree=4,
+        seed=42
     ):
 
-        self.n = n
-
-
-        self.cells = [
-            Cell(
-                x=np.random.uniform(-1,1),
-                v=np.random.uniform(-0.5,0.5)
-            )
-            for _ in range(n)
-        ]
-
-
-        self.topology = AdaptiveTopology(
-            n
-        )
-
+        random.seed(seed)
+        np.random.seed(seed)
 
         self.time = 0
 
+        self.cells = [
+            Cell(i)
+            for i in range(cells)
+        ]
+
+        self.topology = AdaptiveTopology(
+            cells,
+            avg_degree
+        )
 
 
-    def local_field(
-        self,
-        i
-    ):
+    def local_field(self, idx):
 
         """
-        只允许局部信息
+        只读取邻居
         """
+
+        neighbors = self.topology.neighbors(idx)
 
         field = 0.0
 
-
-        neighbors = self.topology.neighbors(i)
-
-
         for j in neighbors:
 
-            dx = (
-                self.cells[j].x
-                -
-                self.cells[i].x
-            )
-
-
             w = self.topology.weight(
-                i,
+                idx,
                 j
             )
 
-
             field += (
-                w * dx
-            )
+                self.cells[j].x -
+                self.cells[idx].x
+            ) * w
 
 
         return field
 
 
 
-    def update_cell(
-        self,
-        i
-    ):
+    def update_cell(self, idx):
 
-        cell = self.cells[i]
+        cell = self.cells[idx]
 
-
-        field = self.local_field(i)
+        field = self.local_field(idx)
 
 
-        # 局部扰动直接进入振子
-        cell.oscillator.step(
+        cell.update(
             field
         )
 
 
-        # 慢变量自己演化
-        cell.update_slow()
 
-
-
-    def step(
-        self,
-        events=1
-    ):
+    def step(self, events=1):
 
         """
-        异步事件
+        异步事件推进
 
-        没有全局同步
+        一次只更新少量个体
         """
 
         for _ in range(events):
 
-            i = random.randrange(
-                self.n
+            idx = random.randrange(
+                len(self.cells)
             )
 
-
-            self.update_cell(i)
-
+            self.update_cell(
+                idx
+            )
 
             self.time += 1
 
@@ -122,24 +94,19 @@ class NaturalAsyncNetwork:
 
     def snapshot(self):
 
-
-        xs=np.array(
+        x = np.array(
             [
                 c.x
                 for c in self.cells
             ]
         )
 
-
-        energy=np.array(
+        activity = np.array(
             [
-                c.energy
+                c.activity
                 for c in self.cells
             ]
         )
-
-
-        activity=np.abs(xs)
 
 
         return {
@@ -147,28 +114,25 @@ class NaturalAsyncNetwork:
             "time":
                 self.time,
 
-
             "cells":
-                self.n,
-
+                len(self.cells),
 
             "edges":
                 self.topology.edge_count(),
 
-
             "x_std":
-                float(xs.std()),
-
+                float(np.std(x)),
 
             "activity_mean":
-                float(activity.mean()),
-
+                float(np.mean(activity)),
 
             "activity_std":
-                float(activity.std()),
+                float(np.std(activity)),
 
-
-            "energy_mean":
-                float(energy.mean())
-
+            "active_ratio":
+                float(
+                    np.mean(
+                        activity > 0.01
+                    )
+                )
         }

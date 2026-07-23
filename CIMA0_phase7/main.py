@@ -1,40 +1,47 @@
 import time
 
-from core.network import NaturalAsyncNetwork
-
+from core.network import AsyncEvolutionNetwork
 
 
 def main():
 
+
     print(
-        "=== CIMA0 Phase7.7 Minimal Async Evolution ==="
+        "=== CIMA0 Phase7.8 Minimal Async Scale ==="
     )
 
 
-    net = NaturalAsyncNetwork(
-        n=128
+    net = AsyncEvolutionNetwork(
+        cells=1024,
+        avg_degree=4
     )
+
+
+    EVENTS = 10_000_000
+
+
+    interval = 1_000_000
 
 
     start=time.time()
 
 
-    for step in range(
-        1000000
+
+    for i in range(
+        0,
+        EVENTS,
+        interval
     ):
 
 
         net.step(
-            events=1
+            interval
         )
 
 
-        if step%100000==0:
-
-            print(
-                step,
-                net.snapshot()
-            )
+        print(
+            net.snapshot()
+        )
 
 
     print(

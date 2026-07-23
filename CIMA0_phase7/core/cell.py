@@ -1,84 +1,70 @@
-from core.oscillator import Oscillator
+import math
+import random
 
 
 class Cell:
 
 
-    def __init__(
-        self,
-        x,
-        v,
-        dt=0.02
-    ):
+    def __init__(self, cid):
 
-        self.oscillator = Oscillator(
-            x,
-            v
+        self.id = cid
+
+
+        self.x = random.uniform(
+            -1,
+            1
         )
 
-        self.field = 0.0
+        self.v = random.uniform(
+            -0.1,
+            0.1
+        )
+
 
         self.energy = 1.0
 
-        self.g = 0.0
+
+        self.activity = abs(
+            self.x
+        )
 
 
 
-    @property
-    def x(self):
-        return self.oscillator.x
+    def update(self, field):
 
 
-    @property
-    def v(self):
-        return self.oscillator.v
+        dt = 0.02
+
+
+        # 最小振荡动力
+
+        a = (
+            -0.15*self.v
+            -0.8*self.x
+            + field
+        )
+
+
+        self.v += a*dt
+
+        self.x += self.v*dt
 
 
 
-    def receive(self, value):
+        # 能量只是局部物理量
 
-        self.field += value
-
-
-
-    def step(self):
-
-        # 局部消耗
-        self.energy *= 0.99999
-
-
-        
-
-
-        # 活动恢复能量
         self.energy += (
-            abs(self.x)
-            *
-            0.00001
+            0.001
+            -
+            0.001*self.activity
         )
 
 
-        if self.energy > 1:
-            self.energy = 1
-
-
-       
+        if self.energy < 0:
+            self.energy = 0
 
 
 
-    def update_slow(self):
-
-        self.g += (
-            0.00001 *
-            (
-                abs(self.x)
-                -
-                self.g
-            )
+        self.activity = abs(
+            self.x
         )
-
-
-
-    def activity(self):
-
-        return abs(self.x) * self.energy
