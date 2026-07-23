@@ -1,53 +1,48 @@
 import time
 
-from core.network import NaturalObserverNetwork
+from core.network import NaturalAsyncNetwork
 
 
 
 def main():
 
-
     print(
-        "=== CIMA0 Phase7.6 Natural Observer ==="
+        "=== CIMA0 Phase7.7 Minimal Async Evolution ==="
     )
 
 
-    net=NaturalObserverNetwork(
-        n=128,
-        degree=4,
-        coupling_strength=0.01
+    net = NaturalAsyncNetwork(
+        n=128
     )
-
-
-    steps=1000000
 
 
     start=time.time()
 
 
-    for i in range(steps):
+    for step in range(
+        1000000
+    ):
 
-        net.step(i)
+
+        net.step(
+            events=1
+        )
 
 
-        if i%100000==0:
+        if step%100000==0:
 
             print(
-                i,
+                step,
                 net.snapshot()
             )
 
 
     print(
         "runtime:",
-        round(
-            time.time()-start,
-            3
-        )
+        time.time()-start
     )
 
 
 
 if __name__=="__main__":
-
     main()
