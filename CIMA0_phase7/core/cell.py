@@ -1,10 +1,7 @@
-import numpy as np
-
 from core.oscillator import Oscillator
 
 
 class Cell:
-
 
     def __init__(
         self,
@@ -17,39 +14,28 @@ class Cell:
             v
         )
 
-
-        # slow trace
+        # slow variable
         self.g = 0.0
 
+        # natural trace
+        self.activity_memory = 0.0
 
-        # metabolic state
-        self.energy = 1.0
-
-        self.fatigue = 0.0
-
-
-        # external perturbation
         self.field = 0.0
-
 
 
     @property
     def x(self):
-
         return self.oscillator.x
-
 
 
     @property
     def v(self):
-
         return self.oscillator.v
 
 
-
-    def activity(self):
-
-        return abs(self.x)+abs(self.v)
+    @property
+    def energy(self):
+        return self.oscillator.energy
 
 
 
@@ -57,74 +43,18 @@ class Cell:
         self,
         value
     ):
-
         self.field += value
 
 
 
     def step(self):
 
-
-        activity=self.activity()
-
-
-        #
-        # metabolism
-        #
-
-        consume = (
-            0.00001 *
-            activity
-        )
-
-
-        recovery = (
-            0.00002 *
-            (1.0-self.energy)
-        )
-
-
-        self.energy += recovery
-        self.energy -= consume
-
-
-        self.energy=np.clip(
-            self.energy,
-            0.1,
-            2.0
-        )
-
-
-        #
-        # fatigue
-        #
-        # only short memory
-        #
-
-        self.fatigue += (
-            0.00005 *
-            (
-                activity-
-                self.fatigue
-            )
-        )
-
-
-        #
-        # energy affects ability
-        #
-
-        drive=self.energy
-
-
-
         self.oscillator.step(
-            self.field * drive
+            self.field
         )
 
 
-        self.field=0.0
-
+        self.field = 0.0
 
 
         self.update_slow()
@@ -133,14 +63,25 @@ class Cell:
 
     def update_slow(self):
 
+        activity = abs(self.x)
 
-        activity=self.activity()
+
+        # 极弱历史痕迹
+        # 不是奖励
+        # 不是竞争
+        self.activity_memory += (
+            0.001 * activity
+            -
+            0.00001 * self.activity_memory
+        )
 
 
+        # 慢变量
         self.g += (
             0.00001 *
             (
-                activity-
+                activity
+                -
                 self.g
             )
         )
@@ -150,15 +91,8 @@ class Cell:
     def snapshot(self):
 
         return {
-
-            "x":float(self.x),
-
-            "v":float(self.v),
-
-            "energy":float(self.energy),
-
-            "fatigue":float(self.fatigue),
-
-            "g":float(self.g)
-
+            "x":self.x,
+            "g":self.g,
+            "memory":self.activity_memory,
+            "energy":self.energy
         }
