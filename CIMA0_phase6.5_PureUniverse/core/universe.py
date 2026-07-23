@@ -1,10 +1,6 @@
-import numpy as np
+import random
 
-from core.cell import Cell
-from core.topology import Topology
-from core.event_queue import EventQueue
-from core.oscillator import Oscillator
-
+from core.interaction import local_force
 
 
 class Universe:
@@ -12,136 +8,50 @@ class Universe:
 
     def __init__(
         self,
-        n=4096
+        cells,
+        topology
     ):
 
-        np.random.seed(42)
+        self.cells=cells
 
+        self.topology=topology
 
         self.time=0
 
 
-        self.cells=[]
 
-
-        for _ in range(n):
-
-            self.cells.append(
-
-                Cell(
-
-                    x=np.random.uniform(
-                        -1,1
-                    ),
-
-                    v=np.random.uniform(
-                        -0.5,0.5
-                    ),
-
-                    omega=np.random.uniform(
-                        0.95,
-                        1.05
-                    )
-
-                )
-
-            )
-
-
-        self.topology=Topology(
-            n
-        )
-
-
-        self.events=EventQueue(
-            n
-        )
-
-
-
-    def update(
+    def step(
         self,
-        steps
+        events=1000
     ):
 
 
-        for _ in range(steps):
+        for _ in range(events):
 
-            i=self.events.pop()
-
-
-            if i is None:
-                break
+            i=random.randrange(
+                len(self.cells)
+            )
 
 
             cell=self.cells[i]
 
 
-            force=0.0
-
-
-            for j in self.topology.neighbors[i]:
-
-                force += Oscillator.coupling(
-                    cell,
-                    self.cells[j]
-                )
-
-
-
-            cell.step(
-                force
+            neighbors=(
+                self.topology
+                .neighbors(i)
             )
 
 
-            # 局部影响
+            force=local_force(
+                cell,
+                neighbors
+            )
 
-            self.events.push_neighbors(
-                self.topology.neighbors[i]
+
+            cell.step(
+                force,
+                0.001
             )
 
 
             self.time+=1
-
-
-
-
-    def snapshot(self):
-
-        x=np.array(
-            [
-                c.x
-                for c in self.cells
-            ]
-        )
-
-
-        energy=np.array(
-            [
-                c.energy
-                for c in self.cells
-            ]
-        )
-
-
-        return {
-
-            "time":
-                self.time,
-
-            "cells":
-                len(self.cells),
-
-            "x_std":
-                float(x.std()),
-
-            "energy_mean":
-                float(
-                    energy.mean()
-                ),
-
-            "energy_std":
-                float(
-                    energy.std()
-                )
-        }

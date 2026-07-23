@@ -3,60 +3,44 @@ import numpy as np
 
 class Cell:
 
-    """
-    Minimal physical individual
-
-    Only knows:
-        self state
-
-    No:
-        global
-        rank
-        reward
-        memory
-        observer
-    """
-
     def __init__(
         self,
-        x,
-        v,
-        omega
+        pos,
+        vel
     ):
 
-        self.x = x
-        self.v = v
-
-        self.omega = omega
-
-
-        self.energy = 0.5 * (
-            x*x + v*v
+        self.pos = np.array(
+            pos,
+            dtype=np.float64
         )
+
+        self.vel = np.array(
+            vel,
+            dtype=np.float64
+        )
+
+
+        self.mass = 1.0
 
 
     def step(
         self,
-        local_force
+        force,
+        dt
     ):
 
-        dt = 0.02
+        self.vel += force * dt
+
+        self.pos += self.vel * dt
 
 
-        accel = (
-            -self.omega*self.omega*self.x
-            +
-            local_force
-        )
 
+    def energy(self):
 
-        self.v += accel * dt
-
-        self.x += self.v * dt
-
-
-        self.energy = 0.5 * (
-            self.x*self.x
-            +
-            self.v*self.v
+        return (
+            0.5 *
+            np.dot(
+                self.vel,
+                self.vel
+            )
         )

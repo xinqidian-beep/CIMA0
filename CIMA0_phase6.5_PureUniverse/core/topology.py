@@ -1,34 +1,62 @@
 import numpy as np
 
 
-class Topology:
+class LocalTopology:
 
 
     def __init__(
         self,
-        n,
-        degree=6
+        cells,
+        radius=2.0
     ):
 
-        self.n=n
+        self.cells=cells
 
-        self.neighbors=[
+        self.radius=radius
+
+
+        self.links=[
             []
-            for _ in range(n)
+            for _ in cells
         ]
+
+
+    def build_local(
+        self
+    ):
+
+        n=len(self.cells)
 
 
         for i in range(n):
 
-            ids=np.random.choice(
-                n,
-                degree,
-                replace=False
-            )
+            self.links[i]=[]
 
 
-            for j in ids:
+        # 初始化阶段允许一次
 
-                if j!=i:
+        for i in range(n):
 
-                    self.neighbors[i].append(j)
+            for j in range(i+1,n):
+
+                d=np.linalg.norm(
+                    self.cells[i].pos-
+                    self.cells[j].pos
+                )
+
+                if d < self.radius:
+
+                    self.links[i].append(j)
+                    self.links[j].append(i)
+
+
+
+    def neighbors(
+        self,
+        i
+    ):
+
+        return [
+            self.cells[j]
+            for j in self.links[i]
+        ]
