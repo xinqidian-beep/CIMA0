@@ -60,28 +60,26 @@ class Universe:
         avg_degree
     ):
 
-        self.edges=[]
+        self.neighbors = [
+            []
+            for _ in range(self.n)
+        ]
 
 
         for i in range(self.n):
 
-            neighbors=np.random.choice(
+            choices=np.random.choice(
                 self.n,
                 avg_degree,
                 replace=False
             )
 
 
-            for j in neighbors:
+            for j in choices:
 
-                if i < j:
+                if j != i:
 
-                    self.edges.append(
-                        (
-                            i,
-                            j
-                        )
-                    )
+                    self.neighbors[i].append(j)
 
 
 
@@ -96,27 +94,20 @@ class Universe:
         xi=self.cells[i].x
 
 
-        for a,b in self.edges:
+        for j in self.neighbors[i]:
 
 
-            if a==i:
+            xj=self.cells[j].x
 
-                force += (
-                    0.01 *
-                    np.sin(
-                        self.cells[b].x-xi
-                    )
+            force += (
+                0.01 *
+                np.sin(
+                    xj-xi
                 )
+            )
 
 
-            elif b==i:
-
-                force += (
-                    0.01 *
-                    np.sin(
-                        self.cells[a].x-xi
-                    )
-                )
+            
 
 
         return force

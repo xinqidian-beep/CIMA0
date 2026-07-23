@@ -14,7 +14,7 @@ def main():
 
 
     u=Universe(
-        n=40960
+        n=4096
     )
 
 
