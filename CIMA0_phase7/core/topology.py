@@ -1,4 +1,4 @@
-import numpy as np
+import random
 
 
 class AdaptiveTopology:
@@ -6,192 +6,64 @@ class AdaptiveTopology:
 
     def __init__(
         self,
-        n,
-        initial_edges
+        n
     ):
 
-        self.n = n
+        self.n=n
+
+        self.edges={}
+
+        self.weights={}
 
 
-        # connection weights
+        for i in range(n):
 
-        self.weights = {}
-
-
-        for a,b in initial_edges:
-
-            key = (
-                min(a,b),
-                max(a,b)
-            )
-
-            self.weights[key] = 0.5
+            self.edges[i]=set()
 
 
 
-        self.update_count = 0
+        for i in range(n):
+
+            for _ in range(4):
+
+                j=random.randrange(n)
+
+                if j!=i:
+
+                    self.edges[i].add(j)
+
+                    self.weights[
+                        (i,j)
+                    ]=0.5
 
 
 
-    def get_weight(
+
+    def neighbors(
         self,
-        a,
-        b
+        i
     ):
 
+        return self.edges[i]
 
-        key = (
-            min(a,b),
-            max(a,b)
-        )
 
+
+    def weight(
+        self,
+        i,
+        j
+    ):
 
         return self.weights.get(
-            key,
-            0.5
+            (i,j),
+            0.0
         )
 
 
 
-    def update(
-        self,
-        states
-    ):
-
-        """
-        slow local topology drift
-
-        no goal
-        no optimization
-        no pruning
-
-        """
-
-        self.update_count += 1
-
-
-
-        xs=np.asarray(
-            states,
-            dtype=float
-        )
-
-
-        for key,w in list(
-            self.weights.items()
-        ):
-
-
-            a,b=key
-
-
-            if (
-                a>=len(xs)
-                or
-                b>=len(xs)
-            ):
-                continue
-
-
-
-            #
-            # local correlation
-            #
-
-            interaction = (
-
-                abs(
-                    xs[a]*xs[b]
-                )
-
-            )
-
-
-
-            #
-            # slow drift
-            #
-
-            dw = (
-
-                0.00001 *
-
-                (
-                    interaction
-                    -
-                    w
-                )
-
-            )
-
-
-
-            self.weights[key] += dw
-
-
-
-            #
-            # physical lower/upper boundary
-            #
-
-            if self.weights[key] < 0:
-
-                self.weights[key]=0.0
-
-
-            if self.weights[key] > 2:
-
-                self.weights[key]=2.0
-
-
-
-
-    def stats(self):
-
-
-        if len(self.weights)==0:
-
-
-            return {
-
-                "weight_mean":0.0,
-
-                "weight_std":0.0
-
-            }
-
-
-
-        values=np.array(
-
-            list(
-                self.weights.values()
-            )
-
-        )
-
-
-        return {
-
-
-            "weight_mean":
-
-                float(
-                    values.mean()
-                ),
-
-
-            "weight_std":
-
-                float(
-                    values.std()
-                ),
-
-
-            "connections":
-
-                len(
-                    values
-                )
-
-        }
+    def edge_count(self):
+
+        return sum(
+            len(v)
+            for v in self.edges.values()
+        )//2

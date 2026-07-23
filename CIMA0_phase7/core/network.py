@@ -1,169 +1,123 @@
+import random
 import numpy as np
 
 from core.cell import Cell
-from core.coupling import LocalCoupling
+from core.topology import AdaptiveTopology
 
 
-
-class NaturalObserverNetwork:
+class NaturalAsyncNetwork:
 
 
     def __init__(
         self,
-        n=128,
-        degree=4,
-        coupling_strength=0.01,
-        seed=42
+        n=128
     ):
 
-        np.random.seed(seed)
+        self.n = n
 
 
-        self.n=n
-
-
-        self.cells=[]
-
-
-        self.edges=[]
-
-
-        self.coupling=LocalCoupling(
-            strength=coupling_strength
-        )
-
-
-        for _ in range(n):
-
-            self.cells.append(
-
-                Cell(
-                    x=np.random.uniform(-1,1),
-                    v=np.random.uniform(-0.5,0.5)
-                )
-
+        self.cells = [
+            Cell(
+                x=np.random.uniform(-1,1),
+                v=np.random.uniform(-0.5,0.5)
             )
+            for _ in range(n)
+        ]
 
 
-        self.create_graph(
-            degree
+        self.topology = AdaptiveTopology(
+            n
         )
 
 
-
-        self.top_history=[]
-
+        self.time = 0
 
 
-    def create_graph(
+
+    def local_field(
         self,
-        degree
+        i
     ):
 
-        for i in range(self.n):
+        """
+        只允许局部信息
+        """
 
-            neighbors=np.random.choice(
+        field = 0.0
 
-                [
-                    j
-                    for j in range(self.n)
-                    if j!=i
-                ],
 
-                size=degree,
+        neighbors = self.topology.neighbors(i)
 
-                replace=False
 
+        for j in neighbors:
+
+            dx = (
+                self.cells[j].x
+                -
+                self.cells[i].x
             )
 
 
-            for j in neighbors:
+            w = self.topology.weight(
+                i,
+                j
+            )
 
-                if i<j:
 
-                    self.edges.append(
-                        (i,j)
-                    )
+            field += (
+                w * dx
+            )
+
+
+        return field
+
+
+
+    def update_cell(
+        self,
+        i
+    ):
+
+        cell = self.cells[i]
+
+
+        field = self.local_field(i)
+
+
+        # 局部扰动直接进入振子
+        cell.oscillator.step(
+            field
+        )
+
+
+        # 慢变量自己演化
+        cell.update_slow()
 
 
 
     def step(
         self,
-        step_count
+        events=1
     ):
 
+        """
+        异步事件
 
-        #
-        # local interaction
-        #
+        没有全局同步
+        """
 
-        for a,b in self.edges:
+        for _ in range(events):
 
-
-            dx=(
-                self.cells[b].x
-                -
-                self.cells[a].x
+            i = random.randrange(
+                self.n
             )
 
 
-            force=(
-                self.coupling.strength
-                *
-                dx
-            )
+            self.update_cell(i)
 
 
-            self.cells[a].add_field(
-                force
-            )
+            self.time += 1
 
-
-            self.cells[b].add_field(
-                -force
-            )
-
-
-
-        #
-        # local evolution
-        #
-
-        for cell in self.cells:
-
-            cell.step()
-
-
-
-        #
-        # observer only
-        #
-
-        if step_count % 1000 ==0:
-
-            self.observe()
-
-
-
-    def observe(self):
-
-
-        index=max(
-
-            range(self.n),
-
-            key=lambda i:
-                self.cells[i].activity_memory
-
-        )
-
-
-        value=self.cells[index].activity_memory
-
-
-        self.top_history.append(
-            index
-        )
 
 
     def snapshot(self):
@@ -177,52 +131,44 @@ class NaturalObserverNetwork:
         )
 
 
-        gs=np.array(
+        energy=np.array(
             [
-                c.g
+                c.energy
                 for c in self.cells
             ]
         )
 
 
-        memories=np.array(
-
-            [
-                c.activity_memory
-                for c in self.cells
-            ]
-
-        )
-
-
-        top=int(
-            np.argmax(
-                memories
-            )
-        )
+        activity=np.abs(xs)
 
 
         return {
 
-            "cells":self.n,
+            "time":
+                self.time,
 
-            "edges":len(self.edges),
+
+            "cells":
+                self.n,
+
+
+            "edges":
+                self.topology.edge_count(),
+
 
             "x_std":
                 float(xs.std()),
 
-            "g_mean":
-                float(gs.mean()),
 
             "activity_mean":
-                float(memories.mean()),
+                float(activity.mean()),
+
 
             "activity_std":
-                float(memories.std()),
+                float(activity.std()),
 
-            "top_cell":
-                top,
 
-            "top_activity":
-                float(memories[top])
+            "energy_mean":
+                float(energy.mean())
+
         }
