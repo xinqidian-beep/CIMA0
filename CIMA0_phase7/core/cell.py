@@ -17,10 +17,14 @@ class Cell:
         # slow variable
         self.g = 0.0
 
-        # natural trace
+        # 当前活动势
+        # 不是累计记忆
+        # 是短时间尺度状态
         self.activity_memory = 0.0
 
+        # 外部扰动场
         self.field = 0.0
+
 
 
     @property
@@ -28,9 +32,11 @@ class Cell:
         return self.oscillator.x
 
 
+
     @property
     def v(self):
         return self.oscillator.v
+
 
 
     @property
@@ -43,6 +49,7 @@ class Cell:
         self,
         value
     ):
+
         self.field += value
 
 
@@ -54,6 +61,7 @@ class Cell:
         )
 
 
+        # 扰动消费
         self.field = 0.0
 
 
@@ -66,24 +74,41 @@ class Cell:
         activity = abs(self.x)
 
 
-        # 极弱历史痕迹
-        # 不是奖励
-        # 不是竞争
-        self.activity_memory += (
-            0.001 * activity
-            -
-            0.00001 * self.activity_memory
+
+        #
+        # 自然耗散活动势
+        #
+        # 没有奖励
+        # 没有惩罚
+        # 没有竞争
+        #
+        self.activity_memory = (
+
+            0.999 *
+            self.activity_memory
+
+            +
+
+            0.001 *
+            activity
+
         )
 
 
+
+        #
         # 慢变量
+        #
         self.g += (
+
             0.00001 *
+
             (
                 activity
                 -
                 self.g
             )
+
         )
 
 
@@ -91,8 +116,23 @@ class Cell:
     def snapshot(self):
 
         return {
-            "x":self.x,
-            "g":self.g,
-            "memory":self.activity_memory,
-            "energy":self.energy
+
+            "x":
+                float(self.x),
+
+            "v":
+                float(self.v),
+
+            "g":
+                float(self.g),
+
+            "activity":
+                float(
+                    self.activity_memory
+                ),
+
+            "energy":
+                float(
+                    self.energy
+                )
         }
