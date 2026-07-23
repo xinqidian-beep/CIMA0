@@ -172,7 +172,7 @@ class Universe:
                 self.n,
             
             "x_std":
-                float(xs.std()),
+                float(x.std()),
 
             "energy_mean":
                 float(energies.mean()),
