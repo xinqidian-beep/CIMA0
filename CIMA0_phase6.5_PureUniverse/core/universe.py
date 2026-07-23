@@ -175,12 +175,18 @@ class Universe:
                 len(self.edges),
 
             "x_std":
-                float(x.std()),
+                float(xs.std()),
 
             "energy_mean":
-                float(energy.mean()),
+                float(energies.mean()),
 
             "energy_std":
-                float(energy.std())
+                float(energies.std())
+            "active_ratio":
+                float(
+                    np.mean(
+                        energies > 1e-8
+                    )
+                )
 
         }
