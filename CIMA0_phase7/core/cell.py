@@ -5,11 +5,11 @@ from core.oscillator import Oscillator
 
 class Cell:
 
+
     def __init__(
         self,
         x,
-        v,
-        energy=1.0
+        v
     ):
 
         self.oscillator = Oscillator(
@@ -17,34 +17,33 @@ class Cell:
             v
         )
 
-        # slow memory trace
+
+        # slow trace
         self.g = 0.0
 
-        # internal resources
-        self.energy = energy
 
-        # accumulated fatigue
+        # metabolic state
+        self.energy = 1.0
+
         self.fatigue = 0.0
 
-        # temporary field
+
+        # external perturbation
         self.field = 0.0
 
 
 
     @property
     def x(self):
+
         return self.oscillator.x
+
 
 
     @property
     def v(self):
+
         return self.oscillator.v
-
-
-
-    def add_field(self,value):
-
-        self.field += value
 
 
 
@@ -54,69 +53,69 @@ class Cell:
 
 
 
+    def add_field(
+        self,
+        value
+    ):
+
+        self.field += value
+
+
+
     def step(self):
 
-        activity = self.activity()
+
+        activity=self.activity()
 
 
-        # ------------------
-        # energy metabolism
-        # ------------------
+        #
+        # metabolism
+        #
 
         consume = (
-            0.00005 *
+            0.00001 *
             activity
         )
 
 
-        recover = (
-            0.00001 *
+        recovery = (
+            0.00002 *
             (1.0-self.energy)
         )
 
 
-        self.energy += recover
+        self.energy += recovery
         self.energy -= consume
 
 
-        # boundary only physical limit
-        self.energy = np.clip(
+        self.energy=np.clip(
             self.energy,
-            0.05,
+            0.1,
             2.0
         )
 
 
-        # ------------------
+        #
         # fatigue
-        # ------------------
+        #
+        # only short memory
+        #
 
         self.fatigue += (
-            0.0001 *
-            activity
-        )
-
-
-        self.fatigue -= (
             0.00005 *
-            self.fatigue
+            (
+                activity-
+                self.fatigue
+            )
         )
 
 
-        self.fatigue=max(
-            0.0,
-            self.fatigue
-        )
+        #
+        # energy affects ability
+        #
 
+        drive=self.energy
 
-        # ------------------
-        # effective drive
-        # ------------------
-
-        drive = (
-            self.energy /
-            (1.0+self.fatigue)
-        )
 
 
         self.oscillator.step(
@@ -127,17 +126,19 @@ class Cell:
         self.field=0.0
 
 
+
         self.update_slow()
 
 
 
     def update_slow(self):
 
+
         activity=self.activity()
 
 
         self.g += (
-            0.00001*
+            0.00001 *
             (
                 activity-
                 self.g
@@ -150,18 +151,14 @@ class Cell:
 
         return {
 
-            "x":
-            round(float(self.x),5),
+            "x":float(self.x),
 
-            "v":
-            round(float(self.v),5),
+            "v":float(self.v),
 
-            "g":
-            round(float(self.g),5),
+            "energy":float(self.energy),
 
-            "energy":
-            round(float(self.energy),5),
+            "fatigue":float(self.fatigue),
 
-            "fatigue":
-            round(float(self.fatigue),5)
+            "g":float(self.g)
+
         }
