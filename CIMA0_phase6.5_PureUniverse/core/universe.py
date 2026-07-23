@@ -181,7 +181,7 @@ class Universe:
                 float(energies.mean()),
 
             "energy_std":
-                float(energies.std())
+                float(energies.std()),
             "active_ratio":
                 float(
                     np.mean(
