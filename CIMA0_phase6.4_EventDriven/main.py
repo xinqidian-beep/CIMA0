@@ -17,7 +17,7 @@ def main():
     for i in range(10):
 
         net.step(
-            100000
+            10000000
         )
 
 
