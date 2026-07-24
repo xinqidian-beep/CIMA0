@@ -1,67 +1,66 @@
 from core.universe import Universe
 from observer.observer import Observer
-from compute.scheduler import ComputeScheduler
-from environment.field import EvolutionField
+from compute.sparse import SparseCompute
 
 
 
 def main():
 
+
     print(
-        "=== CIMA0 Phase7.0.3 EvolutionField ==="
+        "=== CIMA0 Phase7.0.3 Sparse Evolution ==="
     )
 
 
-    u=Universe()
-
-    obs=Observer()
-
-    compute=ComputeScheduler()
-
-    field=EvolutionField(4096)
+    u=Universe(
+        4096
+    )
 
 
-
-    for r in range(100):
-
-
-        # 动力自己跑
-
-        u.step(
-            1_000_000
-        )
+    observer=Observer(
+        64
+    )
 
 
-        state=u.state_view()
+    compute=SparseCompute()
 
 
-        # observer 看
 
-        target=obs.observe(
-            state
-        )
+    for t in range(100000):
 
 
-        # compute 分配
-
-        region=compute.allocate(
-            target
-        )
+        # 观察
+        obs=observer.sample(u)
 
 
-        # 环境留下慢影响
 
-        field.update(
-            region,
-            state
-        )
+        # 计算系统吸收
+        compute.receive(obs)
 
 
-        print(
-            u.snapshot()
-        )
+
+        # 计算系统决定展开
+        ids=compute.select_precision()
+
+
+
+        # 动力推进
+        u.evolve_cells(ids)
+
+
+
+        u.time+=1
+
+
+
+        if t%10000==0:
+
+            print(
+                u.snapshot()
+            )
 
 
 
 if __name__=="__main__":
+
     main()

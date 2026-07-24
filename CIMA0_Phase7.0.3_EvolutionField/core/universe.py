@@ -13,108 +13,59 @@ class Universe:
 
         np.random.seed(seed)
 
-        self.time = 0
+        self.cells={}
 
-        self.cells=[]
-
-        for _ in range(n):
-
-            self.cells.append(
-                Cell(
-                    x=np.random.normal(0,0.01),
-                    v=0.0,
-                    omega=np.random.uniform(
-                        0.95,
-                        1.05
-                    )
-                )
-            )
-
-
-        # 固定局部连接
-        self.edges=[]
 
         for i in range(n):
 
-            self.edges.append(
-                np.random.choice(
-                    n,
-                    4,
-                    replace=False
+            self.cells[i]=Cell(
+                x=np.random.normal(0,0.01),
+                v=np.random.normal(0,0.01),
+                omega=np.random.uniform(
+                    0.95,
+                    1.05
                 )
             )
 
 
-
-    def step(self, events):
-
-        dt=0.01
+        self.time=0
 
 
-        for _ in range(events):
 
-            for i,c in enumerate(self.cells):
+    def evolve_cells(self, ids):
 
-                ids=self.edges[i]
+        """
+        只推进被计算系统要求展开的cell
+        """
 
-                neighbors=[
-                    self.cells[j].x
-                    for j in ids
-                ]
+        for i in ids:
 
-                c.step(
-                    neighbors,
-                    dt
-                )
-
-
-            self.time+=1
+            self.cells[i].evolve()
 
 
 
     def snapshot(self):
 
-        x=np.array(
-            [
-                c.x
-                for c in self.cells
-            ]
-        )
+        energies=[]
 
+        # 这里只是观察接口
+        # 后面也会稀疏化
 
-        energy=x*x*0.5
+        for c in self.cells.values():
+
+            energies.append(
+                c.compress()["energy"]
+            )
 
 
         return {
 
             "time":self.time,
 
-            "cells":len(self.cells),
+            "active":
+                len(energies),
 
             "energy_mean":
-                float(
-                    energy.mean()
-                ),
+                float(np.mean(energies))
 
-            "energy_std":
-                float(
-                    energy.std()
-                ),
-
-            "x_std":
-                float(
-                    x.std()
-                )
         }
-
-
-    def state_view(self):
-
-        # 只提供副本
-
-        return np.array(
-            [
-                c.x
-                for c in self.cells
-            ]
-        )
