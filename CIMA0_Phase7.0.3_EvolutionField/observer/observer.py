@@ -4,64 +4,31 @@ import numpy as np
 class Observer:
 
 
-    def __init__(self,n=64):
+    def __init__(self):
 
-        self.state=np.zeros(n)
-
-        self.memory=np.zeros(n)
+        self.interest=None
 
 
 
-    def perceive(
-        self,
-        cloud
-    ):
+    def observe(self,state):
 
+        diff=np.abs(state)
+
+
+        # 稀疏发现
         ids=np.random.choice(
-            len(cloud.field),
-            self.state.shape[0],
+            len(state),
+            64,
             replace=False
         )
 
 
-        signal=np.array(
-            [
-                cloud.sample(i)
-                for i in ids
-            ]
-        )
+        scores=diff[ids]
 
 
-        self.state += signal
+        self.interest=ids[
+            np.argmax(scores)
+        ]
 
 
-
-    def step(self):
-
-        self.memory*=0.999
-
-        self.memory+=(
-            self.state*0.001
-        )
-
-        self.state*=0.95
-
-
-
-    def snapshot(self):
-
-        return {
-            "observer_activity":
-                float(
-                    np.std(
-                        self.state
-                    )
-                ),
-
-            "observer_memory":
-                float(
-                    np.std(
-                        self.memory
-                    )
-                )
-        }
+        return self.interest

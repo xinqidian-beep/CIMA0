@@ -1,87 +1,65 @@
-import time
-
 from core.universe import Universe
-from environment.cloud import CloudField
 from observer.observer import Observer
+from compute.scheduler import ComputeScheduler
+from environment.field import EvolutionField
 
 
 
 def main():
-
 
     print(
         "=== CIMA0 Phase7.0.3 EvolutionField ==="
     )
 
 
-    u=Universe(
-        n=4096,
-        avg_neighbors=4,
-        omega_min=0.95,
-        omega_max=1.05,
-        seed=42
-    )
+    u=Universe()
 
+    obs=Observer()
 
-    cloud=CloudField(
-        4096
-    )
+    compute=ComputeScheduler()
 
-
-    observer=Observer(
-        64
-    )
-
-
-    start=time.time()
+    field=EvolutionField(4096)
 
 
 
-    for report in range(100):
+    for r in range(100):
 
+
+        # 动力自己跑
 
         u.step(
             1_000_000
         )
 
 
-        # 单向信息流
-        energy=[
-            c.energy()
-            for c in u.cells
-        ]
+        state=u.state_view()
 
 
-        for i,e in enumerate(energy):
+        # observer 看
 
-            cloud.receive(
-                i,
-                e*0.000001
-            )
-
-
-        cloud.evolve()
-
-
-        observer.perceive(
-            cloud
+        target=obs.observe(
+            state
         )
 
-        observer.step()
 
+        # compute 分配
+
+        region=compute.allocate(
+            target
+        )
+
+
+        # 环境留下慢影响
+
+        field.update(
+            region,
+            state
+        )
 
 
         print(
-            u.snapshot(),
-            observer.snapshot()
+            u.snapshot()
         )
-
-
-
-    print(
-        "runtime:",
-        time.time()-start
-    )
 
 
 
