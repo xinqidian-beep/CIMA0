@@ -13,18 +13,33 @@ class Universe:
 
         np.random.seed(seed)
 
-        self.cells={}
+
+        self.cells=[]
 
 
         for i in range(n):
 
-            self.cells[i]=Cell(
-                x=np.random.normal(0,0.01),
-                v=np.random.normal(0,0.01),
-                omega=np.random.uniform(
-                    0.95,
-                    1.05
+            self.cells.append(
+
+                Cell(
+
+                    x=np.random.normal(
+                        0,
+                        0.01
+                    ),
+
+                    v=np.random.normal(
+                        0,
+                        0.01
+                    ),
+
+                    omega=np.random.uniform(
+                        0.95,
+                        1.05
+                    )
+
                 )
+
             )
 
 
@@ -32,40 +47,24 @@ class Universe:
 
 
 
-    def evolve_cells(self, ids):
+    def tick(self):
 
         """
-        只推进被计算系统要求展开的cell
+        动力系统自己的时间推进
+
+        不知道observer
+        不知道compute
         """
 
-        for i in ids:
+        for c in self.cells:
 
-            self.cells[i].evolve()
-
-
-
-    def snapshot(self):
-
-        energies=[]
-
-        # 这里只是观察接口
-        # 后面也会稀疏化
-
-        for c in self.cells.values():
-
-            energies.append(
-                c.compress()["energy"]
-            )
+            c.step()
 
 
-        return {
+        self.time+=1
 
-            "time":self.time,
 
-            "active":
-                len(energies),
 
-            "energy_mean":
-                float(np.mean(energies))
+    def local_state(self, idx):
 
-        }
+        return self.cells[idx].observe()

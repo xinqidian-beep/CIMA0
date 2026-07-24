@@ -3,51 +3,92 @@ class SparseCompute:
 
     def __init__(self):
 
-        self.compressed={}
+        self.field={}
 
 
 
-    def receive(
+    def compress(
         self,
         observations
     ):
 
-        for idx,activity in observations:
+
+        for idx,state in observations:
 
 
-            if idx not in self.compressed:
+            old=self.field.get(
+                idx
+            )
 
-                self.compressed[idx]={
-                    "activity":activity,
-                    "age":0
+
+            if old is None:
+
+
+                self.field[idx]={
+
+                    "mean_energy":
+                        state["energy"],
+
+                    "activity":
+                        state["activity"],
+
+                    "samples":1
+
                 }
+
 
             else:
 
-                self.compressed[idx]["activity"] = (
-                    self.compressed[idx]["activity"]*0.99
+
+                n=old["samples"]
+
+
+                old["mean_energy"]=(
+
+                    old["mean_energy"]*n
+
                     +
-                    activity*0.01
+
+                    state["energy"]
+
+                )/(n+1)
+
+
+                old["activity"]=(
+
+                    old["activity"]*0.99
+
+                    +
+
+                    state["activity"]*0.01
+
                 )
 
 
+                old["samples"]+=1
 
-    def select_precision(self):
+
+
+
+    def expand_candidates(self):
 
         """
-        不是top-k排序
+        计算系统自己的需要
 
-        只是概率展开
+        不是控制动力
+
         """
 
         result=[]
 
 
-        for idx,data in self.compressed.items():
+        for idx,data in self.field.items():
 
-            if data["activity"] > 0.02:
+
+            if data["samples"]>10:
 
                 result.append(idx)
+
 
 
         return result

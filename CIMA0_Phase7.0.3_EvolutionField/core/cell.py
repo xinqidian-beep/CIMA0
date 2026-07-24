@@ -14,35 +14,44 @@ class Cell:
         self.v = v
         self.omega = omega
 
-        self.local_time = 0
+        self.time = 0
+
         self.activity = 0.0
 
 
-    def evolve(self, dt=0.01):
+    def step(self, dt=0.01):
 
-        # 纯动力
-        a = -self.omega*self.omega*self.x
+        # 内生动力
+        force = -self.omega * self.omega * self.x
 
 
-        self.v += a * dt
+        self.v += force * dt
+
         self.x += self.v * dt
 
 
-        self.local_time += 1
+        self.time += 1
 
 
-        self.activity = abs(self.v)+abs(self.x)
+        self.activity = (
+            abs(self.x)
+            +
+            abs(self.v)
+        )
 
 
+    def observe(self):
 
-    def compress(self):
+        energy = (
+            0.5*self.v*self.v
+            +
+            0.5*self.omega*self.omega*self.x*self.x
+        )
 
         return {
             "x":self.x,
             "v":self.v,
-            "energy":
-                0.5*self.v*self.v
-                +
-                0.5*self.omega*self.omega*self.x*self.x,
-            "time":self.local_time
+            "energy":energy,
+            "activity":self.activity,
+            "time":self.time
         }
