@@ -8,11 +8,11 @@ def main():
 
 
     print(
-        "=== CIMA0 Phase7.0.3 Sparse Evolution ==="
+        "=== CIMA0 Phase7.0.3 EvolutionField ==="
     )
 
 
-    u=Universe(
+    universe=Universe(
         4096
     )
 
@@ -29,35 +29,46 @@ def main():
     for t in range(100000):
 
 
-        # 观察
-        obs=observer.sample(u)
+        # 1 动力自己运行
+
+        universe.tick()
 
 
 
-        # 计算系统吸收
-        compute.receive(obs)
+        # 2 观察者偶尔看
+
+        if t % 100 == 0:
+
+
+            obs=observer.sample(
+                universe
+            )
+
+
+            # 3 计算形成压缩表示
+
+            compute.compress(
+                obs
+            )
 
 
 
-        # 计算系统决定展开
-        ids=compute.select_precision()
+        if t % 10000 == 0:
 
-
-
-        # 动力推进
-        u.evolve_cells(ids)
-
-
-
-        u.time+=1
-
-
-
-        if t%10000==0:
 
             print(
-                u.snapshot()
+
+                {
+                    "time":
+                    universe.time,
+
+                    "observed":
+                    len(compute.field)
+
+                }
+
             )
+
 
 
 

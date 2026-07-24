@@ -1,7 +1,6 @@
 import random
 
 
-
 class Observer:
 
 
@@ -18,25 +17,29 @@ class Observer:
 
 
         ids=random.sample(
-            list(universe.cells.keys()),
+
+            range(len(universe.cells)),
+
             self.sample_size
+
         )
 
 
-        observations=[]
+        result=[]
 
 
         for i in ids:
 
-            c=universe.cells[i]
 
+            result.append(
 
-            observations.append(
                 (
                     i,
-                    abs(c.activity)
+                    universe.local_state(i)
+
                 )
+
             )
 
 
-        return observations
+        return result
