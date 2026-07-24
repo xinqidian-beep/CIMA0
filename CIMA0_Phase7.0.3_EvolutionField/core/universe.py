@@ -1,154 +1,80 @@
 import numpy as np
-
 from core.cell import Cell
 
 
 class Universe:
-    """
-    Pure dynamical core.
 
-    Rules:
-
-    1. Cell dynamics is closed.
-    2. External field can only perturb state.
-    3. No observer.
-    4. No ranking.
-    5. No global optimization.
-    6. No memory inside dynamics.
-
-    Evolution:
-        local state
-            |
-            v
-        coupling
-            |
-            v
-        oscillator update
-
-    """
 
     def __init__(
         self,
         n=4096,
-        avg_neighbors=4,
-        omega_min=0.95,
-        omega_max=1.05,
-        dt=0.01,
         seed=42
     ):
 
-        self.n = n
-        self.dt = dt
-
         np.random.seed(seed)
 
+        self.time = 0
 
         self.cells=[]
-
 
         for _ in range(n):
 
             self.cells.append(
-
                 Cell(
-
-                    x=np.random.normal(
-                        0,
-                        0.01
-                    ),
-
-                    v=np.random.normal(
-                        0,
-                        0.01
-                    ),
-
+                    x=np.random.normal(0,0.01),
+                    v=0.0,
                     omega=np.random.uniform(
-                        omega_min,
-                        omega_max
+                        0.95,
+                        1.05
                     )
-
                 )
-
             )
 
 
-        #
-        # fixed random local topology
-        #
-        self.neighbors=[]
-
+        # 固定局部连接
+        self.edges=[]
 
         for i in range(n):
 
-            ids=np.random.choice(
-                n,
-                avg_neighbors,
-                replace=False
+            self.edges.append(
+                np.random.choice(
+                    n,
+                    4,
+                    replace=False
+                )
             )
-
-            self.neighbors.append(
-                ids
-            )
-
-
-        self.time=0
 
 
 
     def step(self, events):
 
+        dt=0.01
+
+
         for _ in range(events):
 
-            self._single_step()
+            for i,c in enumerate(self.cells):
 
-            self.time += 1
+                ids=self.edges[i]
 
-
-
-    def _single_step(self):
-
-
-        xs=np.array(
-            [
-                c.x
-                for c in self.cells
-            ]
-        )
-
-
-        for i,cell in enumerate(self.cells):
-
-
-            #
-            # local coupling only
-            #
-            neighbor_mean=np.mean(
-                xs[
-                    self.neighbors[i]
+                neighbors=[
+                    self.cells[j].x
+                    for j in ids
                 ]
-            )
+
+                c.step(
+                    neighbors,
+                    dt
+                )
 
 
-            coupling = (
-                neighbor_mean
-                -
-                cell.x
-            )
-
-
-            #
-            # pure oscillator
-            #
-            cell.step(
-                coupling,
-                self.dt
-            )
+            self.time+=1
 
 
 
     def snapshot(self):
 
-        xs=np.array(
+        x=np.array(
             [
                 c.x
                 for c in self.cells
@@ -156,42 +82,39 @@ class Universe:
         )
 
 
-        energy=np.array(
-            [
-                0.5*c.v*c.v
-                +
-                0.5*c.omega*c.omega*c.x*c.x
-                for c in self.cells
-            ]
-        )
+        energy=x*x*0.5
 
 
         return {
 
+            "time":self.time,
 
-            "time":
-                self.time,
-
-
-            "cells":
-                self.n,
-
+            "cells":len(self.cells),
 
             "energy_mean":
                 float(
-                    np.mean(energy)
+                    energy.mean()
                 ),
-
 
             "energy_std":
                 float(
-                    np.std(energy)
+                    energy.std()
                 ),
-
 
             "x_std":
                 float(
-                    np.std(xs)
+                    x.std()
                 )
-
         }
+
+
+    def state_view(self):
+
+        # 只提供副本
+
+        return np.array(
+            [
+                c.x
+                for c in self.cells
+            ]
+        )

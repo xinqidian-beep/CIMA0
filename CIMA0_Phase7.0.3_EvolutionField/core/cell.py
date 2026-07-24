@@ -3,43 +3,28 @@ import numpy as np
 
 class Cell:
 
-    def __init__(
-        self,
-        omega,
-        x,
-        v
-    ):
+    def __init__(self, x, v, omega):
 
         self.x = x
         self.v = v
         self.omega = omega
 
 
-    def step(
-        self,
-        coupling,
-        dt
-    ):
+    def step(self, neighbors, dt):
 
-        # 唯一动力
+        # 纯局部动力
+        coupling = 0.0
+
+        if neighbors:
+            avg = sum(neighbors) / len(neighbors)
+            coupling = 0.01 * (avg - self.x)
+
 
         force = (
             -self.omega*self.omega*self.x
-            +
-            coupling
+            + coupling
         )
 
 
-        self.v += force*dt
-
-        self.x += self.v*dt
-
-
-
-    def energy(self):
-
-        return (
-            0.5*self.v*self.v
-            +
-            0.5*self.omega*self.omega*self.x*self.x
-        )
+        self.v += force * dt
+        self.x += self.v * dt
