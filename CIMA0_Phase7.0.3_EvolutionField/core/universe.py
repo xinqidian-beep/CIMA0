@@ -4,6 +4,7 @@ import random
 from core.cell import Cell
 
 
+
 class Universe:
 
 
@@ -15,10 +16,13 @@ class Universe:
         seed=42
     ):
 
+
         np.random.seed(seed)
         random.seed(seed)
 
-        self.cells = []
+
+        self.cells=[]
+
 
         for i in range(n):
 
@@ -46,25 +50,59 @@ class Universe:
             )
 
 
-        self.time = 0
+        self.n=n
 
-        self.coupling = coupling
+        self.degree=degree
+
+        self.coupling=coupling
 
 
-        # 固定局部拓扑
+        self.time=0
 
-        self.neighbors = {}
 
-        for i in range(n):
 
-            pool = list(range(n))
+        #
+        # 无向局部拓扑
+        #
 
-            pool.remove(i)
+        self.neighbors={
 
-            self.neighbors[i] = random.sample(
-                pool,
-                degree
-            )
+            i:set()
+
+            for i in range(n)
+
+        }
+
+
+
+        edges=set()
+
+
+
+        while len(edges)<n*degree//2:
+
+
+            a=random.randrange(n)
+
+            b=random.randrange(n)
+
+
+            if a==b:
+                continue
+
+
+            if (a,b) in edges or (b,a) in edges:
+                continue
+
+
+            edges.add((a,b))
+
+
+        for a,b in edges:
+
+            self.neighbors[a].add(b)
+
+            self.neighbors[b].add(a)
 
 
 
@@ -73,71 +111,82 @@ class Universe:
         perturb=None
     ):
 
-        """
-        一个局部动力事件
-
-        不扫描全局
-
-        选择一个cell:
-            读取邻居
-            产生局部作用
-            局部反作用
-
-
-        """
 
         if perturb is None:
 
-            perturb = {}
+            perturb={}
 
 
 
-        # 随机局部事件中心
+        #
+        # 一个局部事件
+        #
 
-        idx = random.randrange(
-            len(self.cells)
+        i=random.randrange(
+            self.n
         )
 
 
-        cell = self.cells[idx]
-
-
-        neighbors = self.neighbors[idx]
+        cell=self.cells[i]
 
 
 
-        local_force = 0.0
+        #
+        # 保存局部作用
+        #
+
+        interactions=[]
 
 
 
-        for j in neighbors:
-
-            neighbor = self.cells[j]
+        for j in self.neighbors[i]:
 
 
-            local_force += (
+            other=self.cells[j]
 
-                neighbor.x
-                -
-                cell.x
+
+            dx = other.x - cell.x
+
+
+            force = (
+
+                self.coupling *
+
+                dx
 
             )
 
 
-        local_force *= self.coupling
+            interactions.append(
+
+                (
+                    j,
+                    force
+                )
+
+            )
 
 
 
-        # =====================
-        # 中心cell更新
-        # =====================
+        #
+        # 中心cell受到所有局部边作用
+        #
+
+        total_force=sum(
+
+            f
+
+            for _,f in interactions
+
+        )
+
 
         cell.step(
 
-            local_force=local_force,
+            force=total_force,
 
             perturb=perturb.get(
-                idx,
+                i,
                 0.0
             )
 
@@ -145,40 +194,24 @@ class Universe:
 
 
 
-        # =====================
-        # 局部反作用
         #
-        # 不扩散
-        # 不全局
-        # =====================
+        # 每条边独立反作用
+        #
+
+        for j,force in interactions:
 
 
-        if len(neighbors)>0:
+            self.cells[j].step(
 
+                force=-force,
 
-            reaction = (
-
-                -local_force
-                /
-                len(neighbors)
+                perturb=0.0
 
             )
 
 
-            for j in neighbors:
 
-
-                self.cells[j].step(
-
-                    local_force=reaction,
-
-                    perturb=0.0
-
-                )
-
-
-
-        self.time += 1
+        self.time+=1
 
 
 
@@ -186,7 +219,7 @@ class Universe:
     def snapshot(self):
 
 
-        energies = [
+        energies=[
 
             c.energy()
 
@@ -195,13 +228,14 @@ class Universe:
         ]
 
 
-        xs = [
+        xs=[
 
             c.x
 
             for c in self.cells
 
         ]
+
 
 
         return {
@@ -238,7 +272,6 @@ class Universe:
                 )
             )
 
-
         }
 
 
@@ -247,11 +280,5 @@ class Universe:
         self,
         idx
     ):
-
-        """
-        Observer接口
-
-        只允许读取单个局部状态
-        """
 
         return self.cells[idx].observe()
