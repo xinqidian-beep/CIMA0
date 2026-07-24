@@ -1,16 +1,8 @@
 import time
 
-
-from config import *
-
-
 from core.universe import Universe
-
 from environment.cloud import CloudField
-
-from observer.coarse import CoarseObserver
-
-from observer.focus import FocusObserver
+from observer.observer import Observer
 
 
 
@@ -23,28 +15,21 @@ def main():
 
 
     u=Universe(
-        N_CELLS,
-        AVG_NEIGHBORS,
-        DT,
-        OMEGA_MIN,
-        OMEGA_MAX,
-        SEED
+        n=4096,
+        avg_neighbors=4,
+        omega_min=0.95,
+        omega_max=1.05,
+        seed=42
     )
 
 
     cloud=CloudField(
-        N_CELLS
+        4096
     )
 
 
-    coarse=CoarseObserver(
-        N_CELLS,
-        OBSERVER_SIZE
-    )
-
-
-    focus=FocusObserver(
-        FOCUS_SIZE
+    observer=Observer(
+        64
     )
 
 
@@ -52,50 +37,44 @@ def main():
 
 
 
-    while True:
+    for report in range(100):
 
 
-        # 动力运行
-
-        u.run(
-            EVENTS_PER_REPORT
+        u.step(
+            1_000_000
         )
 
 
-
-        # 外部观察
-
-        region=coarse.scan()
-
-
-        ids=focus.focus(
-            region,
-            u
-        )
+        # 单向信息流
+        energy=[
+            c.energy()
+            for c in u.cells
+        ]
 
 
+        for i,e in enumerate(energy):
 
-        # 延迟趋势记录
-
-        cloud.disturb(
-            ids,
-            u
-        )
+            cloud.receive(
+                i,
+                e*0.000001
+            )
 
 
         cloud.evolve()
 
 
-
-        print(
-            u.snapshot()
+        observer.perceive(
+            cloud
         )
 
+        observer.step()
 
 
-        if u.time>=100_000_000:
 
-            break
+        print(
+            u.snapshot(),
+            observer.snapshot()
+        )
 
 
 
@@ -107,5 +86,4 @@ def main():
 
 
 if __name__=="__main__":
-
     main()
