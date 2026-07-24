@@ -4,7 +4,6 @@ import random
 from core.cell import Cell
 
 
-
 class Universe:
 
 
@@ -16,14 +15,10 @@ class Universe:
         seed=42
     ):
 
-
         np.random.seed(seed)
-
         random.seed(seed)
 
-
-        self.cells=[]
-
+        self.cells = []
 
         for i in range(n):
 
@@ -51,23 +46,22 @@ class Universe:
             )
 
 
-        self.time=0
+        self.time = 0
+
+        self.coupling = coupling
 
 
-        self.coupling=coupling
+        # 固定局部拓扑
 
-
-        self.neighbors={}
-
+        self.neighbors = {}
 
         for i in range(n):
 
-            pool=list(range(n))
+            pool = list(range(n))
 
             pool.remove(i)
 
-
-            self.neighbors[i]=random.sample(
+            self.neighbors[i] = random.sample(
                 pool,
                 degree
             )
@@ -79,30 +73,46 @@ class Universe:
         perturb=None
     ):
 
+        """
+        一个局部动力事件
+
+        不扫描全局
+
+        选择一个cell:
+            读取邻居
+            产生局部作用
+            局部反作用
+
+
+        """
 
         if perturb is None:
 
-            perturb={}
+            perturb = {}
 
 
 
-        # 异步局部事件
+        # 随机局部事件中心
 
-        idx=random.randrange(
+        idx = random.randrange(
             len(self.cells)
         )
 
 
-        cell=self.cells[idx]
+        cell = self.cells[idx]
 
 
-        local_force=0.0
+        neighbors = self.neighbors[idx]
 
 
 
-        for j in self.neighbors[idx]:
+        local_force = 0.0
 
-            neighbor=self.cells[j]
+
+
+        for j in neighbors:
+
+            neighbor = self.cells[j]
 
 
             local_force += (
@@ -118,6 +128,10 @@ class Universe:
 
 
 
+        # =====================
+        # 中心cell更新
+        # =====================
+
         cell.step(
 
             local_force=local_force,
@@ -130,14 +144,49 @@ class Universe:
         )
 
 
+
+        # =====================
+        # 局部反作用
+        #
+        # 不扩散
+        # 不全局
+        # =====================
+
+
+        if len(neighbors)>0:
+
+
+            reaction = (
+
+                -local_force
+                /
+                len(neighbors)
+
+            )
+
+
+            for j in neighbors:
+
+
+                self.cells[j].step(
+
+                    local_force=reaction,
+
+                    perturb=0.0
+
+                )
+
+
+
         self.time += 1
+
 
 
 
     def snapshot(self):
 
 
-        energies=[
+        energies = [
 
             c.energy()
 
@@ -146,7 +195,7 @@ class Universe:
         ]
 
 
-        xs=[
+        xs = [
 
             c.x
 
@@ -157,36 +206,52 @@ class Universe:
 
         return {
 
+
             "time":
+
             self.time,
 
+
             "energy_mean":
+
             float(
                 np.mean(
                     energies
                 )
             ),
 
+
             "energy_std":
+
             float(
                 np.std(
                     energies
                 )
             ),
 
+
             "x_std":
+
             float(
                 np.std(
                     xs
                 )
             )
 
+
         }
-        
-    def local_state(self, idx):
+
+
+
+    def local_state(
+        self,
+        idx
+    ):
 
         """
-        Observer局部读取接口
+        Observer接口
+
+        只允许读取单个局部状态
         """
 
         return self.cells[idx].observe()
