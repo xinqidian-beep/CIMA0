@@ -1,106 +1,33 @@
-import numpy as np
+import random
 
 
-
-class CloudField:
+class Cloud:
 
 
     def __init__(
         self,
-        n,
-        strength=0.02,
-        radius=8,
-        seed=None
+        strength=0.01
     ):
-
-
-        self.n=n
 
         self.strength=strength
 
-        self.radius=radius
 
 
-        self.rng=np.random.default_rng(
-            seed
-        )
+    def perturb(self):
 
+        """
 
-        self.field=np.zeros(
-            n
-        )
+        返回一次局部扰动
 
+        不知道世界状态
 
+        """
 
-    def evolve(self):
+        if random.random()<0.001:
 
-
-        new=np.zeros(
-            self.n
-        )
-
-
-        for i in range(self.n):
-
-
-            left=max(
-                0,
-                i-self.radius
-            )
-
-
-            right=min(
-                self.n,
-                i+self.radius
-            )
-
-
-            local=self.field[
-                left:right
-            ]
-
-
-            if len(local)>0:
-
-                background=np.mean(
-                    local
-                )
-
-            else:
-
-                background=0
-
-
-
-            noise=self.rng.normal(
-                0,
+            return random.uniform(
+                -self.strength,
                 self.strength
             )
 
-
-            # 空位
-
-            if self.rng.random()<0.1:
-
-                noise=0
-
-
-
-            new[i]=(
-                0.95*background
-                +
-                noise
-            )
-
-
-
-        self.field=new
-
-
-
-    def sample(
-        self,
-        i
-    ):
-
-        return self.field[i]
+        return 0.0

@@ -1,7 +1,6 @@
-import numpy as np
-
+import random
 from core.cell import Cell
-
+from core.cloud import Cloud
 
 
 class Universe:
@@ -9,69 +8,40 @@ class Universe:
 
     def __init__(
         self,
-        n,
-        avg_neighbors,
-        dt,
-        omega_min,
-        omega_max,
-        seed,
-        cloud
+        n=4096,
+        neighbors=4
     ):
 
 
-        self.rng=np.random.default_rng(
-            seed
-        )
+        self.cells=[
+            Cell()
+            for _ in range(n)
+        ]
 
 
-        self.time=0
-
-
-        self.cells=[]
-
-
-        for _ in range(n):
-
-            omega=self.rng.uniform(
-                omega_min,
-                omega_max
-            )
-
-
-            self.cells.append(
-                Cell(
-                    omega,
-                    dt,
-                    seed=self.rng.integers(999999)
-                )
-            )
-
-
-        self.neighbors=[]
+        self.links=[]
 
 
         for i in range(n):
 
-            ids=self.rng.choice(
-                n,
-                avg_neighbors,
-                replace=False
+            ns=random.sample(
+                range(n),
+                neighbors
             )
 
-            self.neighbors.append(
-                ids
-            )
+            self.links.append(ns)
 
 
+        self.cloud=Cloud()
 
-        self.cloud=cloud
+        self.time=0
 
 
 
     def event(self):
 
 
-        i=self.rng.integers(
+        i=random.randrange(
             len(self.cells)
         )
 
@@ -82,103 +52,32 @@ class Universe:
         coupling=0
 
 
-
-        for j in self.neighbors[i]:
+        for j in self.links[i]:
 
             other=self.cells[j]
 
-
-            coupling += (
-                other.x
-                -
-                cell.x
-            )
-
-
-        coupling*=0.02
+            coupling+=(
+                other.x-cell.x
+            )*0.01
 
 
 
-        cloud_force=(
-            self.cloud.sample(i)
-            *
-            0.01
-        )
+        disturbance=self.cloud.perturb()
+
 
 
         cell.step(
-            coupling+
-            cloud_force
+            coupling,
+            disturbance
         )
-
 
 
         self.time+=1
 
 
 
+    def step(self,n):
 
-    def step(
-        self,
-        events
-    ):
-
-
-        for _ in range(events):
-
-            self.cloud.evolve()
+        for _ in range(n):
 
             self.event()
-
-
-
-    def snapshot(self):
-
-
-        xs=np.array(
-            [
-                c.x
-                for c in self.cells
-            ]
-        )
-
-
-        energies=np.array(
-            [
-                c.energy()
-                for c in self.cells
-            ]
-        )
-
-
-        return {
-
-            "time":
-                self.time,
-
-
-            "cells":
-                len(self.cells),
-
-
-            "x_std":
-                float(xs.std()),
-
-
-            "energy_mean":
-                float(
-                    energies.mean()
-                ),
-
-
-            "energy_std":
-                float(
-                    energies.std()
-                ),
-
-
-            "cloud_std":
-                float(
-                    self.cloud.field.std()
-                )
-        }
