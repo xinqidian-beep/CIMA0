@@ -1,5 +1,6 @@
 import time
 
+
 from config import *
 
 from core.universe import Universe
@@ -11,7 +12,7 @@ def main():
 
 
     print(
-        "=== CIMA0 Phase6.7 Clean Universe ==="
+        "=== CIMA0 Phase6.7.1 Observer Upgrade ==="
     )
 
 
@@ -35,7 +36,9 @@ def main():
     obs=Observer()
 
 
+
     start=time.time()
+
 
 
     while True:
@@ -47,11 +50,11 @@ def main():
 
 
         print(
-            observer.read(u)
+            obs.read(u)
         )
 
 
-        if u.time>=10000000:
+        if u.time>=MAX_EVENTS:
 
             break
 
@@ -61,6 +64,7 @@ def main():
         "runtime:",
         time.time()-start
     )
+
 
 
 
