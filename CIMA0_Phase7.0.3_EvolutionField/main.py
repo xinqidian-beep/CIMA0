@@ -1,56 +1,14 @@
 import time
 import numpy as np
 
+
 from core.universe import Universe
+
 from observer.observer import Observer
 
-
-# ============================
-# 云扰动
-# ============================
-
-class CloudPerturbation:
-
-    def __init__(
-        self,
-        strength=0.001,
-        count=64,
-        seed=42
-    ):
-        self.strength = strength
-        self.count = count
-        self.rng = np.random.default_rng(seed)
+from compute.field import ComputeField
 
 
-    def inject(self, universe):
-
-        n = len(universe.cells)
-
-        ids = self.rng.choice(
-            n,
-            size=self.count,
-            replace=False
-        )
-
-
-        field = {}
-
-        for i in ids:
-
-            field[int(i)] = (
-                self.rng.uniform(
-                    -self.strength,
-                    self.strength
-                )
-            )
-
-        return field
-
-
-
-# ============================
-# 主程序
-# ============================
 
 def main():
 
@@ -60,134 +18,107 @@ def main():
     )
 
 
-    # ------------------------
-    # 动力系统
-    # ------------------------
-
-    universe = Universe(
-        n=4096,
-        degree=8,
-        seed=42
+    universe=Universe(
+        n=4096
     )
 
 
-    # ------------------------
-    # Observer
-    # ------------------------
-
-    observer = Observer()
+    observer=Observer()
 
 
-    # ------------------------
-    # Compute
-    # ------------------------
-
-    cloud = CloudPerturbation(
-        strength=0.001,
-        count=64
+    compute=ComputeField(
+        sample_size=64
     )
-
-
-    total_steps = 100_000_000
-
-
-    report_interval = 1_000_000
-
-
-    last_response = None
-
 
 
     start=time.time()
 
 
-    while universe.time < total_steps:
+    last=0
 
 
-        # ====================
+    perturbed=False
+
+
+    before=None
+
+
+
+    while universe.time < 10_000_000:
+
+
+        universe.event()
+
+
+
         # 云扰动
-        # ====================
-
-        perturb = None
-
-
-        if universe.time % report_interval == 0:
-
-            before = np.array(
-                [
-                    c.x
-                    for c in universe.cells
-                ]
-            )
-
-
-            perturb = cloud.inject(
-                universe
-            )
-
-
-        # ====================
-        # 动力事件
-        # ====================
-
-        universe.event(
-            perturb=perturb
-        )
-
-
-        # ====================
-        # 记录响应
-        # ====================
 
         if (
-            universe.time % report_interval
-            == report_interval - 1
+            universe.time==5_000_000
+            and not perturbed
         ):
 
+            before=universe.snapshot()
 
-            after = np.array(
-                [
-                    c.x
-                    for c in universe.cells
-                ]
+
+            idx=np.random.choice(
+                len(universe.cells),
+                32,
+                replace=False
             )
 
 
-            response = (
-                after-before
-            )
+            perturb={
+                int(i):
+                np.random.normal(
+                    0,
+                    0.01
+                )
+                for i in idx
+            }
 
 
-            obs = observer.record(
-                response
-            )
+            for _ in range(1000):
+
+                universe.event(
+                    perturb
+                )
 
 
-            stats = universe.snapshot()
+            after=universe.snapshot()
+
+
+            response=after-before
 
 
             print(
                 {
-                    "time":
-                        universe.time,
-
-                    "energy_mean":
-                        stats["energy_mean"],
-
-                    "x_std":
-                        stats["x_std"],
-
-                    "response_mean":
-                        obs["mean"],
-                    "response_std":
-                        obs["std"],
-
-                    "response_active":
-                        obs["active"],
-
-                    
+                    "disturb_response":
+                    observer.response(
+                        response
+                    )
                 }
             )
+
+
+            perturbed=True
+
+
+
+        if universe.time-last>=100000:
+
+
+            print(
+                universe.stats(),
+                "compute=",
+                compute.compute(
+                    universe
+                )
+            )
+
+
+            last=universe.time
+
 
 
     print(
@@ -197,6 +128,6 @@ def main():
 
 
 
-if __name__ == "__main__":
+if __name__=="__main__":
 
     main()

@@ -1,5 +1,5 @@
-import numpy as np
 import random
+import numpy as np
 
 from core.cell import Cell
 
@@ -11,25 +11,22 @@ class Universe:
     def __init__(
         self,
         n=4096,
-        degree=4,
-        coupling=0.01,
         seed=42
     ):
 
-
         np.random.seed(seed)
         random.seed(seed)
+
+        self.time=0
 
 
         self.cells=[]
 
 
-        for i in range(n):
+        for _ in range(n):
 
             self.cells.append(
-
                 Cell(
-
                     x=np.random.normal(
                         0,
                         0.01
@@ -40,69 +37,27 @@ class Universe:
                         0.01
                     ),
 
-                    omega=np.random.uniform(
-                        0.95,
-                        1.05
-                    )
-
+                    omega=1.0
                 )
-
             )
 
 
-        self.n=n
-
-        self.degree=degree
-
-        self.coupling=coupling
+        self.neighbors={}
 
 
-        self.time=0
+        k=8
 
 
+        for i in range(n):
 
-        #
-        # 无向局部拓扑
-        #
+            ids=list(range(n))
 
-        self.neighbors={
+            ids.remove(i)
 
-            i:set()
-
-            for i in range(n)
-
-        }
-
-
-
-        edges=set()
-
-
-
-        while len(edges)<n*degree//2:
-
-
-            a=random.randrange(n)
-
-            b=random.randrange(n)
-
-
-            if a==b:
-                continue
-
-
-            if (a,b) in edges or (b,a) in edges:
-                continue
-
-
-            edges.add((a,b))
-
-
-        for a,b in edges:
-
-            self.neighbors[a].add(b)
-
-            self.neighbors[b].add(a)
+            self.neighbors[i]=random.sample(
+                ids,
+                k
+            )
 
 
 
@@ -112,173 +67,91 @@ class Universe:
     ):
 
 
-        if perturb is None:
-
-            perturb={}
-
-
-
-        #
-        # 一个局部事件
-        #
-
-        i=random.randrange(
-            self.n
+        idx=random.randrange(
+            len(self.cells)
         )
 
 
-        cell=self.cells[i]
+        cell=self.cells[idx]
 
 
-
-        #
-        # 保存局部作用
-        #
-
-        interactions=[]
+        force=0.0
 
 
-
-        for j in self.neighbors[i]:
-
+        for j in self.neighbors[idx]:
 
             other=self.cells[j]
 
 
-            dx = other.x - cell.x
-
-
-            force = (
-
-                self.coupling *
-
-                dx
-
-            )
-
-
-            interactions.append(
-
-                (
-                    j,
-                    force
-                )
-
-            )
+            force += (
+                other.x-cell.x
+            )*0.01
 
 
 
-        #
-        # 中心cell受到所有局部边作用
-        #
-
-        total_force=sum(
-
-            f
-
-            for _,f in interactions
-
-        )
+        p=0.0
 
 
-        cell.step(
+        if perturb is not None:
 
-            force=total_force,
-
-            perturb=perturb.get(
-                i,
+            p=perturb.get(
+                idx,
                 0.0
             )
 
+
+        cell.step(
+            force=force,
+            perturb=p
         )
-
-
-
-        #
-        # 每条边独立反作用
-        #
-
-        for j,force in interactions:
-
-
-            self.cells[j].step(
-
-                force=-force,
-
-                perturb=0.0
-
-            )
-
 
 
         self.time+=1
 
 
 
+    def stats(self):
 
-    def snapshot(self):
-
-
-        energies=[
-
-            c.energy()
-
-            for c in self.cells
-
-        ]
+        energy=np.array(
+            [
+                c.energy
+                for c in self.cells
+            ]
+        )
 
 
-        xs=[
-
-            c.x
-
-            for c in self.cells
-
-        ]
-
+        x=np.array(
+            [
+                c.x
+                for c in self.cells
+            ]
+        )
 
 
         return {
 
-
-            "time":
-
-            self.time,
-
-
             "energy_mean":
-
-            float(
-                np.mean(
-                    energies
-                )
-            ),
-
+                float(
+                    np.mean(energy)
+                ),
 
             "energy_std":
-
-            float(
-                np.std(
-                    energies
-                )
-            ),
-
+                float(
+                    np.std(energy)
+                ),
 
             "x_std":
-
-            float(
-                np.std(
-                    xs
+                float(
+                    np.std(x)
                 )
-            )
-
         }
 
 
+    def snapshot(self):
 
-    def local_state(
-        self,
-        idx
-    ):
-
-        return self.cells[idx].observe()
+        return np.array(
+            [
+                c.x
+                for c in self.cells
+            ]
+        )
