@@ -51,7 +51,7 @@ def main():
         )
 
 
-        if u.time>=10000000:
+        if u.time>=100000000:
 
             break
 
@@ -61,7 +61,27 @@ def main():
         "runtime:",
         time.time()-start
     )
+def tail_check(energies):
 
+    s=np.sort(energies)
+
+    return {
+        "median":
+            np.median(s),
+
+        "top1":
+            np.mean(
+                s[-len(s)//100:]
+            ),
+
+        "top5":
+            np.mean(
+                s[-len(s)//20:]
+            ),
+
+        "max_ratio":
+            s[-1]/np.mean(s)
+    }
 
 
 if __name__=="__main__":
