@@ -1,94 +1,56 @@
 class SparseCompute:
 
 
-    def __init__(self):
+    def __init__(self, region_size=64):
+
+        self.region_size=region_size
 
         self.field={}
 
 
 
-    def compress(
-        self,
-        observations
-    ):
+    def region(self, idx):
+
+        return idx // self.region_size
+
+
+
+    def compress(self, observations):
 
 
         for idx,state in observations:
 
 
-            old=self.field.get(
-                idx
-            )
+            r=self.region(idx)
 
 
-            if old is None:
+            if r not in self.field:
 
-
-                self.field[idx]={
-
-                    "mean_energy":
-                        state["energy"],
-
-                    "activity":
-                        state["activity"],
-
-                    "samples":1
-
+                self.field[r]={
+                    "energy":state["energy"],
+                    "activity":state["activity"],
+                    "count":1
                 }
-
 
             else:
 
+                f=self.field[r]
 
-                n=old["samples"]
+                n=f["count"]
 
 
-                old["mean_energy"]=(
-
-                    old["mean_energy"]*n
-
+                f["energy"]=(
+                    f["energy"]*n
                     +
-
                     state["energy"]
-
                 )/(n+1)
 
 
-                old["activity"]=(
-
-                    old["activity"]*0.99
-
+                f["activity"]=(
+                    f["activity"]*0.99
                     +
-
                     state["activity"]*0.01
-
                 )
 
 
-                old["samples"]+=1
-
-
-
-
-    def expand_candidates(self):
-
-        """
-        计算系统自己的需要
-
-        不是控制动力
-
-        """
-
-        result=[]
-
-
-        for idx,data in self.field.items():
-
-
-            if data["samples"]>10:
-
-                result.append(idx)
-
-
-
-        return result
+                f["count"]+=1
