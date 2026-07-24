@@ -29,23 +29,28 @@ def main():
     for t in range(100000):
 
 
-        # 1 动力自己运行
+        # compute给出的只是微扰
 
-        universe.tick()
+        perturb = compute.perturbation()
+
+
+        # 动力自己运行
+
+        universe.tick(
+            perturb
+        )
 
 
 
-        # 2 观察者偶尔看
+        # observer偶尔观察
 
         if t % 100 == 0:
 
-
-            obs=observer.sample(
+ 
+            obs = observer.sample(
                 universe
             )
 
-
-            # 3 计算形成压缩表示
 
             compute.compress(
                 obs
@@ -57,16 +62,14 @@ def main():
 
 
             print(
-
                 {
                     "time":
                     universe.time,
 
-                    "observed":
+                    "compute_field":
                     len(compute.field)
 
                 }
-
             )
 
 

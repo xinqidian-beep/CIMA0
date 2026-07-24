@@ -47,21 +47,31 @@ class Universe:
 
 
 
-    def tick(self):
-
-        """
-        动力系统自己的时间推进
-
-        不知道observer
-        不知道compute
-        """
-
-        for c in self.cells:
-
-            c.step()
+    def tick(self, perturb=None):
 
 
-        self.time+=1
+        if perturb is None:
+
+            perturb={}
+
+
+
+        for i,c in enumerate(self.cells):
+
+
+            p = perturb.get(
+                i,
+                0.0
+            )
+
+
+            c.step(
+                perturb=p
+            )
+
+
+
+        self.time += 1
 
 
 
