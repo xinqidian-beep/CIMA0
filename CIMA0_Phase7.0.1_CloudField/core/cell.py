@@ -1,77 +1,42 @@
-import numpy as np
+import random
 
 
 class Cell:
 
-
     def __init__(
         self,
-        omega,
-        dt,
-        seed=None
+        omega=1.0
     ):
 
-        rng=np.random.default_rng(seed)
-
-
-        self.x=rng.normal(
-            0,
-            0.5
-        )
-
-        self.v=rng.normal(
-            0,
-            0.5
-        )
-
+        self.x=random.uniform(-0.1,0.1)
+        self.v=random.uniform(-0.1,0.1)
 
         self.omega=omega
-
-        self.dt=dt
-
 
 
     def force(self):
 
-        return (
-            -self.omega**2
-            *
-            self.x
-        )
-
+        return -self.omega*self.omega*self.x
 
 
     def step(
         self,
-        external=0.0
+        coupling=0.0,
+        disturbance=0.0,
+        dt=0.01
     ):
-
 
         f=self.force()
 
-
-        # 半隐式积分
-
-        self.v += (
-            f + external
-        ) * self.dt
+        f+=coupling
+        f+=disturbance
 
 
-        self.x += (
-            self.v
-            *
-            self.dt
-        )
+        self.v+=f*dt
+        self.x+=self.v*dt
 
 
 
     def energy(self):
 
-        return (
-            0.5*
-            (
-                self.v**2
-                +
-                self.omega**2*self.x**2
-            )
-        )
+        return 0.5*(self.x*self.x+self.v*self.v)
