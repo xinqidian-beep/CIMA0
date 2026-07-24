@@ -1,45 +1,34 @@
-import random
+import numpy as np
 
 
 class Observer:
 
-
-    def __init__(
-        self,
-        sample_size=64
-    ):
-
-        self.sample_size=sample_size
+    def __init__(self):
+        self.history = []
 
 
+    def record(self, response):
 
-    def sample(self, universe):
-
-
-        ids=random.sample(
-
-            range(len(universe.cells)),
-
-            self.sample_size
-
+        response = np.asarray(
+            response,
+            dtype=np.float64
         )
 
-
-        result=[]
-
-
-        for i in ids:
-
-
-            result.append(
-
-                (
-                    i,
-                    universe.local_state(i)
-
+        info = {
+            "std": float(np.std(response)),
+            "mean": float(np.mean(response)),
+            "active": int(
+                np.sum(
+                    np.abs(response) > 1e-8
                 )
-
             )
+        }
+
+        self.history.append(info)
+
+        # 只保留最近一段
+        if len(self.history) > 1000:
+            self.history.pop(0)
 
 
-        return result
+        return info

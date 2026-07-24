@@ -158,7 +158,7 @@ def main():
             )
 
 
-            observer.record(
+            obs = observer.record(
                 response
             )
 
@@ -177,21 +177,15 @@ def main():
                     "x_std":
                         stats["x_std"],
 
+                    "response_mean":
+                        obs["mean"],
                     "response_std":
-                        float(
-                            np.std(
-                                response
-                            )
-                        ),
+                        obs["std"],
 
                     "response_active":
-                        int(
-                            np.sum(
-                                np.abs(response)
-                                >
-                                1e-8
-                            )
-                        )
+                        obs["active"],
+
+                    
                 }
             )
 
