@@ -1,6 +1,7 @@
 import numpy as np
 
 
+
 class CloudField:
 
 
@@ -12,31 +13,41 @@ class CloudField:
         seed=None
     ):
 
+
         self.n=n
+
         self.strength=strength
+
         self.radius=radius
 
-        self.rng=np.random.default_rng(seed)
+
+        self.rng=np.random.default_rng(
+            seed
+        )
 
 
-        # 每个cell自己的环境状态
-
-        self.field=np.zeros(n)
+        self.field=np.zeros(
+            n
+        )
 
 
 
     def evolve(self):
 
 
-        new=np.zeros(self.n)
+        new=np.zeros(
+            self.n
+        )
 
 
         for i in range(self.n):
+
 
             left=max(
                 0,
                 i-self.radius
             )
+
 
             right=min(
                 self.n,
@@ -44,30 +55,43 @@ class CloudField:
             )
 
 
-            local=self.field[left:right]
+            local=self.field[
+                left:right
+            ]
 
 
-            # 环境自身漂移
+            if len(local)>0:
 
-            drift=self.rng.normal(
+                background=np.mean(
+                    local
+                )
+
+            else:
+
+                background=0
+
+
+
+            noise=self.rng.normal(
                 0,
                 self.strength
             )
 
 
-            # 空值概率
+            # 空位
 
             if self.rng.random()<0.1:
 
-                drift=0
+                noise=0
+
 
 
             new[i]=(
-                0.95*
-                np.mean(local)
+                0.95*background
                 +
-                drift
+                noise
             )
+
 
 
         self.field=new
@@ -76,8 +100,7 @@ class CloudField:
 
     def sample(
         self,
-        idx
+        i
     ):
 
-
-        return self.field[idx]
+        return self.field[i]
