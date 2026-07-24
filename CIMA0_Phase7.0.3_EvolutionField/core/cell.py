@@ -1,20 +1,22 @@
-import math
+import numpy as np
 
 
 class Cell:
 
     def __init__(
         self,
-        x,
-        v,
-        omega
+        x=0.0,
+        v=0.0,
+        omega=1.0,
+        energy=1e-4
     ):
 
-        self.x = x
-        self.v = v
+        self.x=x
+        self.v=v
 
-        # 固定动力参数
-        self.omega = omega
+        self.omega=omega
+
+        self.energy=energy
 
 
     def step(
@@ -24,68 +26,22 @@ class Cell:
         dt=0.01
     ):
 
-        """
-        最小动力核心
-
-        外界只能通过:
-            force
-            perturb
-
-        不能改变:
-            omega
-
-        """
-
-        acceleration = (
-
-            -self.omega *
-            self.omega *
-            self.x
-
+        a = (
+            -self.omega*self.omega*self.x
             +
-
             force
-
             +
-
             perturb
-
         )
 
 
-        self.v += acceleration * dt
+        self.v += a*dt
 
-        self.x += self.v * dt
+        self.x += self.v*dt
 
 
-
-    def energy(self):
-
-        return (
-
-            0.5 *
-            self.v *
-            self.v
-
+        self.energy = (
+            0.5*self.v*self.v
             +
-
-            0.5 *
-            self.omega *
-            self.omega *
-            self.x *
-            self.x
-
+            0.5*self.omega*self.omega*self.x*self.x
         )
-
-
-    def observe(self):
-
-        return {
-
-            "x": self.x,
-
-            "v": self.v,
-
-            "energy": self.energy()
-
-        }

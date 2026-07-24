@@ -3,32 +3,63 @@ import numpy as np
 
 class Observer:
 
-    def __init__(self):
-        self.history = []
+
+    def sample(
+        self,
+        universe,
+        size=64
+    ):
 
 
-    def record(self, response):
-
-        response = np.asarray(
-            response,
-            dtype=np.float64
+        ids=np.random.choice(
+            len(universe.cells),
+            size,
+            replace=False
         )
 
-        info = {
-            "std": float(np.std(response)),
-            "mean": float(np.mean(response)),
-            "active": int(
-                np.sum(
-                    np.abs(response) > 1e-8
-                )
-            )
+
+        values=np.array(
+            [
+                universe.cells[i].x
+                for i in ids
+            ]
+        )
+
+
+        return {
+
+            "mean":
+                float(np.mean(values)),
+
+            "std":
+                float(np.std(values)),
+
+            "active":
+                int(size)
         }
 
-        self.history.append(info)
-
-        # 只保留最近一段
-        if len(self.history) > 1000:
-            self.history.pop(0)
 
 
-        return info
+    def response(
+        self,
+        data
+    ):
+
+        std=np.std(data)
+
+
+        threshold=std*2
+
+
+        return {
+
+            "std":
+                float(std),
+
+            "active":
+                int(
+                    np.sum(
+                        np.abs(data)>threshold
+                    )
+                )
+        }
