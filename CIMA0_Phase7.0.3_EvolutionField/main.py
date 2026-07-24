@@ -1,62 +1,135 @@
+import time
+
 from core.universe import Universe
 from observer.observer import Observer
 from compute.sparse import SparseCompute
 
 
-
 def main():
-
 
     print(
         "=== CIMA0 Phase7.0.3 EvolutionField ==="
     )
 
 
-    u=Universe(
-        4096,
-        degree=4
+    # ==========================
+    # Dynamics
+    # ==========================
+
+    universe = Universe(
+        n=4096,
+        degree=4,
+        coupling=0.01,
+        seed=42
     )
 
 
-    observer=Observer(64)
+    # ==========================
+    # Observer
+    # ==========================
 
-    compute=SparseCompute(64)
+    observer = Observer(
+        sample_size=64
+    )
+
+
+    # ==========================
+    # Compute
+    # ==========================
+
+    compute = SparseCompute(
+        capacity=64
+    )
+
+
+    TOTAL_EVENTS = 10_000_000
+
+
+    OBSERVE_INTERVAL = 100
+
+
+    REPORT_INTERVAL = 100_000
 
 
 
-    for t in range(
-        10000000
+    start=time.time()
+
+
+    for step in range(
+        TOTAL_EVENTS
     ):
 
 
-        # 动力事件
+        # ----------------------
+        # 1.
+        # Compute提供短暂扰动
+        #
+        # 不是控制
+        # ----------------------
 
-        u.event()
+        perturb = compute.perturbation()
 
 
 
-        # 观察不是连续的
+        # ----------------------
+        # 2.
+        # Dynamics自行推进
+        #
+        # 局部事件
+        # 局部耦合
+        # ----------------------
 
-        if t % 100 == 0:
+        universe.event(
+            perturb
+        )
 
 
-            obs=observer.sample(
-                u
+
+        # ----------------------
+        # 3.
+        # Observer偶尔观察
+        #
+        # 不扫描全局
+        # ----------------------
+
+        if step % OBSERVE_INTERVAL == 0:
+
+
+            observations = observer.sample(
+                universe
             )
 
 
             compute.compress(
-                obs
+                observations
             )
 
 
 
-        if t % 10000==0:
+        # ----------------------
+        # 4.
+        # 外部观察输出
+        # ----------------------
+
+        if step % REPORT_INTERVAL == 0:
+
+
+            snap = universe.snapshot()
 
 
             print(
-                u.snapshot()
+                snap,
+                "compute_field=",
+                len(compute.field)
             )
+
+
+
+    print(
+        "finished",
+        "time=",
+        time.time()-start
+    )
 
 
 

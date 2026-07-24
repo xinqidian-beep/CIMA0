@@ -12,11 +12,14 @@ class Universe:
         self,
         n=4096,
         degree=4,
+        coupling=0.01,
         seed=42
     ):
 
 
         np.random.seed(seed)
+
+        random.seed(seed)
 
 
         self.cells=[]
@@ -51,22 +54,21 @@ class Universe:
         self.time=0
 
 
-        # 固定局部拓扑
+        self.coupling=coupling
+
 
         self.neighbors={}
 
 
         for i in range(n):
 
-            choices=list(
-                range(n)
-            )
+            pool=list(range(n))
 
-            choices.remove(i)
+            pool.remove(i)
 
 
             self.neighbors[i]=random.sample(
-                choices,
+                pool,
                 degree
             )
 
@@ -84,21 +86,21 @@ class Universe:
 
 
 
-        # 随机选择一个局部事件
+        # 异步局部事件
 
-        i=random.randrange(
+        idx=random.randrange(
             len(self.cells)
         )
 
 
-        cell=self.cells[i]
+        cell=self.cells[idx]
 
 
         local_force=0.0
 
 
-        for j in self.neighbors[i]:
 
+        for j in self.neighbors[idx]:
 
             neighbor=self.cells[j]
 
@@ -112,7 +114,7 @@ class Universe:
             )
 
 
-        local_force *= 0.05
+        local_force *= self.coupling
 
 
 
@@ -121,54 +123,70 @@ class Universe:
             local_force=local_force,
 
             perturb=perturb.get(
-                i,
+                idx,
                 0.0
             )
 
         )
 
 
-        self.time+=1
+        self.time += 1
 
 
 
     def snapshot(self):
 
 
-        energy=[]
+        energies=[
+
+            c.energy()
+
+            for c in self.cells
+
+        ]
 
 
-        for c in self.cells:
+        xs=[
 
-            energy.append(
-                c.observe()["energy"]
-            )
+            c.x
+
+            for c in self.cells
+
+        ]
 
 
         return {
 
-            "time":self.time,
+            "time":
+            self.time,
 
             "energy_mean":
-            float(np.mean(energy)),
+            float(
+                np.mean(
+                    energies
+                )
+            ),
 
             "energy_std":
-            float(np.std(energy)),
+            float(
+                np.std(
+                    energies
+                )
+            ),
 
             "x_std":
             float(
                 np.std(
-                    [
-                        c.x
-                        for c in self.cells
-                    ]
+                    xs
                 )
             )
 
         }
+        
+    def local_state(self, idx):
 
+        """
+        Observer局部读取接口
+        """
 
-
-    def local_state(self,i):
-
-        return self.cells[i].observe()
+        return self.cells[idx].observe()

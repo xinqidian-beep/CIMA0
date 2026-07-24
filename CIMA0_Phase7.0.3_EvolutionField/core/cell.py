@@ -1,11 +1,16 @@
 class Cell:
     """
-    最小动力单元
+    CIMA0 动力核心单元
 
-    自己负责存在。
-    外部只能提供 perturb。
+    内部:
+        harmonic oscillator
 
-    omega 不可修改。
+    外部:
+        local_force
+        perturb
+
+    外部不能修改:
+        omega
     """
 
     __slots__ = (
@@ -24,28 +29,43 @@ class Cell:
         omega
     ):
 
-        self._x = x
-        self._v = v
-        self._omega = omega
+        self._x = float(x)
+        self._v = float(v)
+        self._omega = float(omega)
 
         self.time = 0
+
         self.activity = 0.0
 
 
 
     @property
     def x(self):
+
         return self._x
+
 
 
     @property
     def v(self):
+
         return self._v
+
 
 
     @property
     def omega(self):
+
         return self._omega
+
+
+
+    def acceleration(
+        self,
+        force
+    ):
+
+        return force
 
 
 
@@ -56,15 +76,16 @@ class Cell:
         dt=0.01
     ):
 
-        """
-        动力核心
 
-        内生振荡
-        +
-        局部耦合
-        +
-        微弱扰动
         """
+        Velocity Verlet
+
+        不改变动力规则
+        只改变积分方式
+        """
+
+
+        # 当前力
 
         force = (
 
@@ -79,44 +100,109 @@ class Cell:
             +
 
             perturb
+
         )
 
 
-        self._v += force * dt
+        # 半步位置更新
 
-        self._x += self._v * dt
+        self._x += (
+
+            self._v * dt
+
+            +
+
+            0.5 *
+            force *
+            dt *
+            dt
+
+        )
+
+
+        # 新位置后的新力
+
+        new_force = (
+
+            -self._omega *
+            self._omega *
+            self._x
+
+            +
+
+            local_force
+
+            +
+
+            perturb
+
+        )
+
+
+        # 速度更新
+
+        self._v += (
+
+            0.5 *
+            (force + new_force)
+            *
+            dt
+
+        )
 
 
         self.time += 1
 
 
         self.activity = (
+
             abs(self._x)
+
             +
+
             abs(self._v)
+
+        )
+
+
+
+    def energy(self):
+
+        return (
+
+            0.5 *
+            self._v *
+            self._v
+
+            +
+
+            0.5 *
+            self._omega *
+            self._omega *
+            self._x *
+            self._x
+
         )
 
 
 
     def observe(self):
 
-        energy = (
-
-            0.5*self._v*self._v
-
-            +
-
-            0.5*
-            self._omega*
-            self._omega*
-            self._x*self._x
-
-        )
-
-
         return {
-            "x":self._x,
-            "v":self._v,
-            "energy":energy,
-            "activity":self.activity
+
+            "x":
+            self._x,
+
+            "v":
+            self._v,
+
+            "energy":
+            self.energy(),
+
+            "activity":
+            self.activity,
+
+            "time":
+            self.time
+
         }
