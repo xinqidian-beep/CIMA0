@@ -1,11 +1,11 @@
 class Cell:
-
     """
-    动力核心单元
+    最小动力单元
 
-    外部只能提供 perturb
-    不允许修改 omega
-    不允许修改内部规则
+    自己负责存在。
+    外部只能提供 perturb。
+
+    omega 不可修改。
     """
 
     __slots__ = (
@@ -38,11 +38,9 @@ class Cell:
         return self._x
 
 
-
     @property
     def v(self):
         return self._v
-
 
 
     @property
@@ -53,23 +51,33 @@ class Cell:
 
     def step(
         self,
+        local_force=0.0,
         perturb=0.0,
         dt=0.01
     ):
 
         """
-        核心动力
+        动力核心
 
-        F = intrinsic + perturb
-
-        perturb只能是外部微扰
+        内生振荡
+        +
+        局部耦合
+        +
+        微弱扰动
         """
 
         force = (
+
             -self._omega *
             self._omega *
             self._x
+
             +
+
+            local_force
+
+            +
+
             perturb
         )
 
@@ -93,22 +101,22 @@ class Cell:
     def observe(self):
 
         energy = (
+
             0.5*self._v*self._v
+
             +
-            0.5*self._omega*self._omega*self._x*self._x
+
+            0.5*
+            self._omega*
+            self._omega*
+            self._x*self._x
+
         )
 
 
         return {
-
             "x":self._x,
-
             "v":self._v,
-
             "energy":energy,
-
-            "activity":self.activity,
-
-            "time":self.time
-
+            "activity":self.activity
         }
