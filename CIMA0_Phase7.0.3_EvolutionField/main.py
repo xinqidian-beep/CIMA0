@@ -12,43 +12,36 @@ def main():
     )
 
 
-    universe=Universe(
-        4096
+    u=Universe(
+        4096,
+        degree=4
     )
 
 
-    observer=Observer(
-        64
-    )
+    observer=Observer(64)
 
-
-    compute=SparseCompute()
+    compute=SparseCompute(64)
 
 
 
-    for t in range(100000):
+    for t in range(
+        10000000
+    ):
 
 
-        # compute给出的只是微扰
+        # 动力事件
 
-        perturb = compute.perturbation()
-
-
-        # 动力自己运行
-
-        universe.tick(
-            perturb
-        )
+        u.event()
 
 
 
-        # observer偶尔观察
+        # 观察不是连续的
 
         if t % 100 == 0:
 
- 
-            obs = observer.sample(
-                universe
+
+            obs=observer.sample(
+                u
             )
 
 
@@ -58,20 +51,12 @@ def main():
 
 
 
-        if t % 10000 == 0:
+        if t % 10000==0:
 
 
             print(
-                {
-                    "time":
-                    universe.time,
-
-                    "compute_field":
-                    len(compute.field)
-
-                }
+                u.snapshot()
             )
-
 
 
 
