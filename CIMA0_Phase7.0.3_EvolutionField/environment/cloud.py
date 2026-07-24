@@ -1,45 +1,33 @@
-from memory.trace import TraceMemory
-
+import numpy as np
 
 
 class CloudField:
 
 
-    def __init__(
+    def __init__(self,n):
+
+        self.n=n
+
+        self.field=np.zeros(n)
+
+
+
+    def receive(
         self,
-        n
+        idx,
+        value
     ):
 
-        self.memory=TraceMemory(n)
-
-
-
-    def disturb(
-        self,
-        ids,
-        universe
-    ):
-
-        for i in ids:
-
-            x=universe.cells[i].x
-
-
-            # 只记录
-
-            self.memory.add(
-                i,
-                abs(x)*0.001
-            )
+        self.field[idx]+=value
 
 
 
     def evolve(self):
 
-        self.memory.decay()
+        self.field*=0.999
 
 
 
-    def field(self):
+    def sample(self,idx):
 
-        return self.memory.trace
+        return self.field[idx]

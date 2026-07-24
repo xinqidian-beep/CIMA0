@@ -4,51 +4,77 @@ from core.cell import Cell
 
 
 class Universe:
+    """
+    Pure dynamical core.
 
+    Rules:
+
+    1. Cell dynamics is closed.
+    2. External field can only perturb state.
+    3. No observer.
+    4. No ranking.
+    5. No global optimization.
+    6. No memory inside dynamics.
+
+    Evolution:
+        local state
+            |
+            v
+        coupling
+            |
+            v
+        oscillator update
+
+    """
 
     def __init__(
         self,
-        n,
-        avg_neighbors,
-        dt,
-        omega_min,
-        omega_max,
-        seed
+        n=4096,
+        avg_neighbors=4,
+        omega_min=0.95,
+        omega_max=1.05,
+        dt=0.01,
+        seed=42
     ):
-
-        np.random.seed(seed)
 
         self.n = n
         self.dt = dt
-        self.time = 0
+
+        np.random.seed(seed)
 
 
-        self.cells = []
+        self.cells=[]
 
 
         for _ in range(n):
 
             self.cells.append(
+
                 Cell(
+
+                    x=np.random.normal(
+                        0,
+                        0.01
+                    ),
+
+                    v=np.random.normal(
+                        0,
+                        0.01
+                    ),
+
                     omega=np.random.uniform(
                         omega_min,
                         omega_max
-                    ),
-
-                    # 恢复动力尺度
-                    x=np.random.uniform(
-                        -1.0,
-                        1.0
-                    ),
-
-                    v=np.random.uniform(
-                        -1.0,
-                        1.0
                     )
+
                 )
+
             )
 
 
+        #
+        # fixed random local topology
+        #
         self.neighbors=[]
 
 
@@ -60,107 +86,81 @@ class Universe:
                 replace=False
             )
 
-            self.neighbors.append(ids)
+            self.neighbors.append(
+                ids
+            )
+
+
+        self.time=0
 
 
 
-    def step(self):
+    def step(self, events):
 
-        """
-        单次完整动力更新
+        for _ in range(events):
 
-        注意：
-        所有cell读取旧状态
-        所有cell同时写入新状态
+            self._single_step()
 
-        避免：
-        更新顺序成为隐藏扰动
-        """
+            self.time += 1
 
 
-        new_x=np.zeros(
-            self.n
-        )
 
-        new_v=np.zeros(
-            self.n
+    def _single_step(self):
+
+
+        xs=np.array(
+            [
+                c.x
+                for c in self.cells
+            ]
         )
 
 
         for i,cell in enumerate(self.cells):
 
 
-            coupling=0.0
-
-
-            for j in self.neighbors[i]:
-
-                coupling += (
-                    self.cells[j].x
-                    -
-                    cell.x
-                )
-
-
-            coupling /= len(
-                self.neighbors[i]
+            #
+            # local coupling only
+            #
+            neighbor_mean=np.mean(
+                xs[
+                    self.neighbors[i]
+                ]
             )
 
 
-            force=(
-
-                -cell.omega *
-                cell.omega *
+            coupling = (
+                neighbor_mean
+                -
                 cell.x
-
-                +
-
-                0.01 *
-                coupling
             )
 
 
-            new_v[i]=(
-                cell.v
-                +
-                force*self.dt
+            #
+            # pure oscillator
+            #
+            cell.step(
+                coupling,
+                self.dt
             )
-
-
-            new_x[i]=(
-                cell.x
-                +
-                new_v[i]*self.dt
-            )
-
-
-
-        for i,cell in enumerate(self.cells):
-
-            cell.x=new_x[i]
-            cell.v=new_v[i]
-
-
-        self.time+=1
-
-
-
-    def run(
-        self,
-        steps
-    ):
-
-        for _ in range(steps):
-
-            self.step()
 
 
 
     def snapshot(self):
 
-        energies=np.array(
+        xs=np.array(
             [
-                c.energy()
+                c.x
+                for c in self.cells
+            ]
+        )
+
+
+        energy=np.array(
+            [
+                0.5*c.v*c.v
+                +
+                0.5*c.omega*c.omega*c.x*c.x
                 for c in self.cells
             ]
         )
@@ -168,29 +168,30 @@ class Universe:
 
         return {
 
+
             "time":
                 self.time,
+
 
             "cells":
                 self.n,
 
+
             "energy_mean":
                 float(
-                    energies.mean()
+                    np.mean(energy)
                 ),
+
 
             "energy_std":
                 float(
-                    energies.std()
+                    np.std(energy)
                 ),
+
 
             "x_std":
                 float(
-                    np.std(
-                        [
-                            c.x
-                            for c in self.cells
-                        ]
-                    )
+                    np.std(xs)
                 )
+
         }
