@@ -1,34 +1,42 @@
-import numpy as np
+import random
+
 
 
 class Observer:
 
 
-    def __init__(self):
+    def __init__(
+        self,
+        sample_size=64
+    ):
 
-        self.interest=None
-
-
-
-    def observe(self,state):
-
-        diff=np.abs(state)
+        self.sample_size=sample_size
 
 
-        # 稀疏发现
-        ids=np.random.choice(
-            len(state),
-            64,
-            replace=False
+
+    def sample(self, universe):
+
+
+        ids=random.sample(
+            list(universe.cells.keys()),
+            self.sample_size
         )
 
 
-        scores=diff[ids]
+        observations=[]
 
 
-        self.interest=ids[
-            np.argmax(scores)
-        ]
+        for i in ids:
+
+            c=universe.cells[i]
 
 
-        return self.interest
+            observations.append(
+                (
+                    i,
+                    abs(c.activity)
+                )
+            )
+
+
+        return observations

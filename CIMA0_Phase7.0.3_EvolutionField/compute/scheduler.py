@@ -1,32 +1,63 @@
 import numpy as np
 
 
-class ComputeScheduler:
+class Scheduler:
 
 
-    def __init__(self):
+    def __init__(
+        self,
+        n
+    ):
 
-        self.depth=1
+        self.n=n
 
 
 
-    def allocate(self,observer_signal):
+    def allocate(
+        self,
+        observer_hint=None
+    ):
 
 
-        if observer_signal is None:
+        # 第一层稀疏采样
 
-            return []
+        sample=np.random.choice(
+            self.n,
+            64,
+            replace=False
+        )
+
+
+        if observer_hint is None:
+
+            return sample
+
 
 
         # 局部展开
 
-        center=observer_signal
+        center=observer_hint
 
 
-        region=np.arange(
-            max(0,center-8),
-            min(center+8,4096)
+        local=np.arange(
+            max(
+                0,
+                center-8
+            ),
+            min(
+                self.n,
+                center+8
+            )
         )
 
 
-        return region
+        # 少量精算区域
+
+        return np.unique(
+            np.concatenate(
+                [
+                    sample,
+                    local
+                ]
+            )
+        )

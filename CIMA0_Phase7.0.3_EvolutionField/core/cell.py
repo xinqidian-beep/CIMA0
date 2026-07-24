@@ -1,30 +1,48 @@
-import numpy as np
+import math
 
 
 class Cell:
 
-    def __init__(self, x, v, omega):
+    def __init__(
+        self,
+        x,
+        v,
+        omega
+    ):
 
         self.x = x
         self.v = v
         self.omega = omega
 
-
-    def step(self, neighbors, dt):
-
-        # 纯局部动力
-        coupling = 0.0
-
-        if neighbors:
-            avg = sum(neighbors) / len(neighbors)
-            coupling = 0.01 * (avg - self.x)
+        self.local_time = 0
+        self.activity = 0.0
 
 
-        force = (
-            -self.omega*self.omega*self.x
-            + coupling
-        )
+    def evolve(self, dt=0.01):
+
+        # 纯动力
+        a = -self.omega*self.omega*self.x
 
 
-        self.v += force * dt
+        self.v += a * dt
         self.x += self.v * dt
+
+
+        self.local_time += 1
+
+
+        self.activity = abs(self.v)+abs(self.x)
+
+
+
+    def compress(self):
+
+        return {
+            "x":self.x,
+            "v":self.v,
+            "energy":
+                0.5*self.v*self.v
+                +
+                0.5*self.omega*self.omega*self.x*self.x,
+            "time":self.local_time
+        }
