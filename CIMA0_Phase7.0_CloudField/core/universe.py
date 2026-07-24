@@ -1,8 +1,6 @@
 import numpy as np
 
 from core.cell import Cell
-from core.cloud import CloudField
-from core.interaction import LocalInteraction
 
 
 
@@ -16,120 +14,104 @@ class Universe:
         dt,
         omega_min,
         omega_max,
-        cloud_size,
-        cloud_strength,
-        seed
+        seed=0
     ):
 
 
-        np.random.seed(seed)
-
-
-        self.dt=dt
+        self.rng=np.random.default_rng(seed)
 
         self.time=0
 
+        self.cells=[]
 
 
-        self.cells=[
+        for _ in range(n):
 
-            Cell(
-                np.random.uniform(
-                    omega_min,
-                    omega_max
+            self.cells.append(
+                Cell(
+                    omega=self.rng.uniform(
+                        omega_min,
+                        omega_max
+                    ),
+                    dt=dt
                 )
             )
 
-            for _ in range(n)
 
-        ]
-
-
-        self.edges=[]
+        self.neighbors=[]
 
 
         for i in range(n):
 
-            ids=np.random.choice(
+            ids=self.rng.choice(
                 n,
                 avg_neighbors,
                 replace=False
             )
 
-            self.edges.append(ids)
+            self.neighbors.append(ids)
 
 
 
-        self.cloud=CloudField(
-            cloud_size,
-            cloud_strength,
-            seed
-        )
+    def event(
+        self,
+        disturbance
+    ):
 
-
-        self.interaction=LocalInteraction()
-
-
-
-    def event(self):
-
-
-        i=np.random.randint(
+        i=self.rng.integers(
             len(self.cells)
         )
 
 
-        cell=self.cells[i]
+        c=self.cells[i]
 
 
-        neighbors=[
-
-            self.cells[j]
-
-            for j in self.edges[i]
-
-        ]
+        coupling=0.0
 
 
-        f=self.interaction.force(
-            cell,
-            neighbors
+        for j in self.neighbors[i]:
+
+            coupling += (
+                self.cells[j].x
+                -
+                c.x
+            )
+
+
+        coupling /= len(
+            self.neighbors[i]
         )
 
 
-        cloud_force=self.cloud.sample(i)
-
-
-        cell.step(
-            self.dt,
-            f+cloud_force
+        c.step(
+            coupling,
+            disturbance
         )
+
+
+        self.time += 1
 
 
 
     def step(
         self,
-        events
+        events,
+        cloud
     ):
 
 
         for _ in range(events):
 
+            d=cloud.perturb()
 
-            self.cloud.step()
-
-
-            self.event()
-
-
-            self.time+=1
+            self.event(d)
 
 
 
     def snapshot(self):
 
 
-        x=np.array(
+        xs=np.array(
             [
                 c.x
                 for c in self.cells
@@ -137,7 +119,7 @@ class Universe:
         )
 
 
-        e=np.array(
+        es=np.array(
             [
                 c.energy()
                 for c in self.cells
@@ -147,19 +129,14 @@ class Universe:
 
         return {
 
-            "time":
-                self.time,
+            "time":self.time,
 
-            "cells":
-                len(self.cells),
+            "cells":len(self.cells),
 
-            "x_std":
-                float(x.std()),
+            "x_std":float(xs.std()),
 
-            "energy_mean":
-                float(e.mean()),
+            "energy_mean":float(es.mean()),
 
-            "energy_std":
-                float(e.std())
+            "energy_std":float(es.std())
 
         }
