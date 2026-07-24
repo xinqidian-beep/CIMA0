@@ -3,8 +3,10 @@ import time
 
 from config import *
 
+
 from core.universe import Universe
-from core.observer import Observer
+
+from environment.cloud import CloudField
 
 
 
@@ -28,16 +30,14 @@ def main():
 
         omega_max=OMEGA_MAX,
 
-        cloud_size=CLOUD_SIZE,
-
-        cloud_strength=CLOUD_STRENGTH,
-
         seed=SEED
-
     )
 
 
-    obs=Observer()
+    cloud=CloudField(
+        strength=CLOUD_STRENGTH,
+        seed=SEED
+    )
 
 
     start=time.time()
@@ -48,12 +48,13 @@ def main():
 
 
         u.step(
-            EVENTS_PER_REPORT
+            EVENTS_PER_REPORT,
+            cloud
         )
 
 
         print(
-            obs.read(u)
+            u.snapshot()
         )
 
 
