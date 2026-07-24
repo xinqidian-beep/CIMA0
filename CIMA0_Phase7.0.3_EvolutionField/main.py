@@ -17,7 +17,7 @@ def main():
     # ==========================
 
     universe = Universe(
-        n=4096,
+        n=16384,
         degree=4,
         coupling=0.01,
         seed=42
@@ -42,7 +42,7 @@ def main():
     )
 
 
-    TOTAL_EVENTS = 10_000_000
+    TOTAL_EVENTS = 100_000_000
 
 
     OBSERVE_INTERVAL = 100
