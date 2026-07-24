@@ -3,7 +3,6 @@ import numpy as np
 from core.cell import Cell
 
 
-
 class Universe:
 
 
@@ -19,16 +18,15 @@ class Universe:
 
         np.random.seed(seed)
 
-        self.n=n
-        self.dt=dt
-
-        self.time=0
-
-
-        self.cells=[]
+        self.n = n
+        self.dt = dt
+        self.time = 0
 
 
-        for i in range(n):
+        self.cells = []
+
+
+        for _ in range(n):
 
             self.cells.append(
                 Cell(
@@ -36,13 +34,16 @@ class Universe:
                         omega_min,
                         omega_max
                     ),
-                    x=np.random.normal(
-                        0,
-                        0.01
+
+                    # 恢复动力尺度
+                    x=np.random.uniform(
+                        -1.0,
+                        1.0
                     ),
-                    v=np.random.normal(
-                        0,
-                        0.01
+
+                    v=np.random.uniform(
+                        -1.0,
+                        1.0
                     )
                 )
             )
@@ -63,37 +64,81 @@ class Universe:
 
 
 
-    def event(self):
+    def step(self):
+
+        """
+        单次完整动力更新
+
+        注意：
+        所有cell读取旧状态
+        所有cell同时写入新状态
+
+        避免：
+        更新顺序成为隐藏扰动
+        """
 
 
-        i=np.random.randint(
+        new_x=np.zeros(
+            self.n
+        )
+
+        new_v=np.zeros(
             self.n
         )
 
 
-        cell=self.cells[i]
+        for i,cell in enumerate(self.cells):
 
 
-        coupling=0.0
+            coupling=0.0
 
 
-        for j in self.neighbors[i]:
+            for j in self.neighbors[i]:
 
-            coupling += (
-                self.cells[j].x
-                -
-                cell.x
+                coupling += (
+                    self.cells[j].x
+                    -
+                    cell.x
+                )
+
+
+            coupling /= len(
+                self.neighbors[i]
             )
 
 
-        coupling*=0.02
+            force=(
+
+                -cell.omega *
+                cell.omega *
+                cell.x
+
+                +
+
+                0.01 *
+                coupling
+            )
+
+
+            new_v[i]=(
+                cell.v
+                +
+                force*self.dt
+            )
+
+
+            new_x[i]=(
+                cell.x
+                +
+                new_v[i]*self.dt
+            )
 
 
 
-        cell.step(
-            coupling,
-            self.dt
-        )
+        for i,cell in enumerate(self.cells):
+
+            cell.x=new_x[i]
+            cell.v=new_v[i]
 
 
         self.time+=1
@@ -107,7 +152,7 @@ class Universe:
 
         for _ in range(steps):
 
-            self.event()
+            self.step()
 
 
 
