@@ -1,24 +1,49 @@
-class Snapshot:
+from collections import deque
+
+
+class TemporalSnapshot:
     """
-    Immutable observation snapshot.
+    Observation time window.
 
-    Only stores observed information.
+    Only stores sampled history.
 
-    Never affects dynamics.
+    Does not:
+        modify cell
+        influence dynamics
+        control world
+
+    Data will be overwritten.
     """
 
-    def __init__(self, time, states):
-
-        self.time = time
-
-        self.states = states
-
-
-    def get(self, cid):
-
-        return self.states.get(cid)
+    def __init__(self, window_size=32):
+        self.window = deque(
+            maxlen=window_size
+        )
 
 
-    def ids(self):
+    def push(self, time, states):
 
-        return self.states.keys()
+        self.window.append(
+            {
+                "time": time,
+                "states": states
+            }
+        )
+
+
+    def latest(self):
+
+        if not self.window:
+            return None
+
+        return self.window[-1]
+
+
+    def history(self):
+
+        return list(self.window)
+
+
+    def size(self):
+
+        return len(self.window)

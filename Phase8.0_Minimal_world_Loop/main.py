@@ -8,7 +8,7 @@ from core.observer import ObserverSystem
 def main():
 
     print(
-        "=== Phase8.0 Minimal World Loop ==="
+        "=== Phase8.1 Minimal World Loop ==="
     )
 
 
@@ -31,7 +31,8 @@ def main():
 
     observer = ObserverSystem(
         sample_size=64,
-        history_size=8,
+        # 时间观察窗口
+        history_size=32,
         threshold=0.5,
         decay=0.90,
         spread=0.15,
