@@ -1,35 +1,38 @@
 import numpy as np
 
 
-
 class Observer:
 
 
-    def observe(
-        self,
-        universe
-    ):
+    def observe(self,world):
 
 
-        x=universe.state()
+        values=[
+
+            c.x
+
+            for c in world.cells
+
+        ]
 
 
         return {
 
             "mean":
                 float(
-                    np.mean(x)
+                    np.mean(values)
                 ),
 
             "std":
                 float(
-                    np.std(x)
+                    np.std(values)
                 ),
 
             "active":
                 int(
                     np.sum(
-                        np.abs(x)>1e-3
+                        np.abs(values)>1e-8
                     )
                 )
+
         }
