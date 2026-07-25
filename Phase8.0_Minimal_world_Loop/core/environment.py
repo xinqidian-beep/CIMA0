@@ -1,53 +1,37 @@
-import random
+import numpy as np
 
 
 class Environment:
 
+
     """
-    World memory.
+    Local world memory.
 
-    Not input.
-    Accumulated history.
+    No global intelligence.
+
+    Only:
+        decay
+        local residue
     """
 
 
-    def __init__(self):
+    def __init__(self,n):
 
-        self.field = 0.0
-
-        self.events = 0
+        self.field=np.zeros(n)
 
 
 
-    def receive(
-        self,
-        cell_state
-    ):
+    def update(self,cell_id,value):
 
-        # world changed by existence
+        self.field[cell_id]*=0.999
 
-        self.field += (
-            cell_state["x"]
-            *
-            0.000001
+
+        self.field[cell_id]+=(
+            value*0.001
         )
 
-        self.events += 1
 
 
+    def get(self,cell_id):
 
-    def local_value(
-        self
-    ):
-
-        # local world value
-
-        return self.field
-
-
-
-    def decay(self):
-
-        # environment also changes
-
-        self.field *= 0.999999
+        return self.field[cell_id]
