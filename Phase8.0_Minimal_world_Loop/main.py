@@ -47,14 +47,17 @@ def main():
         if t % 100000 == 0:
 
             obs = observer.sample(
-                compute.get_cells()
+                compute.get_cells(),
+                t
             )
+
+            summary = observer.summary()
 
 
             print(
                 {
                     "time": t,
-                    "observer": obs
+                    "snapshot": summary
                 }
             )
 
