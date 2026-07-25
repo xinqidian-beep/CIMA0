@@ -1,14 +1,14 @@
 import time
 
 from core.cell import Cell
-from core.compute import ComputeSystem
 from core.observer import ObserverSystem
+from core.cloud import CloudCollision
 
 
 def main():
 
     print(
-        "=== Phase8.1 Minimal World Loop ==="
+        "=== Phase8.2 Minimal World Loop + Cloud Collision ==="
     )
 
 
@@ -21,26 +21,26 @@ def main():
     ]
 
 
-    # 注意：
-    # 这里如果 Cell 未来有邻居关系，
-    # Observer 只读取。
-    #
-    # 当前没有邻居时，
-    # observation_field 仍然可以工作。
-
-
     observer = ObserverSystem(
         sample_size=64,
-        # 时间观察窗口
-        history_size=32,
+        history_size=8,
         threshold=0.5,
         decay=0.90,
         spread=0.15,
-        exploration=0.1
+        exploration=0.1,
+        window_size=32
     )
 
 
+    cloud = CloudCollision()
+
+
     steps = 500000
+
+
+    collision_time = 100000
+    collision_id = 123
+    collision_value = 0.8
 
 
     start = time.time()
@@ -60,7 +60,29 @@ def main():
 
 
         # =========================
-        # L2 观察世界
+        # L4 云碰撞
+        # =========================
+
+        if t == collision_time:
+
+            result = cloud.collide(
+                cells[collision_id],
+                collision_value
+            )
+
+            print(
+                {
+                    "cloud_collision": result,
+                    "cell": collision_id,
+                    "value": collision_value,
+                    "time": t
+                }
+            )
+
+
+
+        # =========================
+        # L2 Observer
         # =========================
 
         if t % 1000 == 0:
@@ -72,9 +94,7 @@ def main():
             )
 
 
-            summary = (
-                observer.summary()
-            )
+            summary = observer.summary()
 
 
             print(
