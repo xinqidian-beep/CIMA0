@@ -1,46 +1,65 @@
 import numpy as np
 
 
-class Observer:
+class ObserverSystem:
+    """
+    Observer system.
 
+    Only samples.
+
+    No:
+        control
+        optimization
+        feedback
+    """
 
     def __init__(self, sample_size=32):
 
         self.sample_size = sample_size
 
 
+    def sample(self, cells):
 
-    def look(self, world):
-
-        """
-        观察者随机看一小部分
-
-        永远不知道全局
-        """
-
-        ids=np.random.choice(
-            len(world.cells),
-            self.sample_size,
+        ids = np.random.choice(
+            len(cells),
+            size=min(
+                self.sample_size,
+                len(cells)
+            ),
             replace=False
         )
 
 
-        data=world.sample(ids)
-
-
-        x=[
-            d["x"]
-            for d in data
+        states = [
+            cells[i].state()
+            for i in ids
         ]
+
+
+        xs = np.array(
+            [s["x"] for s in states]
+        )
+
+        vs = np.array(
+            [s["v"] for s in states]
+        )
 
 
         return {
 
-            "sample":self.sample_size,
+            "sample":
+                len(states),
 
-            "mean":
-                float(np.mean(x)),
+            "x_mean":
+                float(np.mean(xs)),
 
-            "std":
-                float(np.std(x))
+            "x_std":
+                float(np.std(xs)),
+
+            "v_mean":
+                float(np.mean(vs)),
+
+            "v_std":
+                float(np.std(vs))
+
         }

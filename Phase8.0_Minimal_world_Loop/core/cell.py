@@ -3,119 +3,104 @@ import numpy as np
 
 class Cell:
     """
-    Minimal autonomous individual.
+    Minimal autonomous dynamical cell.
 
-    Cell only cares about itself.
+    Cell does not know:
+        universe
+        neighbors
+        observer
+        purpose
 
-    No:
-        global state
-        other cells
-        reward
-        target
-        optimizer
-
-    Dynamics:
-        self-sustained nonlinear oscillator
+    Cell only:
+        maintains its own trajectory
     """
 
-    def __init__(self, cid, seed=None):
+    def __init__(self, cid):
 
         self.cid = cid
 
-        rng = np.random.default_rng(seed)
+        # state
+        self.x = np.random.uniform(
+            -1.0,
+            1.0
+        )
 
-        # position
-        self.x = rng.uniform(-1.0, 1.0)
+        self.v = np.random.uniform(
+            -0.5,
+            0.5
+        )
 
-        # velocity
-        self.v = rng.uniform(-1.0, 1.0)
-
-        # personal parameters
-        self.omega = rng.uniform(
+        # intrinsic property
+        self.omega = np.random.uniform(
             0.95,
             1.05
         )
 
-        self.mu = 0.8
 
         self.dt = 0.02
 
 
-        # memory only belongs to itself
-        self.history = []
+    def local_perturb(self, value):
 
-
-
-    def step(self, perturb=0.0):
         """
-        One local evolution step.
+        External contact.
 
-        perturb:
-            outside world influence
+        Not control.
+        Just collision.
 
-        It is not control.
+        Cell decides nothing about source.
         """
 
-        accel = (
-            self.mu *
-            (1 - self.x*self.x)
-            *
-            self.v
+        self.v += value
 
+
+    def step(self):
+
+        """
+        Pure local evolution.
+
+        Nonlinear oscillator.
+
+        No:
+            reset
+            clamp
+            optimize
+        """
+
+
+        # nonlinear planetary-like force
+
+        acceleration = (
+            -self.omega**2 * self.x
             -
-            self.omega*self.omega*self.x
-
-            +
-            perturb
+            0.1 * self.x**3
         )
 
 
-        self.v += accel * self.dt
-
-        self.x += self.v * self.dt
-
-
-
-        # local boundary only
-        # prevent numerical explosion
-        if abs(self.x) > 10:
-
-            self.x = np.tanh(
-                self.x
-            )
-
-
-        self.history.append(
-            self.x
+        self.v += (
+            acceleration
+            *
+            self.dt
         )
 
 
-        if len(self.history) > 100:
-
-            self.history.pop(0)
-
+        self.x += (
+            self.v
+            *
+            self.dt
+        )
 
 
     def state(self):
 
         return {
 
-            "id":
-                self.cid,
+            "id": self.cid,
 
-            "x":
-                float(self.x),
+            "x": float(self.x),
 
-            "v":
-                float(self.v),
+            "v": float(self.v),
 
-            "energy":
-                float(
-                    0.5 *
-                    (
-                        self.x*self.x
-                        +
-                        self.v*self.v
-                    )
-                )
+            "omega": float(self.omega)
+
         }
