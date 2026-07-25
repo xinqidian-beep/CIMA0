@@ -2,107 +2,72 @@ import numpy as np
 
 
 class Cell:
+    """
+    最小生命单元
+
+    只知道:
+        自己
+        附近环境
+
+    不知道:
+        世界
+        其他cell整体
+    """
 
     def __init__(self, cid):
 
         self.cid = cid
 
         # 自己的状态
-        self.x = np.random.uniform(
-            -0.01,
-            0.01
+        self.x = np.random.randn() * 0.01
+        self.v = np.random.randn() * 0.01
+
+        # 内部能量
+        self.energy = 1.0
+
+
+    def contact(self, environment):
+
+        """
+        局部环境接触
+
+        没有全局信息
+        """
+
+        local = environment.read(
+            self.cid
         )
 
-        self.v = np.random.uniform(
-            -0.01,
-            0.01
-        )
+        return local * 0.001
 
 
-        # 自己的能量
-        self.energy = 0.001
+    def step(self, environment):
+
+        # 局部扰动
+        force = self.contact(environment)
 
 
-        # 自己时间
-        self.age = 0
-
-
-
-    def step(
-        self,
-        local_env
-    ):
-
-        self.age += 1
-
-
-        #
-        # 行星式动力
-        #
-        # 不追求收敛
-        # 不追求目标
-        #
-
-        force = (
-            -0.1*self.x
-            +
-            0.05*np.sin(self.age*0.001)
-        )
-
-
-        # 环境只产生微扰
-
-        force += (
-            local_env
-            *
-            0.001
-        )
-
-
-        noise = np.random.normal(
-            0,
-            0.0001
-        )
-
-
-        self.v += force + noise
+        # 最小动力系统
+        self.v += force
 
         self.x += self.v
 
 
-
-        #
-        # 能量只是自身状态
-        #
-
-        self.energy = (
-            abs(self.x)
-            *
-            0.1
-            +
-            0.001
-        )
+        # 自然耗散
+        self.energy *= 0.999999
 
 
-        #
-        # 给环境留下痕迹
-        #
-
-        residue = (
+        # 自己留下痕迹
+        environment.deposit(
+            self.cid,
             self.x
-            *
-            0.0001
         )
-
-
-        return residue
-
 
 
     def state(self):
 
         return {
-            "id":self.cid,
-            "x":self.x,
-            "energy":self.energy
+            "id": self.cid,
+            "x": float(self.x),
+            "energy": float(self.energy)
         }

@@ -1,6 +1,6 @@
 import time
 
-from core.universe import Universe
+from core.world import World
 from core.observer import Observer
 
 
@@ -13,56 +13,43 @@ def main():
     )
 
 
-    universe=Universe(
+    world=World(
         n=4096
     )
 
 
-    observer=Observer()
+    observer=Observer(
+        sample_size=32
+    )
 
 
     start=time.time()
 
 
-    STEPS=10_000_000
+    TEST_TIME=10_000_000
 
 
-    REPORT=100_000
+    for t in range(TEST_TIME):
 
 
-
-    for i in range(STEPS):
-
-
-        universe.step()
+        world.step()
 
 
 
-        if (
-            universe.time
-            %
-            REPORT
-            ==
-            0
-        ):
+        if t % 100000 == 0:
 
 
-            obs=observer.observe(
-                universe.cells
+            obs=observer.look(
+                world
             )
 
 
             print(
                 {
-                    "time":
-                    universe.time,
-
-
-                    **universe.stats(),
-
+                    "time":world.time,
 
                     "observer":
-                    obs
+                        obs
                 }
             )
 

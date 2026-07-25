@@ -3,54 +3,39 @@ import numpy as np
 
 class Environment:
 
+    """
+    环境不是控制器
 
-    def __init__(self,size):
+    只是历史残留
+    """
 
-        self.size=size
+    def __init__(self, size):
 
-
-        #
-        # 局部环境
-        #
-        # 每个位置独立
-        #
-
-        self.field=np.zeros(size)
+        self.field = np.zeros(size)
 
 
 
-    def interact(
-        self,
-        cid
-    ):
+    def read(self, cid):
 
         return self.field[cid]
 
 
 
-    def deposit(
-        self,
-        cid,
-        value
-    ):
+    def deposit(self, cid, value):
 
+        """
+        个体改变局部环境
 
-        self.field[cid]+=value
+        不广播
+        不同步
+        """
+
+        self.field[cid] *= 0.99
+
+        self.field[cid] += value * 0.0001
 
 
 
     def decay(self):
 
-        #
-        # 世界痕迹自然消退
-        #
-
-        self.field*=0.9999
-
-
-
-    def measure(self):
-
-        return np.std(
-            self.field
-        )
+        self.field *= 0.99999
