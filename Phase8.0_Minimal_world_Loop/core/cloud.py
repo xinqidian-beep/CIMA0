@@ -1,24 +1,31 @@
-class CloudCollision:
-    """
-    External perturbation.
-
-    No control.
-    No target optimization.
-
-    Just collision.
-    """
-
-    def __init__(self):
-        self.used = False
+import numpy as np
 
 
-    def collide(self, cell, value):
+class Cloud:
 
-        if self.used:
-            return False
+    def __init__(self, size=4096):
 
-        cell.local_perturb(value)
+        self.field = np.zeros(size)
 
-        self.used = True
 
-        return True
+    def collide(self):
+
+        mask = np.random.random(
+            len(self.field)
+        ) < 0.001
+
+
+        self.field[:] = 0
+
+
+        values = np.random.uniform(
+            -1,
+            1,
+            np.sum(mask)
+        )
+
+
+        self.field[mask] = values
+
+
+        return np.where(mask)[0], values

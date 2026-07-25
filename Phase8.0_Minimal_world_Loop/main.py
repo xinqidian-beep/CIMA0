@@ -1,96 +1,96 @@
 import time
 
 from core.cell import Cell
+from core.cloud import Cloud
 from core.observer import ObserverSystem
-from core.cloud import CloudCollision
+
 
 
 def main():
 
     print(
-        "=== Phase8.3 Minimal World Loop + Cloud Collision ==="
+        "=== Phase8.3 Minimal World Loop ==="
     )
 
 
     N = 4096
 
 
-    cells = [
+    cells=[
         Cell(i)
         for i in range(N)
     ]
 
 
-    observer = ObserverSystem(
-        min_sample=16,
-        max_sample=128,
-        observation_probability=0.01
-    )
+    cloud = Cloud(N)
 
 
-    cloud = CloudCollision()
+    observer = ObserverSystem()
 
 
-    steps = 500000
+    steps=500000
 
 
-    collision_time = 100000
-    collision_id = 123
-    collision_value = 0.8
-
-
-    start = time.time()
+    start=time.time()
 
 
     for t in range(steps):
 
 
-        # =========================
-        # L1 动力世界
-        # =========================
+        # =================
+        # 世界推进
+        # =================
 
-        for cell in cells:
-
-            cell.step()
-
-
-
-        # =========================
-        # L4 云碰撞
-        # =========================
-
-        if t == collision_time:
-
-            result = cloud.collide(
-                cells[collision_id],
-                collision_value
-            )
-
-            print(
-                {
-                    "cloud_collision": result,
-                    "cell": collision_id,
-                    "value": collision_value,
-                    "time": t
-                }
-            )
+        for c in cells:
+            c.step()
 
 
 
-        # =========================
-        # L2 Observer
-        # =========================
+        # =================
+        # 云碰撞
+        # =================
 
-        if observer.should_observe(t):
+        if t % 100000 == 0:
+
+
+            ids, values = cloud.collide()
+
+
+            for cid,value in zip(ids,values):
+
+                cells[cid].local_perturb(
+                    value
+                )
+
+
+                print(
+                    {
+                        "cloud_collision":True,
+                        "cell":int(cid),
+                        "value":float(value),
+                        "time":t
+                    }
+                )
+
+
+
+        # =================
+        # 快照
+        # =================
+
+        if t % 1000 == 0:
+
 
             snapshot = observer.sample(
                 cells,
                 t
             )
 
+
             print(
                 {
-                    "snapshot": snapshot
+                    "time":t,
+                    "snapshot":snapshot
                 }
             )
 
@@ -103,6 +103,5 @@ def main():
 
 
 
-if __name__ == "__main__":
-
+if __name__=="__main__":
     main()
