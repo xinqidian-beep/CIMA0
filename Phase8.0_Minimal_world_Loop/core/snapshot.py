@@ -1,10 +1,10 @@
 class Snapshot:
     """
-    Read-only snapshot.
+    Immutable observation snapshot.
 
-    Only records observed state.
+    Only stores observed information.
 
-    Does not affect dynamics.
+    Never affects dynamics.
     """
 
     def __init__(self, time, states):

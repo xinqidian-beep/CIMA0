@@ -1,16 +1,14 @@
 import time
-import numpy as np
 
 from core.cell import Cell
 from core.compute import ComputeSystem
 from core.observer import ObserverSystem
 
 
-
 def main():
 
     print(
-        "=== Phase8.0 Minimal World ==="
+        "=== Phase8.0 Minimal World Loop ==="
     )
 
 
@@ -23,17 +21,25 @@ def main():
     ]
 
 
-    compute = ComputeSystem(
-        cells
-    )
+    # 注意：
+    # 这里如果 Cell 未来有邻居关系，
+    # Observer 只读取。
+    #
+    # 当前没有邻居时，
+    # observation_field 仍然可以工作。
 
 
     observer = ObserverSystem(
-        sample_size=64
+        sample_size=64,
+        history_size=8,
+        threshold=0.5,
+        decay=0.90,
+        spread=0.15,
+        exploration=0.1
     )
 
 
-    steps = 1000000
+    steps = 500000
 
 
     start = time.time()
@@ -41,17 +47,33 @@ def main():
 
     for t in range(steps):
 
-        compute.step()
 
+        # =========================
+        # L1 动力世界
+        # =========================
+
+        for cell in cells:
+
+            cell.step()
+
+
+
+        # =========================
+        # L2 观察世界
+        # =========================
 
         if t % 100000 == 0:
 
-            obs = observer.sample(
-                compute.get_cells(),
+
+            observer.sample(
+                cells,
                 t
             )
 
-            summary = observer.summary()
+
+            summary = (
+                observer.summary()
+            )
 
 
             print(
@@ -62,6 +84,7 @@ def main():
             )
 
 
+
     print(
         "finished",
         time.time()-start
@@ -70,4 +93,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()
