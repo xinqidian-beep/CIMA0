@@ -24,32 +24,48 @@ def main():
     start=time.time()
 
 
-    total_steps=10_000_000
+    STEPS=10_000_000
 
 
-    interval=100000
+    REPORT=100_000
 
 
 
-    for i in range(total_steps):
+    for i in range(STEPS):
 
 
         universe.step()
 
 
-        if universe.time % interval==0:
+
+        if (
+            universe.time
+            %
+            REPORT
+            ==
+            0
+        ):
+
+
+            obs=observer.observe(
+                universe.cells
+            )
 
 
             print(
                 {
-                    **universe.snapshot(),
+                    "time":
+                    universe.time,
+
+
+                    **universe.stats(),
+
 
                     "observer":
-                        observer.observe(
-                            universe
-                        )
+                    obs
                 }
             )
+
 
 
     print(

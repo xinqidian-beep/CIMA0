@@ -2,12 +2,17 @@ from core.cell import Cell
 from core.environment import Environment
 
 
+
 class Universe:
 
 
-    def __init__(self,n):
+    def __init__(
+        self,
+        n
+    ):
 
         self.time=0
+
 
         self.cells=[
             Cell(i)
@@ -20,65 +25,81 @@ class Universe:
         )
 
 
+
     def step(self):
-
-
-        for cell in self.cells:
-
-
-            local = self.environment.get(
-                cell.cid
-            )
-
-
-            state = cell.step(
-                local
-            )
-
-
-            self.environment.update(
-                cell.cid,
-                cell.activity()
-            )
 
 
         self.time+=1
 
 
+        #
+        # 每个个体只处理自己
+        #
 
-    def snapshot(self):
+        for c in self.cells:
 
-        values=[
-            c.state
-            for c in self.cells
-        ]
+
+            local = (
+                self.environment
+                .interact(
+                    c.cid
+                )
+            )
+
+
+            residue = c.step(
+                local
+            )
+
+
+            self.environment.deposit(
+                c.cid,
+                residue
+            )
+
+
+        self.environment.decay()
+
+
+
+    def stats(self):
 
 
         import numpy as np
 
 
-        values=np.array(values)
+        energy=np.array(
+            [
+                c.energy
+                for c in self.cells
+            ]
+        )
+
+
+        x=np.array(
+            [
+                c.x
+                for c in self.cells
+            ]
+        )
 
 
         return {
 
-            "time":
-                self.time,
+            "energy_mean":
+            float(
+                np.mean(energy)
+            ),
 
 
-            "state_std":
-                float(
-                    np.std(values)
-                ),
+            "x_std":
+            float(
+                np.std(x)
+            ),
 
 
-            "activity_mean":
-                float(
-                    np.mean(
-                        np.linalg.norm(
-                            values,
-                            axis=1
-                        )
-                    )
-                )
+            "environment":
+            float(
+                self.environment.measure()
+            )
         }

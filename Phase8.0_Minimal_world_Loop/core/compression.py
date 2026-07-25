@@ -1,38 +1,15 @@
 class Compression:
 
 
-    def __init__(self):
-
-        self.history = []
-
-
-
-    def record(
+    def compress(
         self,
-        universe
+        state
     ):
 
-        self.history.append(
+        #
+        # 未来使用
+        #
+        # 当前不参与世界
+        #
 
-            {
-                "time":
-                    universe.time,
-
-                "environment":
-                    universe.environment.field
-            }
-
-        )
-
-
-        # keep compressed history
-
-        if len(self.history)>1000:
-
-            self.history.pop(0)
-
-
-
-    def snapshot(self):
-
-        return self.history[-1]
+        return state

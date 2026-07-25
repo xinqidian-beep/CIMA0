@@ -4,20 +4,16 @@ import numpy as np
 class Observer:
 
 
-    """
-    Passive observer.
-
-    Cannot affect world.
-    """
-
-
-    def observe(self,universe):
+    def observe(
+        self,
+        cells
+    ):
 
 
-        sample=np.array(
+        x=np.array(
             [
-                c.state
-                for c in universe.cells[:64]
+                c.x
+                for c in cells
             ]
         )
 
@@ -25,22 +21,17 @@ class Observer:
         return {
 
             "mean":
-                float(
-                    np.mean(sample)
-                ),
+            float(np.mean(x)),
+
 
             "std":
-                float(
-                    np.std(sample)
-                ),
+            float(np.std(x)),
+
 
             "active":
-                int(
-                    np.sum(
-                        np.linalg.norm(
-                            sample,
-                            axis=1
-                        )>1
-                    )
+            int(
+                np.sum(
+                    np.abs(x)>0.01
                 )
+            )
         }

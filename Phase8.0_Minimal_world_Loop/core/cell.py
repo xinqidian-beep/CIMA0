@@ -3,86 +3,106 @@ import numpy as np
 
 class Cell:
 
-    """
-    Autonomous local entity.
-
-    Only knows:
-        own state
-        local field
-
-    Does not know:
-        other cells
-        universe
-        global state
-    """
-
     def __init__(self, cid):
 
         self.cid = cid
 
-        # Lorenz state
-        self.state = np.random.uniform(
-            -1,
-            1,
-            3
+        # 自己的状态
+        self.x = np.random.uniform(
+            -0.01,
+            0.01
         )
 
-        self.sigma = 10.0
-        self.rho = 28.0
-        self.beta = 8.0 / 3.0
-
-        self.dt = 0.005
-
-
-    def step(self, local_field):
-
-        x,y,z = self.state
-
-
-        dx = (
-            self.sigma *
-            (y-x)
-        )
-
-        dy = (
-            x *
-            (self.rho-z)
-            -
-            y
-        )
-
-        dz = (
-            x*y
-            -
-            self.beta*z
+        self.v = np.random.uniform(
+            -0.01,
+            0.01
         )
 
 
-        # local environment only
-        perturb = local_field * 0.001
+        # 自己的能量
+        self.energy = 0.001
 
 
-        self.state += np.array(
-            [
-                dx,
-                dy,
-                dz
-            ]
-        ) * self.dt
-
-
-        self.state += perturb
+        # 自己时间
+        self.age = 0
 
 
 
-        return self.state.copy()
+    def step(
+        self,
+        local_env
+    ):
+
+        self.age += 1
 
 
+        #
+        # 行星式动力
+        #
+        # 不追求收敛
+        # 不追求目标
+        #
 
-    def activity(self):
-
-        return float(
-            np.linalg.norm(
-                self.state
-            )
+        force = (
+            -0.1*self.x
+            +
+            0.05*np.sin(self.age*0.001)
         )
+
+
+        # 环境只产生微扰
+
+        force += (
+            local_env
+            *
+            0.001
+        )
+
+
+        noise = np.random.normal(
+            0,
+            0.0001
+        )
+
+
+        self.v += force + noise
+
+        self.x += self.v
+
+
+
+        #
+        # 能量只是自身状态
+        #
+
+        self.energy = (
+            abs(self.x)
+            *
+            0.1
+            +
+            0.001
+        )
+
+
+        #
+        # 给环境留下痕迹
+        #
+
+        residue = (
+            self.x
+            *
+            0.0001
+        )
+
+
+        return residue
+
+
+
+    def state(self):
+
+        return {
+            "id":self.cid,
+            "x":self.x,
+            "energy":self.energy
+        }

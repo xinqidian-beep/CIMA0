@@ -4,34 +4,53 @@ import numpy as np
 class Environment:
 
 
-    """
-    Local world memory.
+    def __init__(self,size):
 
-    No global intelligence.
-
-    Only:
-        decay
-        local residue
-    """
+        self.size=size
 
 
-    def __init__(self,n):
+        #
+        # 局部环境
+        #
+        # 每个位置独立
+        #
 
-        self.field=np.zeros(n)
+        self.field=np.zeros(size)
 
 
 
-    def update(self,cell_id,value):
+    def interact(
+        self,
+        cid
+    ):
 
-        self.field[cell_id]*=0.999
+        return self.field[cid]
 
 
-        self.field[cell_id]+=(
-            value*0.001
+
+    def deposit(
+        self,
+        cid,
+        value
+    ):
+
+
+        self.field[cid]+=value
+
+
+
+    def decay(self):
+
+        #
+        # 世界痕迹自然消退
+        #
+
+        self.field*=0.9999
+
+
+
+    def measure(self):
+
+        return np.std(
+            self.field
         )
-
-
-
-    def get(self,cell_id):
-
-        return self.field[cell_id]
