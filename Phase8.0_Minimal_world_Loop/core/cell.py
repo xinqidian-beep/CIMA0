@@ -1,18 +1,18 @@
-import random
-import math
+import numpy as np
 
 
 class Cell:
-    """
-    Minimal autonomous entity.
 
-    Knows only:
-        self state
-        local environment
+    """
+    Autonomous local entity.
+
+    Only knows:
+        own state
+        local field
 
     Does not know:
-        universe
         other cells
+        universe
         global state
     """
 
@@ -20,85 +20,69 @@ class Cell:
 
         self.cid = cid
 
-        # internal existence state
-        self.energy = random.uniform(
-            0.0005,
-            0.0015
+        # Lorenz state
+        self.state = np.random.uniform(
+            -1,
+            1,
+            3
         )
 
-        self.x = random.uniform(
-            -0.01,
-            0.01
+        self.sigma = 10.0
+        self.rho = 28.0
+        self.beta = 8.0 / 3.0
+
+        self.dt = 0.005
+
+
+    def step(self, local_field):
+
+        x,y,z = self.state
+
+
+        dx = (
+            self.sigma *
+            (y-x)
         )
 
-        self.age = 0
-
-
-    def step(
-        self,
-        local_environment
-    ):
-
-        self.age += 1
-
-
-        # self internal dynamics
-        internal = (
-            math.sin(
-                self.age * 0.0001
-                + self.cid
-            )
-            * 0.00001
-        )
-
-
-        # environment feedback
-        env_effect = (
-            local_environment
-            *
-            0.001
-        )
-
-
-        # small unavoidable noise
-        noise = (
-            random.random()
+        dy = (
+            x *
+            (self.rho-z)
             -
-            0.5
-        ) * 0.00001
+            y
+        )
 
-
-
-        self.x += (
-            internal
-            +
-            env_effect
-            +
-            noise
+        dz = (
+            x*y
+            -
+            self.beta*z
         )
 
 
-        # energy follows own existence
-        self.energy += (
-            abs(self.x)
-            *
-            0.000001
+        # local environment only
+        perturb = local_field * 0.001
+
+
+        self.state += np.array(
+            [
+                dx,
+                dy,
+                dz
+            ]
+        ) * self.dt
+
+
+        self.state += perturb
+
+
+
+        return self.state.copy()
+
+
+
+    def activity(self):
+
+        return float(
+            np.linalg.norm(
+                self.state
+            )
         )
-
-
-        # natural decay
-        self.energy *= 0.999999
-
-
-        return self.x
-
-
-
-    def state(self):
-
-        return {
-            "id": self.cid,
-            "x": self.x,
-            "energy": self.energy,
-            "age": self.age
-        }

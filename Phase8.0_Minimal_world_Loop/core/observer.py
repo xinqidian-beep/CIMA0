@@ -1,36 +1,23 @@
-import random
 import numpy as np
-
 
 
 class Observer:
 
 
-    def __init__(
-        self,
-        sample=64
-    ):
+    """
+    Passive observer.
 
-        self.sample = sample
-
+    Cannot affect world.
+    """
 
 
-    def observe(
-        self,
-        universe
-    ):
+    def observe(self,universe):
 
 
-        cells = random.sample(
-            universe.cells,
-            self.sample
-        )
-
-
-        values = np.array(
+        sample=np.array(
             [
-                c.x
-                for c in cells
+                c.state
+                for c in universe.cells[:64]
             ]
         )
 
@@ -39,20 +26,21 @@ class Observer:
 
             "mean":
                 float(
-                    np.mean(values)
+                    np.mean(sample)
                 ),
 
             "std":
                 float(
-                    np.std(values)
+                    np.std(sample)
                 ),
 
             "active":
                 int(
                     np.sum(
-                        np.abs(values)
-                        >
-                        np.std(values)
+                        np.linalg.norm(
+                            sample,
+                            axis=1
+                        )>1
                     )
                 )
         }

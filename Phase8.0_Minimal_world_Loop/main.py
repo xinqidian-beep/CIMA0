@@ -2,7 +2,6 @@ import time
 
 from core.universe import Universe
 from core.observer import Observer
-from core.compression import Compression
 
 
 
@@ -14,64 +13,43 @@ def main():
     )
 
 
-    universe = Universe(
+    universe=Universe(
         n=4096
     )
 
 
-    observer = Observer(
-        sample=64
-    )
-
-
-    compression = Compression()
-
-
-
-    TOTAL_EVENTS = 10_000_000
-
-
-    REPORT = 100_000
-
+    observer=Observer()
 
 
     start=time.time()
 
 
+    total_steps=10_000_000
 
-    for i in range(
-        TOTAL_EVENTS
-    ):
+
+    interval=100000
+
+
+
+    for i in range(total_steps):
 
 
         universe.step()
 
 
-
-        if universe.time % REPORT ==0:
-
-
-            obs = observer.observe(
-                universe
-            )
-
-
-            compression.record(
-                universe
-            )
+        if universe.time % interval==0:
 
 
             print(
-
-                universe.statistics()
-                |
                 {
+                    **universe.snapshot(),
+
                     "observer":
-                        obs
+                        observer.observe(
+                            universe
+                        )
                 }
-
             )
-
 
 
     print(

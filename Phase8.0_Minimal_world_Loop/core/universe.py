@@ -1,80 +1,63 @@
-import random
-
 from core.cell import Cell
 from core.environment import Environment
-
 
 
 class Universe:
 
 
-    def __init__(
-        self,
-        n=4096
-    ):
+    def __init__(self,n):
 
-        self.time = 0
+        self.time=0
 
-
-        self.cells = [
+        self.cells=[
             Cell(i)
             for i in range(n)
         ]
 
 
-        self.environment = Environment()
-
+        self.environment=Environment(
+            n
+        )
 
 
     def step(self):
 
-        self.time += 1
+
+        for cell in self.cells:
 
 
-        # only a small part acts each event
-
-        idx = random.randrange(
-            len(self.cells)
-        )
+            local = self.environment.get(
+                cell.cid
+            )
 
 
-        cell = self.cells[idx]
+            state = cell.step(
+                local
+            )
 
 
-        local_env = (
-            self.environment.local_value()
-        )
+            self.environment.update(
+                cell.cid,
+                cell.activity()
+            )
 
 
-        x = cell.step(
-            local_env
-        )
-
-
-        # cell leaves trace
-
-        self.environment.receive(
-            {
-                "x":x
-            }
-        )
-
-
-        self.environment.decay()
+        self.time+=1
 
 
 
-    def statistics(self):
+    def snapshot(self):
 
-        energy = [
-            c.energy
+        values=[
+            c.state
             for c in self.cells
         ]
 
-        xs = [
-            c.x
-            for c in self.cells
-        ]
+
+        import numpy as np
+
+
+        values=np.array(values)
 
 
         return {
@@ -82,28 +65,20 @@ class Universe:
             "time":
                 self.time,
 
-            "energy_mean":
-                sum(energy)
-                /
-                len(energy),
+
+            "state_std":
+                float(
+                    np.std(values)
+                ),
 
 
-            "x_std":
-                (
-                    sum(
-                        (
-                            x
-                            -
-                            sum(xs)/len(xs)
-                        )**2
-                        for x in xs
+            "activity_mean":
+                float(
+                    np.mean(
+                        np.linalg.norm(
+                            values,
+                            axis=1
+                        )
                     )
-                    /
-                    len(xs)
                 )
-                **0.5,
-
-
-            "environment":
-                self.environment.field
         }
