@@ -1,65 +1,158 @@
 import numpy as np
 
+from core.snapshot import Snapshot
+
+
 
 class ObserverSystem:
     """
-    Observer system.
+    Observer only.
 
-    Only samples.
+    Does not control.
+    Does not modify Cell.
 
-    No:
-        control
-        optimization
-        feedback
+    It creates temporary descriptions
+    from snapshots.
     """
 
-    def __init__(self, sample_size=32):
+    def __init__(
+        self,
+        sample_size=64,
+        history_size=8
+    ):
 
         self.sample_size = sample_size
 
+        self.history_size = history_size
 
-    def sample(self, cells):
+        self.snapshots = []
 
-        ids = np.random.choice(
-            len(cells),
-            size=min(
-                self.sample_size,
-                len(cells)
-            ),
-            replace=False
+        self.observe_ids = None
+
+
+
+    def sample(self, cells, time):
+
+        n = len(cells)
+
+
+        if self.observe_ids is None:
+
+            ids = np.random.choice(
+                n,
+                size=min(
+                    self.sample_size,
+                    n
+                ),
+                replace=False
+            )
+
+            self.observe_ids = set(ids)
+
+
+
+        states = {}
+
+        for i in self.observe_ids:
+
+            s = cells[i].state()
+
+            states[i] = {
+
+                "x": s["x"],
+                "v": s["v"]
+
+            }
+
+
+
+        snapshot = Snapshot(
+            time,
+            states
         )
 
 
-        states = [
-            cells[i].state()
-            for i in ids
-        ]
+        self.snapshots.append(snapshot)
 
 
-        xs = np.array(
-            [s["x"] for s in states]
-        )
+        if len(self.snapshots) > self.history_size:
 
-        vs = np.array(
-            [s["v"] for s in states]
-        )
+            self.snapshots.pop(0)
+
+
+        return snapshot
+
+
+
+    def activity(self):
+
+        """
+        Snapshot difference only.
+
+        Not a Cell variable.
+        """
+
+        if len(self.snapshots) < 2:
+
+            return {}
+
+
+        old = self.snapshots[-2]
+
+        new = self.snapshots[-1]
+
+
+        result = {}
+
+
+        for cid in new.ids():
+
+            if cid not in old.states:
+                continue
+
+
+            dx = (
+                new.states[cid]["x"]
+                -
+                old.states[cid]["x"]
+            )
+
+            dv = (
+                new.states[cid]["v"]
+                -
+                old.states[cid]["v"]
+            )
+
+
+            result[cid] = abs(dx) + abs(dv)
+
+
+        return result
+
+
+
+    def summary(self):
+
+        act = self.activity()
+
+
+        if not act:
+
+            return {}
+
+
+        values = list(act.values())
 
 
         return {
 
-            "sample":
-                len(states),
+            "observed":
+                len(values),
 
-            "x_mean":
-                float(np.mean(xs)),
+            "activity_mean":
+                float(np.mean(values)),
 
-            "x_std":
-                float(np.std(xs)),
-
-            "v_mean":
-                float(np.mean(vs)),
-
-            "v_std":
-                float(np.std(vs))
+            "activity_max":
+                float(np.max(values))
 
         }
