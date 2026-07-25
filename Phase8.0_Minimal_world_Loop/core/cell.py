@@ -3,71 +3,119 @@ import numpy as np
 
 class Cell:
     """
-    最小生命单元
+    Minimal autonomous individual.
 
-    只知道:
-        自己
-        附近环境
+    Cell only cares about itself.
 
-    不知道:
-        世界
-        其他cell整体
+    No:
+        global state
+        other cells
+        reward
+        target
+        optimizer
+
+    Dynamics:
+        self-sustained nonlinear oscillator
     """
 
-    def __init__(self, cid):
+    def __init__(self, cid, seed=None):
 
         self.cid = cid
 
-        # 自己的状态
-        self.x = np.random.randn() * 0.01
-        self.v = np.random.randn() * 0.01
+        rng = np.random.default_rng(seed)
 
-        # 内部能量
-        self.energy = 1.0
+        # position
+        self.x = rng.uniform(-1.0, 1.0)
 
+        # velocity
+        self.v = rng.uniform(-1.0, 1.0)
 
-    def contact(self, environment):
-
-        """
-        局部环境接触
-
-        没有全局信息
-        """
-
-        local = environment.read(
-            self.cid
+        # personal parameters
+        self.omega = rng.uniform(
+            0.95,
+            1.05
         )
 
-        return local * 0.001
+        self.mu = 0.8
+
+        self.dt = 0.02
 
 
-    def step(self, environment):
-
-        # 局部扰动
-        force = self.contact(environment)
+        # memory only belongs to itself
+        self.history = []
 
 
-        # 最小动力系统
-        self.v += force
 
-        self.x += self.v
+    def step(self, perturb=0.0):
+        """
+        One local evolution step.
+
+        perturb:
+            outside world influence
+
+        It is not control.
+        """
+
+        accel = (
+            self.mu *
+            (1 - self.x*self.x)
+            *
+            self.v
+
+            -
+            self.omega*self.omega*self.x
+
+            +
+            perturb
+        )
 
 
-        # 自然耗散
-        self.energy *= 0.999999
+        self.v += accel * self.dt
+
+        self.x += self.v * self.dt
 
 
-        # 自己留下痕迹
-        environment.deposit(
-            self.cid,
+
+        # local boundary only
+        # prevent numerical explosion
+        if abs(self.x) > 10:
+
+            self.x = np.tanh(
+                self.x
+            )
+
+
+        self.history.append(
             self.x
         )
+
+
+        if len(self.history) > 100:
+
+            self.history.pop(0)
+
 
 
     def state(self):
 
         return {
-            "id": self.cid,
-            "x": float(self.x),
-            "energy": float(self.energy)
+
+            "id":
+                self.cid,
+
+            "x":
+                float(self.x),
+
+            "v":
+                float(self.v),
+
+            "energy":
+                float(
+                    0.5 *
+                    (
+                        self.x*self.x
+                        +
+                        self.v*self.v
+                    )
+                )
         }
