@@ -8,7 +8,7 @@ from core.cloud import CloudCollision
 def main():
 
     print(
-        "=== Phase8.2 Minimal World Loop + Cloud Collision ==="
+        "=== Phase8.3 Minimal World Loop + Cloud Collision ==="
     )
 
 
@@ -22,13 +22,9 @@ def main():
 
 
     observer = ObserverSystem(
-        sample_size=64,
-        history_size=8,
-        threshold=0.5,
-        decay=0.90,
-        spread=0.15,
-        exploration=0.1,
-        window_size=32
+        min_sample=16,
+        max_sample=128,
+        observation_probability=0.01
     )
 
 
@@ -85,22 +81,16 @@ def main():
         # L2 Observer
         # =========================
 
-        if t % 1000 == 0:
+        if observer.should_observe(t):
 
-
-            observer.sample(
+            snapshot = observer.sample(
                 cells,
                 t
             )
 
-
-            summary = observer.summary()
-
-
             print(
                 {
-                    "time": t,
-                    "snapshot": summary
+                    "snapshot": snapshot
                 }
             )
 

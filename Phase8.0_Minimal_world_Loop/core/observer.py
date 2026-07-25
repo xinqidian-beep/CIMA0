@@ -1,124 +1,85 @@
 import numpy as np
 
-from core.snapshot import TemporalSnapshot
-
 
 class ObserverSystem:
     """
-    Observer is only a window.
+    Observer only samples.
 
-    It samples the world.
-
-    It does not:
+    No:
         control
-        optimize
-        modify
+        optimization
+        feedback
+        memory of world
 
+    Snapshot is temporary.
     """
+
 
     def __init__(
         self,
-        sample_size=64,
-        history_size=8,
-        threshold=0.5,
-        decay=0.90,
-        spread=0.15,
-        exploration=0.1,
-        window_size=32
+        min_sample=16,
+        max_sample=128,
+        observation_probability=0.01
     ):
 
-        self.sample_size = sample_size
-        self.history_size = history_size
+        self.min_sample = min_sample
+        self.max_sample = max_sample
 
-        self.threshold = threshold
-        self.decay = decay
-        self.spread = spread
-        self.exploration = exploration
+        self.observation_probability = (
+            observation_probability
+        )
 
-        self.snapshot = TemporalSnapshot(
-            window_size
+        self.snapshot = {}
+
+
+
+    def should_observe(self, t):
+
+        """
+        Random time window.
+
+        Observer has no clock control.
+        """
+
+        return (
+            np.random.random()
+            <
+            self.observation_probability
         )
 
 
-    def observe(self, cells, time):
+
+    def sample(self, cells, t):
+
+        """
+        Random quantity sampling.
+
+        Snapshot only.
+        """
+
+        size = np.random.randint(
+            self.min_sample,
+            self.max_sample + 1
+        )
+
+
+        size = min(
+            size,
+            len(cells)
+        )
+
 
         ids = np.random.choice(
             len(cells),
-            size=min(
-                self.sample_size,
-                len(cells)
-            ),
+            size=size,
             replace=False
         )
 
 
-        states = {}
-
-
-        for cid in ids:
-
-            s = cells[cid].state()
-
-            states[cid] = {
-
-                "x": s["x"],
-
-                "v": s["v"],
-
-                "omega": s["omega"]
-
-            }
-
-
-        self.snapshot.push(
-            time,
-            states
-        )
-
-
-        return self.summary()
-
-    def sample(self, cells, time):
-    
-        ids = np.random.choice(
-            len(cells),
-            size=min(
-                self.sample_size,
-                len(cells)
-            ),
-            replace=False
-        )
-
-        states = {}
-
-        for cid in ids:
-
-            s = cells[cid].state()
-
-            states[cid] = {
-                "x": s["x"],
-                "v": s["v"],
-                "omega": s["omega"]
-            }
-
-
-        # 新增：只保存观察快照
-        self.snapshot.push(
-            time,
-            states
-        )
-
-    def summary(self):
-
-        frame = self.snapshot.latest()
-
-        if frame is None:
-            return {}
-
-
-        states = list(
-            frame["states"].values()
-        )
+        states = [
+            cells[i].state()
+            for i in ids
+        ]
 
 
         xs = np.array(
@@ -137,41 +98,33 @@ class ObserverSystem:
         )
 
 
-        return {
+        self.snapshot = {
 
             "time":
-                frame["time"],
-
+            t,
 
             "observed":
-                len(states),
-
-
-            "trajectory_depth":
-                self.snapshot.size(),
-
+            size,
 
             "x_mean":
-                float(
-                    xs.mean()
-                ),
-
+            float(np.mean(xs)),
 
             "x_std":
-                float(
-                    xs.std()
-                ),
-
+            float(np.std(xs)),
 
             "v_mean":
-                float(
-                    vs.mean()
-                ),
-
+            float(np.mean(vs)),
 
             "v_std":
-                float(
-                    vs.std()
-                )
+            float(np.std(vs))
 
         }
+
+
+        return self.snapshot
+
+
+
+    def summary(self):
+
+        return self.snapshot
