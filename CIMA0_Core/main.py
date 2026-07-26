@@ -1,9 +1,11 @@
 import time
+import numpy as np
+
 
 from core.cell import Cell
 from core.cloud import CloudMatrix
 from core.topology import Topology
-from core.observer import Observer
+from core.observer import ObserverSystem
 
 
 
@@ -19,9 +21,18 @@ def main():
 
 
     cells=[
+
         Cell(i)
+
         for i in range(N)
+
     ]
+
+
+    topology=Topology(
+        N,
+        degree=4
+    )
 
 
     cloud=CloudMatrix(
@@ -29,33 +40,30 @@ def main():
     )
 
 
-    topology=Topology(
-        N
+    observer=ObserverSystem(
+        sample_size=64
     )
-
-
-    observer=Observer()
-
 
 
     steps=200000
 
 
 
-    start=time.time()
-
-
     for t in range(steps):
 
 
-        # external event
+        # -----------------
+        # cloud event
+        # -----------------
 
-        if t % 10000 ==0:
+        if t%10000==0:
+
 
             cloud.deposit_random(
                 count=4,
                 strength=1.0
             )
+
 
             print(
                 "cloud event",
@@ -64,30 +72,17 @@ def main():
 
 
 
+        # -----------------
+        # local world
+        # -----------------
+
         for cell in cells:
 
-
-            signal = cloud.contact(
-                cell.cid
-            )
-
-
-            if signal is None:
-
-                perturb=0.0
-
-            else:
-
-                perturb=signal
-
-
-
-            # local symmetric coupling
 
             coupling=0.0
 
 
-            neighbors = topology.get(
+            neighbors=topology.get(
                 cell.cid
             )
 
@@ -101,36 +96,54 @@ def main():
                 )
 
 
-            coupling *= 0.01
+            if neighbors:
+
+                coupling/=len(neighbors)
+
+
+            coupling*=0.05
+
+
+
+            signal=cloud.contact(
+                cell.cid
+            )
+
+
+            if signal is None:
+
+                signal=0.0
 
 
 
             cell.step(
 
-                perturb=perturb,
+                coupling=coupling,
 
-                coupling=coupling
+                perturb=signal
 
             )
 
 
 
-        if t % 10000 ==0:
+        cloud.decay()
+
+
+
+        if t%10000==0:
 
 
             print(
-                {
-                    "time":t,
-                    **observer.sample(
-                        cells
-                    )
-                }
+                observer.sample(
+                    cells,
+                    t
+                )
             )
 
 
+
     print(
-        "finished",
-        time.time()-start
+        "finished"
     )
 
 

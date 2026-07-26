@@ -1,7 +1,8 @@
 import numpy as np
 
 
-class Observer:
+
+class ObserverSystem:
 
 
     def __init__(
@@ -15,49 +16,44 @@ class Observer:
 
     def sample(
         self,
-        cells
+        cells,
+        t
     ):
 
-
         n=len(cells)
-
-        k=min(
-            self.sample_size,
-            n
-        )
 
 
         ids=np.random.choice(
             n,
-            k,
+            min(
+                self.sample_size,
+                n
+            ),
             replace=False
         )
 
 
-        xs=np.array(
-            [
-                cells[i].x
-                for i in ids
-            ]
-        )
+        xs=[
+            cells[i].x
+            for i in ids
+        ]
 
 
-        vs=np.array(
-            [
-                cells[i].v
-                for i in ids
-            ]
-        )
+        vs=[
+            cells[i].v
+            for i in ids
+        ]
+
 
 
         return {
 
-            "sampled":k,
+            "time":t,
 
-            "x_std":
-            float(np.std(xs)),
+            "sampled":len(ids),
 
-            "v_std":
-            float(np.std(vs))
+            "x_std":float(np.std(xs)),
+
+            "v_std":float(np.std(vs))
 
         }
