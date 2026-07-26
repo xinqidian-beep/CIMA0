@@ -4,40 +4,19 @@ import numpy as np
 class CloudMatrix:
 
 
-    """
-    External disturbance field.
+    def __init__(self,size):
 
-    No:
-        Cell reading
-        history
-        feedback
+        self.size=size
 
-    Only:
-        generate
-        decay
-        contact
-    """
-
-
-    def __init__(
-        self,
-        size
-    ):
-
-        self.size = size
-
-        self.field = np.full(
+        self.field=np.full(
             size,
             np.nan
         )
 
 
-
     def clear(self):
 
-        self.field.fill(
-            np.nan
-        )
+        self.field[:] = np.nan
 
 
 
@@ -47,31 +26,28 @@ class CloudMatrix:
         strength=1.0
     ):
 
-        self.clear()
+
+        for _ in range(count):
+
+            idx=np.random.randint(
+                0,
+                self.size
+            )
 
 
-        ids = np.random.choice(
-            self.size,
-            count,
-            replace=False
-        )
-
-
-        for cid in ids:
-
-            self.field[cid] = np.random.uniform(
+            value=np.random.uniform(
                 -strength,
                 strength
             )
 
 
+            self.field[idx]=value
 
-    def contact(
-        self,
-        cid
-    ):
 
-        value = self.field[cid]
+
+    def contact(self,cid):
+
+        value=self.field[cid]
 
 
         if np.isnan(value):
@@ -80,3 +56,20 @@ class CloudMatrix:
 
 
         return float(value)
+
+
+
+    def decay(self,rate=0.995):
+
+        mask=~np.isnan(self.field)
+
+
+        self.field[mask]*=rate
+
+
+        dead=(
+            np.abs(self.field)<1e-4
+        )
+
+
+        self.field[dead]=np.nan

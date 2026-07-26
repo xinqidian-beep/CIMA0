@@ -3,30 +3,20 @@ import numpy as np
 
 class Cell:
 
-
     def __init__(self, cid):
 
         self.cid = cid
 
-        self.x = np.random.uniform(
-            -1.0,
-            1.0
-        )
+        self.x = np.random.uniform(-1.0, 1.0)
+        self.v = np.random.uniform(-0.5, 0.5)
 
-        self.v = np.random.uniform(
-            -0.5,
-            0.5
-        )
-
-
+        # locked intrinsic parameter
         self._omega = np.random.uniform(
             0.95,
             1.05
         )
 
-
         self.dt = 0.02
-
 
 
     @property
@@ -35,40 +25,39 @@ class Cell:
         return self._omega
 
 
+    def local_perturb(self, value):
+
+        self.external = value
+
 
     def step(
         self,
-        perturb=0.0,
-        coupling=0.0
+        coupling=0.0,
+        perturb=0.0
     ):
 
+        force = (
 
-        self.v += perturb
-
-
-        self.v += coupling
-
-
-
-        acceleration = (
+            # harmonic restoring
             -self.omega**2 * self.x
-            -
-            0.1*self.x**3
+
+            # nonlinear restoring
+            -0.1 * self.x**3
+
+            # damping
+            -0.05 * self.v
+
+            # local interaction
+            + coupling
+
+            # cloud disturbance
+            + perturb
         )
 
 
-        self.v += (
-            acceleration
-            *
-            self.dt
-        )
+        self.v += force * self.dt
 
-
-        self.x += (
-            self.v
-            *
-            self.dt
-        )
+        self.x += self.v * self.dt
 
 
 
@@ -76,9 +65,9 @@ class Cell:
 
         return {
 
-            "id":self.cid,
-            "x":float(self.x),
-            "v":float(self.v),
-            "omega":float(self.omega)
+            "id": self.cid,
+            "x": float(self.x),
+            "v": float(self.v),
+            "omega": float(self.omega)
 
         }
