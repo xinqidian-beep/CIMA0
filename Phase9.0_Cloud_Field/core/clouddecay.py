@@ -91,48 +91,7 @@ class CloudMatrix:
                 value
             )
 
-    def diffuse(
-        self,
-        strength=0.1
-    ):
 
-        new_field = self.field.copy()
-
-
-        for i in range(1, self.size - 1):
-
-            if np.isnan(self.field[i]):
-                continue
-
-
-            left = self.field[i-1]
-            right = self.field[i+1]
-
-
-            influence = 0.0
-            count = 0
-
-
-            if not np.isnan(left):
-                influence += left
-                count += 1
-
-
-            if not np.isnan(right):
-                influence += right
-                count += 1
-
-
-            if count > 0:
-
-                avg = influence / count
-
-                new_field[i] += (
-                    avg - self.field[i]
-                ) * strength
-
-
-        self.field = new_field
 
     def contact(
         self,
