@@ -54,6 +54,13 @@ class ResponseField:
         """
 
         self.field[cid] += value
+        
+    def absorb(
+        self,
+        cid,
+        value
+    ):
+        self.field[cid] += value
 
 
 

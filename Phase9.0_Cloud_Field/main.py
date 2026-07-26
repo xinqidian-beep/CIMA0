@@ -71,24 +71,7 @@ def main():
                 }
             )
             
-            for cid in range(N):
-
-                signal = cloud.contact(cid)
-
-                if signal is not None:
-
-                    cells[cid].local_perturb(
-                        signal
-                    )
-
-                    print(
-                        {
-                            "cloud_collision":True,
-                            "cell":cid,
-                            "value":signal,
-                            "time":t
-                        }
-                    )
+            
 
                 
 
