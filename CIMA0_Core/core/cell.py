@@ -1,73 +1,133 @@
 import numpy as np
 
+from .planet import PlanetEngine
+
 
 class Cell:
+    """
+    Local dynamic organization.
 
-    def __init__(self, cid):
+    A Cell is not the primitive.
 
-        self.cid = cid
+    Primitive:
+        PlanetEngine
 
-        self.x = np.random.uniform(-1.0, 1.0)
-        self.v = np.random.uniform(-0.5, 0.5)
+    Cell:
+        a local collection of PlanetEngine.
 
-        # locked intrinsic parameter
-        self._omega = np.random.uniform(
-            0.95,
-            1.05
-        )
+    External world cannot know:
+        - internal population
+        - internal trajectory
+        - complete state
 
-        self.dt = 0.02
-
-
-    @property
-    def omega(self):
-
-        return self._omega
+    Only local activity can be sampled.
+    """
 
 
-    def local_perturb(self, value):
+    def __init__(
+        self,
+        initial_planets=4,
+        dt=0.01
+    ):
 
-        self.external = value
+        self._planets = []
+
+
+        for _ in range(initial_planets):
+
+            self._planets.append(
+                PlanetEngine(
+                    x=np.random.uniform(-1, 1),
+                    v=np.random.uniform(-0.05, 0.05),
+                    omega=np.random.uniform(0.8, 1.2),
+                    dt=dt
+                )
+            )
+
+
+        self._last_activity = 0.0
+
 
 
     def step(
         self,
-        coupling=0.0,
-        perturb=0.0
+        disturbance=None
     ):
 
-        force = (
+        """
+        Only local evolution.
 
-            # harmonic restoring
-            -self.omega**2 * self.x
+        No global information.
+        """
 
-            # nonlinear restoring
-            -0.1 * self.x**3
 
-            # damping
-            -0.05 * self.v
+        total_change = 0.0
 
-            # local interaction
-            + coupling
 
-            # cloud disturbance
-            + perturb
+        for i, planet in enumerate(self._planets):
+
+            old_x = planet.x
+
+
+            local_force = 0.0
+
+
+            if disturbance is not None:
+
+                if i < len(disturbance):
+
+                    local_force = disturbance[i]
+
+
+            planet.step(
+                external_force=local_force
+            )
+
+
+            total_change += abs(
+                planet.x - old_x
+            )
+
+
+        self._last_activity = (
+            total_change
+            /
+            max(
+                len(self._planets),
+                1
+            )
         )
 
 
-        self.v += force * self.dt
 
-        self.x += self.v * self.dt
+    def local_activity(self):
+
+        """
+        Internal compression.
+
+        External does not receive
+        all planet states.
+
+        Only one local signal.
+        """
+
+        return float(
+            self._last_activity
+        )
 
 
 
-    def state(self):
+    def sample(self):
+
+        """
+        Local sampling.
+
+        Not full internal state.
+        """
 
         return {
 
-            "id": self.cid,
-            "x": float(self.x),
-            "v": float(self.v),
-            "omega": float(self.omega)
+            "activity":
+                self.local_activity()
 
         }

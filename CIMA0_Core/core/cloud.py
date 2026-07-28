@@ -1,75 +1,191 @@
 import numpy as np
 
 
-class CloudMatrix:
+class Cloud:
+    """
+    Cloud field.
+
+    Independent dynamic medium.
+
+    Internal state:
+
+        empty
+        vacant
+        zero
+        negative
 
 
-    def __init__(self,size):
+    Does not know:
 
-        self.size=size
-
-        self.field=np.full(
-            size,
-            np.nan
-        )
-
-
-    def clear(self):
-
-        self.field[:] = np.nan
+        planet
+        cell
+        observer
+        compute
+        IO meaning
 
 
+    Only:
 
-    def deposit_random(
+        receive disturbance
+        evolve local field
+        output compressed state
+    """
+
+
+
+    def __init__(
         self,
-        count=4,
-        strength=1.0
+        height,
+        width
     ):
 
-
-        for _ in range(count):
-
-            idx=np.random.randint(
-                0,
-                self.size
-            )
+        self.height = height
+        self.width = width
 
 
-            value=np.random.uniform(
-                -strength,
-                strength
-            )
+        # cloud matrix
+        #
+        # values:
+        #   negative
+        #   zero
+        #   empty(vacant representation)
+        #
 
-
-            self.field[idx]=value
-
-
-
-    def contact(self,cid):
-
-        value=self.field[cid]
-
-
-        if np.isnan(value):
-
-            return None
-
-
-        return float(value)
-
-
-
-    def decay(self,rate=0.995):
-
-        mask=~np.isnan(self.field)
-
-
-        self.field[mask]*=rate
-
-
-        dead=(
-            np.abs(self.field)<1e-4
+        self.matrix = np.zeros(
+            (
+                height,
+                width
+            ),
+            dtype=float
         )
 
 
-        self.field[dead]=np.nan
+
+    def receive(
+        self,
+        disturbance
+    ):
+
+        """
+        External disturbance.
+
+        Not replacement.
+
+        Only changes local cloud state.
+        """
+
+
+        self.matrix += disturbance
+
+
+
+    def evolve(
+        self
+    ):
+
+        """
+        Local cloud evolution.
+
+        Same rule everywhere.
+
+        No special region.
+        """
+
+
+        new_matrix = self.matrix.copy()
+
+
+        h, w = self.matrix.shape
+
+
+        for y in range(h):
+
+            for x in range(w):
+
+
+                local = self.matrix[
+                    y,
+                    x
+                ]
+
+
+                neighbors = []
+
+
+                if y > 0:
+                    neighbors.append(
+                        self.matrix[y-1,x]
+                    )
+
+                if y < h-1:
+                    neighbors.append(
+                        self.matrix[y+1,x]
+                    )
+
+                if x > 0:
+                    neighbors.append(
+                        self.matrix[y,x-1]
+                    )
+
+                if x < w-1:
+                    neighbors.append(
+                        self.matrix[y,x+1]
+                    )
+
+
+                if neighbors:
+
+                    influence = np.mean(
+                        neighbors
+                    )
+
+                    new_matrix[y,x] = (
+                        local
+                        +
+                        0.01
+                        *
+                        np.tanh(
+                            influence
+                        )
+                    )
+
+
+        self.matrix = new_matrix
+
+
+
+    def expression(
+        self
+    ):
+
+        """
+        Cloud three-value expression.
+
+        Not predefined meaning.
+
+        Just compression.
+        """
+
+
+        empty_ratio = np.mean(
+            self.matrix == 0
+        )
+
+
+        negative_ratio = np.mean(
+            self.matrix < 0
+        )
+
+
+        activity = np.std(
+            self.matrix
+        )
+
+
+        return np.array(
+            [
+                empty_ratio,
+                negative_ratio,
+                activity
+            ]
+        )
