@@ -1,153 +1,231 @@
-import time
 import numpy as np
 
+from core.planet import PlanetEngine
+from core.cloud import Cloud
+from core.observer import Observer
+from core.compute import ComputeSystem
+from core.interface import ByteInterface
 
-from core.cell import Cell
-from core.cloud import CloudMatrix
-from core.topology import Topology
-from core.observer import ObserverSystem
+
+
+def bytes_to_disturbance(
+    data,
+    size
+):
+    """
+    IO bytes -> cloud disturbance
+
+    No semantic decoding.
+
+    Only numerical mapping.
+    """
+
+    values = np.frombuffer(
+        data,
+        dtype=np.uint8
+    )
+
+
+    if len(values) == 0:
+
+        return np.zeros(
+            (
+                size,
+                size
+            )
+        )
+
+
+    values = values.astype(
+        float
+    )
+
+
+    values = (
+        values
+        -
+        128.0
+    ) / 128.0
+
+
+    disturbance = np.zeros(
+        (
+            size,
+            size
+        )
+    )
+
+
+    count = min(
+        values.size,
+        size * size
+    )
+
+
+    disturbance.flat[:count] = (
+        values[:count]
+    )
+
+
+    return disturbance
+
 
 
 
 def main():
 
-
     print(
-        "=== CIMA0 Core ==="
+        "=== CIMA0 minimal core ==="
     )
 
 
-    N=4096
+    # IO
+
+    io = ByteInterface()
 
 
-    cells=[
 
-        Cell(i)
+    # Cloud
 
-        for i in range(N)
+    cloud_size = 16
 
-    ]
-
-
-    topology=Topology(
-        N,
-        degree=4
+    cloud = Cloud(
+        cloud_size,
+        cloud_size
     )
 
 
-    cloud=CloudMatrix(
-        N
+
+    # Primitive dynamic
+
+    planet = PlanetEngine(
+        x=1.0,
+        v=0.0,
+        omega=1.0,
+        dt=0.01
     )
 
 
-    observer=ObserverSystem(
-        sample_size=64
+
+    # Observer
+
+    observer = Observer()
+
+
+
+    # Compute
+
+    compute = ComputeSystem()
+
+
+
+    # simulate external byte input
+
+    io.push(
+        b"CIMA0"
     )
 
 
-    steps=200000
 
-
-
-    for t in range(steps):
+    for step in range(1000):
 
 
         # -----------------
-        # cloud event
+        # IO
         # -----------------
 
-        if t%10000==0:
+        raw = io.read()
 
 
-            cloud.deposit_random(
-                count=4,
-                strength=1.0
-            )
 
+        disturbance = bytes_to_disturbance(
+            raw,
+            cloud_size
+        )
+
+
+        # -----------------
+        # Cloud
+        # -----------------
+
+        cloud.receive(
+            disturbance
+        )
+
+
+        cloud.evolve()
+
+
+
+        # -----------------
+        # Planet
+        # -----------------
+
+        local_force = np.mean(
+            cloud.matrix
+        )
+
+
+        planet.step(
+            external_force=local_force
+        )
+
+
+
+        # -----------------
+        # Observer
+        # -----------------
+
+        signal = abs(
+            planet.x
+        )
+
+
+        observation = observer.observe(
+            signal
+        )
+
+
+        # -----------------
+        # Compute
+        # -----------------
+
+        steps = compute.allocate(
+            observation["raised"]
+        )
+
+
+        result = compute.compute(
+            signal,
+            steps
+        )
+
+
+        if step % 100 == 0:
 
             print(
-                "cloud event",
-                t
+                {
+                    "step": step,
+
+                    "raised":
+                        observation["raised"],
+
+                    "activity":
+                        signal,
+
+                    "baseline":
+                        observation["baseline"],
+
+                    "compute_steps":
+                        steps,
+
+                    "result":
+                        result
+                }
             )
 
 
 
-        # -----------------
-        # local world
-        # -----------------
-
-        for cell in cells:
-
-
-            coupling=0.0
-
-
-            neighbors=topology.get(
-                cell.cid
-            )
-
-
-            for nid in neighbors:
-
-                coupling += (
-                    cells[nid].x
-                    -
-                    cell.x
-                )
-
-
-            if neighbors:
-
-                coupling/=len(neighbors)
-
-
-            coupling*=0.05
-
-
-
-            signal=cloud.contact(
-                cell.cid
-            )
-
-
-            if signal is None:
-
-                signal=0.0
-
-
-
-            cell.step(
-
-                coupling=coupling,
-
-                perturb=signal
-
-            )
-
-
-
-        cloud.decay()
-
-
-
-        if t%10000==0:
-
-
-            print(
-                observer.sample(
-                    cells,
-                    t
-                )
-            )
-
-
-
-    print(
-        "finished"
-    )
-
-
-
-if __name__=="__main__":
+if __name__ == "__main__":
 
     main()
