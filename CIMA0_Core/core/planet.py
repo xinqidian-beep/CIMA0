@@ -1,17 +1,14 @@
-import numpy as np
-
-
 class PlanetEngine:
     """
-    Minimal autonomous dynamic engine.
+    Minimal dynamic engine.
 
-    Only owns:
+    State:
 
         x
         v
         omega
-    """
 
+    """
 
     def __init__(
         self,
@@ -22,25 +19,9 @@ class PlanetEngine:
     ):
 
         self.x = float(x)
-
         self.v = float(v)
-
         self.omega = float(omega)
-
         self.dt = float(dt)
-
-
-
-    def force(self):
-
-        return (
-            -self.omega
-            *
-            self.omega
-            *
-            self.x
-        )
-
 
 
     def step(
@@ -48,15 +29,19 @@ class PlanetEngine:
         external_force=0.0
     ):
 
-        f = (
-            self.force()
+        acceleration = (
+            -self.omega
+            *
+            self.omega
+            *
+            self.x
             +
             external_force
         )
 
 
         self.v += (
-            f
+            acceleration
             *
             self.dt
         )
@@ -69,11 +54,10 @@ class PlanetEngine:
         )
 
 
-
     def sample(self):
 
-        return (
-            self.x,
-            self.v,
-            self.omega
-        )
+        return {
+            "x": self.x,
+            "v": self.v,
+            "omega": self.omega
+        }
