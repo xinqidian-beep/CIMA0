@@ -1,191 +1,290 @@
 import numpy as np
 
 
-class Cloud:
+class CloudField:
     """
-    Cloud field.
-
-    Independent dynamic medium.
-
-    Internal state:
-
-        empty
-        vacant
-        zero
-        negative
+    Minimal three-value cloud dynamics.
 
 
-    Does not know:
+    Own state:
 
-        planet
-        cell
-        observer
-        compute
-        IO meaning
+        cloud_void
+        cloud_neg
+        cloud_act
 
 
-    Only:
+    External influence:
 
-        receive disturbance
-        evolve local field
-        output compressed state
+        io disturbance
+        sampling disturbance
+
+
+    Does not:
+
+        - understand meaning
+        - control dynamics
+        - know observer
+        - know global state
+
     """
-
 
 
     def __init__(
         self,
-        height,
-        width
+        cloud_size=64,
+        cloud_decay_rate=0.001
     ):
 
-        self.height = height
-        self.width = width
+        self.cloud_size = int(
+            cloud_size
+        )
 
 
-        # cloud matrix
         #
-        # values:
-        #   negative
-        #   zero
-        #   empty(vacant representation)
+        # Three topology states
         #
 
-        self.matrix = np.zeros(
-            (
-                height,
-                width
-            ),
-            dtype=float
+        self.cloud_state_void = (
+            np.ones(
+                (
+                    self.cloud_size,
+                    self.cloud_size
+                ),
+                dtype=bool
+            )
+        )
+
+
+        self.cloud_state_neg = (
+            np.zeros(
+                (
+                    self.cloud_size,
+                    self.cloud_size
+                ),
+                dtype=np.float64
+            )
+        )
+
+
+        self.cloud_state_act = (
+            np.zeros(
+                (
+                    self.cloud_size,
+                    self.cloud_size
+                ),
+                dtype=np.float64
+            )
+        )
+
+
+        #
+        # Ephemeral disturbances
+        #
+
+        self.cloud_ephemeral_io_disturbance = 0.0
+
+        self.cloud_ephemeral_sample_disturbance = 0.0
+
+
+        self.cloud_decay_rate = float(
+            cloud_decay_rate
         )
 
 
 
-    def receive(
+    def receive_cloud_ephemeral_disturbance(
         self,
-        disturbance
+        value
+    ):
+        """
+        Receive temporary disturbance.
+
+        Source is unknown.
+
+        It may come from:
+            external boundary
+            internal sampling
+
+        Cloud does not care.
+
+        """
+
+        self.cloud_ephemeral_disturbance = float(
+            value
+        )
+
+
+
+    def receive_sample_ephemeral_disturbance(
+        self,
+        sample_ephemeral_value
     ):
 
         """
-        External disturbance.
+        Receive internal observation disturbance.
 
-        Not replacement.
+        Observer does not control cloud.
 
-        Only changes local cloud state.
+        It only creates a temporary influence.
+
         """
 
+        self.cloud_ephemeral_sample_disturbance = (
+            float(sample_ephemeral_value)
+        )
 
-        self.matrix += disturbance
 
 
-
-    def evolve(
+    def step_cloud_dynamics(
         self
     ):
 
         """
-        Local cloud evolution.
+        Cloud autonomous evolution.
 
-        Same rule everywhere.
+        Disturbance changes tendency,
+        not direct state replacement.
 
-        No special region.
         """
 
 
-        new_matrix = self.matrix.copy()
+        cloud_ephemeral_force = (
 
+            self.cloud_ephemeral_io_disturbance
 
-        h, w = self.matrix.shape
+            +
 
+            self.cloud_ephemeral_sample_disturbance
 
-        for y in range(h):
-
-            for x in range(w):
-
-
-                local = self.matrix[
-                    y,
-                    x
-                ]
-
-
-                neighbors = []
-
-
-                if y > 0:
-                    neighbors.append(
-                        self.matrix[y-1,x]
-                    )
-
-                if y < h-1:
-                    neighbors.append(
-                        self.matrix[y+1,x]
-                    )
-
-                if x > 0:
-                    neighbors.append(
-                        self.matrix[y,x-1]
-                    )
-
-                if x < w-1:
-                    neighbors.append(
-                        self.matrix[y,x+1]
-                    )
-
-
-                if neighbors:
-
-                    influence = np.mean(
-                        neighbors
-                    )
-
-                    new_matrix[y,x] = (
-                        local
-                        +
-                        0.01
-                        *
-                        np.tanh(
-                            influence
-                        )
-                    )
-
-
-        self.matrix = new_matrix
+        )
 
 
 
-    def expression(
-        self
+        #
+        # Local three-value transition
+        #
+
+        if cloud_ephemeral_force > 0:
+
+
+            self.cloud_state_act += (
+                cloud_ephemeral_force
+                *
+                0.01
+            )
+
+
+        elif cloud_ephemeral_force < 0:
+
+
+            self.cloud_state_neg += (
+                abs(
+                    cloud_ephemeral_force
+                )
+                *
+                0.01
+            )
+
+
+        else:
+
+            #
+            # no disturbance:
+            # void gradually appears
+            #
+
+            self.cloud_state_act *= (
+                1.0
+                -
+                self.cloud_decay_rate
+            )
+
+            self.cloud_state_neg *= (
+                1.0
+                -
+                self.cloud_decay_rate
+            )
+
+
+
+        #
+        # Topology update
+        #
+
+        self.cloud_state_void[:] = (
+            (
+                np.abs(
+                    self.cloud_state_act
+                )
+                <
+                1e-9
+            )
+
+            &
+
+            (
+                np.abs(
+                    self.cloud_state_neg
+                )
+                <
+                1e-9
+            )
+        )
+
+
+
+        #
+        # Temporary influence disappears
+        #
+
+        self.cloud_ephemeral_io_disturbance = 0.0
+
+        self.cloud_ephemeral_sample_disturbance = 0.0
+
+
+
+    def project_ephemeral_local_state(
+        self,
+        cloud_y,
+        cloud_x
     ):
 
         """
-        Cloud three-value expression.
+        Local black-box projection.
 
-        Not predefined meaning.
+        No global understanding.
 
-        Just compression.
         """
 
+        return {
 
-        empty_ratio = np.mean(
-            self.matrix == 0
-        )
+            "cloud_local_act":
 
-
-        negative_ratio = np.mean(
-            self.matrix < 0
-        )
-
-
-        activity = np.std(
-            self.matrix
-        )
+                float(
+                    self.cloud_state_act[
+                        cloud_y,
+                        cloud_x
+                    ]
+                ),
 
 
-        return np.array(
-            [
-                empty_ratio,
-                negative_ratio,
-                activity
-            ]
-        )
+            "cloud_local_neg":
+
+                float(
+                    self.cloud_state_neg[
+                        cloud_y,
+                        cloud_x
+                    ]
+                ),
+
+
+            "cloud_local_void":
+
+                bool(
+                    self.cloud_state_void[
+                        cloud_y,
+                        cloud_x
+                    ]
+                )
+
+        }

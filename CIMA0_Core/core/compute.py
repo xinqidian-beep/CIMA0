@@ -1,94 +1,58 @@
 class ComputeSystem:
-    """
-    Local computation system.
-
-    Responsibility:
-
-        allocate calculation effort
-        refine current observation
-
-
-    Does not:
-
-        control dynamics
-        store world model
-        understand meaning
-        manage objects
 
     """
+    Autonomous resource dynamics.
 
+    """
 
     def __init__(
-        self,
-        base_steps=1,
-        max_steps=100
+        self
     ):
 
-        self.base_steps = base_steps
+        self.compute_capacity = 1.0
 
-        self.max_steps = max_steps
+        self.compute_ephemeral_load = 0.0
 
 
 
-    def allocate(
+    def receive_compute_ephemeral_load(
         self,
-        raised
+        load
     ):
 
-        """
-        Decide current calculation amount.
-
-        Only based on observation signal.
-
-        No global knowledge.
-        """
-
-
-        if raised:
-
-            return self.max_steps
-
-
-        return self.base_steps
+        self.compute_ephemeral_load = (
+            float(load)
+        )
 
 
 
-    def compute(
-        self,
-        state,
-        steps
+    def step_compute_dynamics(
+        self
     ):
 
-        """
-        Refine current local calculation.
+        self.compute_capacity += 0.001
 
-        State meaning is unknown here.
-
-        """
-
-        result = state
+        self.compute_capacity -= (
+            self.compute_ephemeral_load
+        )
 
 
-        for _ in range(steps):
+        if self.compute_capacity < 0:
 
-            result = self._local_process(
-                result
-            )
+            self.compute_capacity = 0.0
 
 
-        return result
+        if self.compute_capacity > 1:
+
+            self.compute_capacity = 1.0
+
+
+        self.compute_ephemeral_load = 0.0
 
 
 
-    def _local_process(
-        self,
-        value
+    def project_compute_ephemeral_state(
+        self
     ):
 
-        """
-        Placeholder local calculation.
-
-        No semantic processing.
-        """
-
-        return value
+        return self.compute_capacity

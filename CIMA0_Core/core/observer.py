@@ -1,111 +1,67 @@
+import numpy as np
+
+
 class Observer:
+
     """
-    Local observer.
+    Sparse observation system.
 
-    Only:
+    Does not control.
+    Only samples and projects.
 
-        receive local signal
-        compare with own history
-        output raised
-
-
-    Does not:
-
-        control dynamics
-        modify state
-        know global structure
     """
-
 
     def __init__(
         self,
-        decay=0.99
+        observer_threshold=0.5
     ):
 
-        self.baseline = None
+        self.observer_threshold = (
+            observer_threshold
+        )
 
-        self.decay = decay
+        self.sample_ephemeral_value = 0.0
 
 
 
-    def observe(
+    def sample_ephemeral_state(
         self,
-        value
+        kin_x
     ):
 
         """
-        Observe one local value.
+        Local sampling only.
 
-        No global scan.
-        No semantic understanding.
         """
 
-        value = float(value)
-
-
-        # initialize history
-
-        if self.baseline is None:
-
-            self.baseline = value
-
-
-        else:
-
-            self.baseline = (
-                self.decay * self.baseline
-                +
-                (1.0 - self.decay) * value
-            )
-
-
-        deviation = abs(
-            value - self.baseline
+        self.sample_ephemeral_value = abs(
+            kin_x
         )
 
 
-        raised = (
-            deviation
-            >
-            self.observed_threshold()
-        )
 
-
-        return {
-
-            "raised": raised,
-
-            "activity": value,
-
-            "baseline": self.baseline,
-
-            "deviation": deviation
-
-        }
-
-
-
-    def observed_threshold(
+    def evaluate_ephemeral_raised(
         self
     ):
 
         """
-        Local adaptive threshold.
+        Raised signal.
 
-        Relative to own history.
+        Relative simple projection.
 
-        No global constant.
         """
 
-        if self.baseline is None:
+        return {
 
-            return 0.0
+            "raised":
+
+                self.sample_ephemeral_value
+                >
+                self.observer_threshold,
 
 
-        return (
-            abs(self.baseline)
-            *
-            0.5
-            +
-            1e-9
-        )
+            "activity":
+
+                self.sample_ephemeral_value
+
+        }
