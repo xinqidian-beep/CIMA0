@@ -127,7 +127,7 @@ def main():
 
 
 
-    for step in range(1000):
+    for step in range(100000):
 
 
         # -----------------
