@@ -1,39 +1,100 @@
 class ComputeSystem:
+    """
+    Local computation resource dynamics.
+
+    Responsibility:
+
+        manage own compute state
+        allocate own resources
+
+    Does not know:
+
+        planet
+        observer
+        cloud
+        meaning
+        importance
+    """
 
 
-    def __init__(self):
+    def __init__(
+        self,
+        capacity=1.0,
+        decay=0.01
+    ):
 
-        self.budget = 1.0
+        self.capacity = capacity
+
+        self.available = capacity
+
+        self.decay = decay
+
+
+
+    def step(self):
+
+        self.available += (
+            self.capacity -
+            self.available
+        ) * self.decay
+
+
+        if self.available > self.capacity:
+            self.available = self.capacity
 
 
 
     def allocate(
         self,
-        signal
+        observation_signal
     ):
 
-        deviation = signal["deviation"]
+        """
+        Allocate computation according to:
+
+            observation signal
+            own available resource
+
+        Does not know:
+
+            signal meaning
+        """
 
 
-        if deviation > 0.8:
-
-            return {
-                "radius":8,
-                "resolution":4
-            }
-
-
-        elif deviation > 0.4:
-
-            return {
-                "radius":4,
-                "resolution":2
-            }
+        signal = max(
+            0.0,
+            min(
+                1.0,
+                observation_signal
+            )
+        )
 
 
-        else:
+        budget = (
+            self.available *
+            signal
+        )
 
-            return {
-                "radius":2,
-                "resolution":1
-            }
+
+        self.available -= budget
+
+
+        if self.available < 0:
+            self.available = 0
+
+
+        return {
+            "compute_budget": budget
+        }
+
+
+
+    def snapshot(self):
+
+        return {
+            "available":
+                self.available,
+
+            "capacity":
+                self.capacity
+        }
