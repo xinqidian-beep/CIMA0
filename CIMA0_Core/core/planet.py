@@ -1,63 +1,57 @@
-class PlanetEngine:
-    """
-    Minimal dynamic engine.
-
-    State:
-
-        x
-        v
-        omega
-
-    """
+class KinEngine:
 
     def __init__(
         self,
-        x=1.0,
-        v=0.0,
-        omega=1.0,
-        dt=0.01
+        kin_x=1.0,
+        kin_v=0.0,
+        kin_omega=1.0,
+        kin_dt=0.01
     ):
 
-        self.x = float(x)
-        self.v = float(v)
-        self.omega = float(omega)
-        self.dt = float(dt)
+        self.kin_x = kin_x
+        self.kin_v = kin_v
+        self.kin_omega = kin_omega
+        self.kin_dt = kin_dt
 
 
-    def step(
+        self.kin_ephemeral_force = 0.0
+
+
+
+    def receive_kin_ephemeral_force(
         self,
-        external_force=0.0
+        force
+    ):
+
+        self.kin_ephemeral_force = force
+
+
+
+    def step_kin_dynamics(
+        self
     ):
 
         acceleration = (
-            -self.omega
+            -self.kin_omega**2
             *
-            self.omega
-            *
-            self.x
+            self.kin_x
             +
-            external_force
+            self.kin_ephemeral_force
         )
 
 
-        self.v += (
+        self.kin_v += (
             acceleration
             *
-            self.dt
+            self.kin_dt
         )
 
 
-        self.x += (
-            self.v
+        self.kin_x += (
+            self.kin_v
             *
-            self.dt
+            self.kin_dt
         )
 
 
-    def sample(self):
-
-        return {
-            "x": self.x,
-            "v": self.v,
-            "omega": self.omega
-        }
+        self.kin_ephemeral_force = 0.0

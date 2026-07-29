@@ -1,226 +1,127 @@
-import numpy as np
-
-from core.planet import PlanetEngine
-from core.cloud import Cloud
+from core.planet import KinEngine
+from core.cloud import CloudField
+from core.input_field import IOField
 from core.observer import Observer
 from core.compute import ComputeSystem
-from core.interface import ByteInterface
-
-
-
-def bytes_to_disturbance(
-    data,
-    size
-):
-    """
-    IO bytes -> cloud disturbance
-
-    No semantic decoding.
-
-    Only numerical mapping.
-    """
-
-    values = np.frombuffer(
-        data,
-        dtype=np.uint8
-    )
-
-
-    if len(values) == 0:
-
-        return np.zeros(
-            (
-                size,
-                size
-            )
-        )
-
-
-    values = values.astype(
-        float
-    )
-
-
-    values = (
-        values
-        -
-        128.0
-    ) / 128.0
-
-
-    disturbance = np.zeros(
-        (
-            size,
-            size
-        )
-    )
-
-
-    count = min(
-        values.size,
-        size * size
-    )
-
-
-    disturbance.flat[:count] = (
-        values[:count]
-    )
-
-
-    return disturbance
-
 
 
 
 def main():
 
     print(
-        "=== CIMA0 minimal core ==="
+        "=== CIMA0 Core ==="
     )
 
 
-    # IO
+    kin = KinEngine()
 
-    io = ByteInterface()
-
-
-
-    # Cloud
-
-    cloud_size = 16
-
-    cloud = Cloud(
-        cloud_size,
-        cloud_size
+    cloud = CloudField(
+        cloud_size=64
     )
 
-
-
-    # Primitive dynamic
-
-    planet = PlanetEngine(
-        x=1.0,
-        v=0.0,
-        omega=1.0,
-        dt=0.01
-    )
-
-
-
-    # Observer
+    io = IOField()
 
     observer = Observer()
 
-
-
-    # Compute
-
     compute = ComputeSystem()
-
-
-
-    # simulate external byte input
-
-    io.push(
-        b"CIMA0"
-    )
 
 
 
     for step in range(100000):
 
 
-        # -----------------
-        # IO
-        # -----------------
-
-        raw = io.read()
-
-
-
-        disturbance = bytes_to_disturbance(
-            raw,
-            cloud_size
-        )
-
-
-        # -----------------
-        # Cloud
-        # -----------------
-
-        cloud.receive(
-            disturbance
-        )
-
-
-        cloud.evolve()
-
-
-
-        # -----------------
-        # Planet
-        # -----------------
-
-        local_force = np.mean(
-            cloud.matrix
-        )
-
-
-        planet.step(
-            external_force=local_force
-        )
-
-
-
-        # -----------------
-        # Observer
-        # -----------------
-
-        signal = abs(
-            planet.x
-        )
-
-
-        observation = observer.observe(
-            signal
-        )
-
-
-        # -----------------
-        # Compute
-        # -----------------
-
-        steps = compute.allocate(
-            observation["raised"]
-        )
-
-
-        result = compute.compute(
-            signal,
-            steps
-        )
-
+        #
+        # IO receives raw bytes
+        #
 
         if step % 100 == 0:
+
+            io.receive_io_ephemeral_bytes(
+                bytes(
+                    [step % 256]
+                )
+            )
+
+
+            #
+            # byte existence becomes
+            # disturbance only
+            #
+
+            byte_data = (
+                io.project_io_ephemeral_bytes()
+            )
+
+
+            if len(byte_data):
+
+                cloud.receive_cloud_ephemeral_disturbance(
+                    byte_data[0] - 128
+                )
+
+
+
+        #
+        # cloud evolves itself
+        #
+
+        cloud.step_cloud_dynamics()
+
+
+
+        #
+        # kinetic system evolves itself
+        #
+
+        kin.step_kin_dynamics()
+
+
+
+        #
+        # observer samples
+        #
+
+        observer.sample_ephemeral_state(
+            kin.kin_x
+        )
+
+
+        result = (
+            observer.evaluate_ephemeral_raised()
+        )
+
+
+        #
+        # compute reacts only to load
+        #
+
+        if result["raised"]:
+
+            compute.receive_compute_ephemeral_load(
+                0.1
+            )
+
+
+        compute.step_compute_dynamics()
+
+
+
+        if step % 1000 == 0:
 
             print(
                 {
                     "step": step,
-
+                    "kin_x": round(
+                        kin.kin_x,
+                        4
+                    ),
+                    "cloud_act": float(
+                        cloud.cloud_state_act.sum()
+                    ),
                     "raised":
-                        observation["raised"],
-
-                    "activity":
-                        signal,
-
-                    "baseline":
-                        observation["baseline"],
-
-                    "compute_steps":
-                        steps,
-
-                    "result":
-                        result
+                        result["raised"],
+                    "compute":
+                        compute.compute_capacity
                 }
             )
 
