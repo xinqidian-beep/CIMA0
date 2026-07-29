@@ -1,61 +1,31 @@
-class IOField:
+import numpy as np
+
+
+class InputField:
+
+
     """
-    Pure boundary.
+    原始输入边界
 
-    byte enters.
-    byte leaves.
-
-    No semantic interpretation.
+    不理解内容
     """
 
-    def __init__(self):
+    def generate(self):
 
-        self.io_ephemeral_input_bytes = b""
-
-        self.io_ephemeral_output_bytes = b""
-
-
-    def receive_io_ephemeral_bytes(
-        self,
-        io_bytes
-    ):
-
-        self.io_ephemeral_input_bytes = bytes(
-            io_bytes
+        x = np.random.randint(
+            0,
+            128
         )
 
-
-    def project_io_ephemeral_bytes(
-        self
-    ):
-
-        """
-        Internal system may read
-        raw bytes.
-
-        IO does not transform.
-        """
-
-        return self.io_ephemeral_input_bytes
-
-
-
-    def receive_io_ephemeral_output(
-        self,
-        io_bytes
-    ):
-
-        self.io_ephemeral_output_bytes = bytes(
-            io_bytes
+        y = np.random.randint(
+            0,
+            128
         )
 
+        value = np.random.randn()*0.5
 
-    def emit_io_ephemeral_bytes(
-        self
-    ):
 
-        io_result = self.io_ephemeral_output_bytes
-
-        self.io_ephemeral_output_bytes = b""
-
-        return io_result
+        return {
+            "position":(x,y),
+            "value":value
+        }

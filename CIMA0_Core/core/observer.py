@@ -1,67 +1,60 @@
 import numpy as np
 
 
+
 class Observer:
 
-    """
-    Sparse observation system.
-
-    Does not control.
-    Only samples and projects.
 
     """
+    只观察
 
-    def __init__(
+    不控制动力
+    """
+
+
+    def scan(
         self,
-        observer_threshold=0.5
+        snapshot
     ):
 
-        self.observer_threshold = (
-            observer_threshold
-        )
 
-        self.sample_ephemeral_value = 0.0
+        activity = np.abs(snapshot)
 
 
-
-    def sample_ephemeral_state(
-        self,
-        kin_x
-    ):
-
-        """
-        Local sampling only.
-
-        """
-
-        self.sample_ephemeral_value = abs(
-            kin_x
+        index = np.unravel_index(
+            np.argmax(activity),
+            activity.shape
         )
 
 
+        value = activity[index]
 
-    def evaluate_ephemeral_raised(
-        self
-    ):
-
-        """
-        Raised signal.
-
-        Relative simple projection.
-
-        """
 
         return {
 
-            "raised":
-
-                self.sample_ephemeral_value
-                >
-                self.observer_threshold,
-
-
-            "activity":
-
-                self.sample_ephemeral_value
+            "center":index,
+            "deviation":float(value)
 
         }
+
+
+
+    def sample(
+        self,
+        snapshot,
+        budget
+    ):
+
+        x,y = budget["center"]
+
+        r = budget["radius"]
+
+
+        x1=max(0,x-r)
+        x2=min(snapshot.shape[0],x+r)
+
+        y1=max(0,y-r)
+        y2=min(snapshot.shape[1],y+r)
+
+
+        return snapshot[x1:x2,y1:y2]

@@ -1,57 +1,77 @@
-class KinEngine:
+import numpy as np
 
-    def __init__(
+
+class Planet:
+
+    """
+    唯一动力核心
+
+    不知道:
+        observer
+        compute
+        io
+
+    只负责:
+        状态演化
+        接收瞬时扰动
+    """
+
+    def __init__(self, size=128):
+
+        self.size = size
+
+        self.state = np.random.randn(
+            size,
+            size
+        ) * 0.01
+
+
+    def receive_disturbance(
         self,
-        kin_x=1.0,
-        kin_v=0.0,
-        kin_omega=1.0,
-        kin_dt=0.01
+        position,
+        value
     ):
 
-        self.kin_x = kin_x
-        self.kin_v = kin_v
-        self.kin_omega = kin_omega
-        self.kin_dt = kin_dt
+        x, y = position
 
+        if 0 <= x < self.size and 0 <= y < self.size:
 
-        self.kin_ephemeral_force = 0.0
-
-
-
-    def receive_kin_ephemeral_force(
-        self,
-        force
-    ):
-
-        self.kin_ephemeral_force = force
+            self.state[x, y] += value
 
 
 
-    def step_kin_dynamics(
-        self
-    ):
+    def step(self):
 
-        acceleration = (
-            -self.kin_omega**2
-            *
-            self.kin_x
-            +
-            self.kin_ephemeral_force
-        )
+        old = self.state.copy()
 
+        for x in range(1, self.size-1):
+            for y in range(1, self.size-1):
 
-        self.kin_v += (
-            acceleration
-            *
-            self.kin_dt
-        )
+                neighbor = (
+                    old[x+1,y] +
+                    old[x-1,y] +
+                    old[x,y+1] +
+                    old[x,y-1]
+                ) / 4
 
 
-        self.kin_x += (
-            self.kin_v
-            *
-            self.kin_dt
-        )
+                # 最小局部动力规则
+
+                self.state[x,y] += (
+                    0.05 *
+                    (neighbor-old[x,y])
+                )
 
 
-        self.kin_ephemeral_force = 0.0
+                # 非线性保持
+
+                self.state[x,y] += (
+                    0.001 *
+                    np.sin(old[x,y])
+                )
+
+
+
+    def snapshot(self):
+
+        return self.state.copy()

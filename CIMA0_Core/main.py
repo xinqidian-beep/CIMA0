@@ -1,6 +1,5 @@
-from core.planet import KinEngine
-from core.cloud import CloudField
-from core.input_field import IOField
+from core.planet import Planet
+from core.input_field import InputField
 from core.observer import Observer
 from core.compute import ComputeSystem
 
@@ -8,18 +7,17 @@ from core.compute import ComputeSystem
 
 def main():
 
+
     print(
-        "=== CIMA0 Core ==="
+        "=== CIMA0 minimal world ==="
     )
 
 
-    kin = KinEngine()
-
-    cloud = CloudField(
-        cloud_size=64
+    planet = Planet(
+        size=128
     )
 
-    io = IOField()
+    io = InputField()
 
     observer = Observer()
 
@@ -30,79 +28,46 @@ def main():
     for step in range(100000):
 
 
-        #
-        # IO receives raw bytes
-        #
+        # 外部偶尔扰动
 
         if step % 100 == 0:
 
-            io.receive_io_ephemeral_bytes(
-                bytes(
-                    [step % 256]
-                )
+            disturbance = io.generate()
+
+            planet.receive_disturbance(
+                disturbance["position"],
+                disturbance["value"]
             )
 
 
-            #
-            # byte existence becomes
-            # disturbance only
-            #
+        # 动力演化
 
-            byte_data = (
-                io.project_io_ephemeral_bytes()
-            )
-
-
-            if len(byte_data):
-
-                cloud.receive_cloud_ephemeral_disturbance(
-                    byte_data[0] - 128
-                )
+        planet.step()
 
 
 
-        #
-        # cloud evolves itself
-        #
+        # 观察
 
-        cloud.step_cloud_dynamics()
+        snapshot = planet.snapshot()
 
 
-
-        #
-        # kinetic system evolves itself
-        #
-
-        kin.step_kin_dynamics()
-
-
-
-        #
-        # observer samples
-        #
-
-        observer.sample_ephemeral_state(
-            kin.kin_x
+        signal = observer.scan(
+            snapshot
         )
 
 
-        result = (
-            observer.evaluate_ephemeral_raised()
+        budget = compute.allocate(
+            signal
         )
 
 
-        #
-        # compute reacts only to load
-        #
-
-        if result["raised"]:
-
-            compute.receive_compute_ephemeral_load(
-                0.1
-            )
+        budget["center"] = signal["center"]
 
 
-        compute.step_compute_dynamics()
+        local = observer.sample(
+            snapshot,
+            budget
+        )
 
 
 
@@ -110,23 +75,18 @@ def main():
 
             print(
                 {
-                    "step": step,
-                    "kin_x": round(
-                        kin.kin_x,
-                        4
-                    ),
-                    "cloud_act": float(
-                        cloud.cloud_state_act.sum()
-                    ),
-                    "raised":
-                        result["raised"],
-                    "compute":
-                        compute.compute_capacity
+                    "step":step,
+                    "activity":
+                    signal["deviation"],
+                    "center":
+                    signal["center"],
+                    "sample":
+                    local.shape
                 }
             )
 
 
 
-if __name__ == "__main__":
+if __name__=="__main__":
 
     main()
