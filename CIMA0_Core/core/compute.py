@@ -1,58 +1,39 @@
 class ComputeSystem:
 
-    """
-    Autonomous resource dynamics.
 
-    """
+    def __init__(self):
 
-    def __init__(
-        self
-    ):
-
-        self.compute_capacity = 1.0
-
-        self.compute_ephemeral_load = 0.0
+        self.budget = 1.0
 
 
 
-    def receive_compute_ephemeral_load(
+    def allocate(
         self,
-        load
+        signal
     ):
 
-        self.compute_ephemeral_load = (
-            float(load)
-        )
+        deviation = signal["deviation"]
 
 
+        if deviation > 0.8:
 
-    def step_compute_dynamics(
-        self
-    ):
-
-        self.compute_capacity += 0.001
-
-        self.compute_capacity -= (
-            self.compute_ephemeral_load
-        )
+            return {
+                "radius":8,
+                "resolution":4
+            }
 
 
-        if self.compute_capacity < 0:
+        elif deviation > 0.4:
 
-            self.compute_capacity = 0.0
-
-
-        if self.compute_capacity > 1:
-
-            self.compute_capacity = 1.0
+            return {
+                "radius":4,
+                "resolution":2
+            }
 
 
-        self.compute_ephemeral_load = 0.0
+        else:
 
-
-
-    def project_compute_ephemeral_state(
-        self
-    ):
-
-        return self.compute_capacity
+            return {
+                "radius":2,
+                "resolution":1
+            }
