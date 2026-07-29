@@ -1,92 +1,36 @@
-from core.planet import Planet
-from core.input_field import InputField
-from core.observer import Observer
-from core.compute import ComputeSystem
-
+from hardware.usb_camera import USBCamera
+from core.io import InputField
 
 
 def main():
 
-
-    print(
-        "=== CIMA0 minimal world ==="
-    )
-
-
-    planet = Planet(
-        size=128
-    )
+    camera = USBCamera()
 
     io = InputField()
 
-    observer = Observer()
 
-    compute = ComputeSystem()
+    while True:
 
+        frame = camera.read()
 
-
-    for step in range(100000):
-
-
-        # 外部偶尔扰动
-
-        if step % 100 == 0:
-
-            disturbance = io.generate()
-
-            planet.receive_disturbance(
-                disturbance["position"],
-                disturbance["value"]
-            )
+        if frame is None:
+            break
 
 
-        # 动力演化
-
-        planet.step()
-
-
-
-        # 观察
-
-        snapshot = planet.snapshot()
-
-
-        signal = observer.scan(
-            snapshot
+        raw = io.receive(
+            frame
         )
 
 
-        budget = compute.allocate(
-            signal
+        print(
+            raw.shape,
+            raw.dtype
         )
 
 
-        budget["center"] = signal["center"]
-
-
-        local = observer.sample(
-            snapshot,
-            budget
-        )
+    camera.close()
 
 
 
-        if step % 1000 == 0:
-
-            print(
-                {
-                    "step":step,
-                    "activity":
-                    signal["deviation"],
-                    "center":
-                    signal["center"],
-                    "sample":
-                    local.shape
-                }
-            )
-
-
-
-if __name__=="__main__":
-
+if __name__ == "__main__":
     main()

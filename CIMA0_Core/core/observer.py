@@ -1,60 +1,92 @@
 import numpy as np
 
 
-
 class Observer:
-
-
     """
-    只观察
+    Local observation system.
 
-    不控制动力
+    Responsibility:
+
+        local measurement
+        local projection
+        local description
+
+    Does not:
+
+        control dynamics
+        allocate computation
+        decide importance
+        store history
+        modify state
+
+    Output:
+
+        only local observation description
     """
 
 
-    def scan(
+    def __init__(
         self,
-        snapshot
+        observation_scale=1.0
     ):
 
+        self.observation_scale = observation_scale
 
-        activity = np.abs(snapshot)
 
 
-        index = np.unravel_index(
-            np.argmax(activity),
-            activity.shape
+    def describe(
+        self,
+        local_snapshot
+    ):
+        """
+        Describe currently accessible local state.
+
+        Input:
+
+            local_snapshot
+
+        Output:
+
+            temporary local description
+
+        No:
+
+            request
+            control
+            memory
+        """
+
+
+        abs_state = np.abs(
+            local_snapshot
         )
 
 
-        value = activity[index]
+        local_activity = float(
+            abs_state.mean()
+        )
+
+
+        local_variation = float(
+            abs_state.std()
+        )
+
+
+        local_signal = (
+            local_activity +
+            local_variation
+        ) * self.observation_scale
+
 
 
         return {
 
-            "center":index,
-            "deviation":float(value)
+            "local_activity":
+                local_activity,
 
+            "local_variation":
+                local_variation,
+
+            "local_signal":
+                float(local_signal)
         }
-
-
-
-    def sample(
-        self,
-        snapshot,
-        budget
-    ):
-
-        x,y = budget["center"]
-
-        r = budget["radius"]
-
-
-        x1=max(0,x-r)
-        x2=min(snapshot.shape[0],x+r)
-
-        y1=max(0,y-r)
-        y2=min(snapshot.shape[1],y+r)
-
-
-        return snapshot[x1:x2,y1:y2]
