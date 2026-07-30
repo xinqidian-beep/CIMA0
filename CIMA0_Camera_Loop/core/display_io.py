@@ -1,3 +1,7 @@
+import cv2
+import numpy as np
+
+
 class DisplayIO:
     """
     Display boundary IO.
@@ -5,16 +9,30 @@ class DisplayIO:
 
     Responsibility:
 
-        transfer internal output frame
+        transfer output frame
         to display hardware
 
 
     No:
 
-        rendering
-        conversion
-        enhancement
+        computation
+        observation
+        interpretation
     """
+
+
+    def __init__(
+        self,
+        window_name="CIMA0"
+    ):
+
+        self.window_name = window_name
+
+        cv2.namedWindow(
+            self.window_name,
+            cv2.WINDOW_NORMAL
+        )
+
 
 
     def output_frame(
@@ -22,4 +40,23 @@ class DisplayIO:
         frame
     ):
 
-        return frame
+        if frame is None:
+            return
+
+
+        display_frame = frame
+
+            
+
+        cv2.imshow(
+            self.window_name,
+            frame
+        )
+
+
+
+    def step_display(
+        self
+    ):
+
+        return cv2.waitKey(1)
