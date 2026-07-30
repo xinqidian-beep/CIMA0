@@ -115,6 +115,11 @@ def main():
         display_io.output_frame(
             output_frame
         )
+        
+        key = display_io.step_display()
+
+        if key == 27:
+            break
 
 
 
