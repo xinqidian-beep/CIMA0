@@ -14,7 +14,7 @@ from core.clip_region import ClipRegion
 
 
 CLIP_WEIGHT = (
-    "weights/open_clip.pt"
+    r"C:\CIMA0\models\open_clip_pytorch_model.bin"
 )
 
 

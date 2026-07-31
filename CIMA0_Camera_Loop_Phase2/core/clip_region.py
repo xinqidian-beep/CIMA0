@@ -4,46 +4,45 @@ import open_clip
 
 class ClipRegion:
     """
-    OpenCLIP local region structure.
+    Local visual dynamic region.
 
     Role:
 
-        internal dynamical subsystem
+        existing visual structure
+        inside internal dynamics
 
     Not:
 
-        classifier
-        semantic interpreter
-        controller
-        global broadcaster
+        image understanding
+        classification
+        semantic output
+        global broadcast
 
+    State:
 
-    Only:
+        local visual feature state
 
-        image patch
-            |
-            v
-        visual structure
-            |
-            v
-        local state
+    Relation:
+
+        input patch
+        local visual dynamics
+
+    Change:
+
+        encode_image()
     """
-
-
 
     def __init__(
         self,
-        weight_path,
-        device="cpu"
+        weight_path
     ):
 
-        self.device = device
+        print("[ClipRegion] loading checkpoint...")
 
 
-        print(
-            "[ClipRegion] loading checkpoint..."
-        )
-
+        #
+        # load checkpoint
+        #
 
         ckpt = torch.load(
             weight_path,
@@ -51,14 +50,13 @@ class ClipRegion:
         )
 
 
-        #
-        # checkpoint extraction
-        #
+        if isinstance(ckpt, dict):
 
-        if isinstance(
-            ckpt,
-            dict
-        ):
+            print(
+                "[ClipRegion] ckpt keys:",
+                list(ckpt.keys())[:10]
+            )
+
 
             raw_name = str(
                 ckpt.get(
@@ -68,51 +66,34 @@ class ClipRegion:
             )
 
 
-            if (
-                "roberta-ViT-B-32"
-                in raw_name
-            ):
-
-                arch = (
-                    "roberta-ViT-B-32"
-                )
-
-            else:
-
-                arch = (
-                    "ViT-B-32"
-                )
+            print(
+                "[ClipRegion] checkpoint name:",
+                raw_name
+            )
 
 
-            if (
-                "state_dict"
-                in ckpt
-            ):
+            if "state_dict" in ckpt:
 
-                state_dict = (
-                    ckpt["state_dict"]
-                )
-
-            elif (
-                "model"
-                in ckpt
-            ):
-
-                state_dict = (
-                    ckpt["model"]
-                )
+                sd = ckpt[
+                    "state_dict"
+                ]
 
             else:
 
-                state_dict = ckpt
+                sd = ckpt
 
 
         else:
 
-            arch = "ViT-B-32"
+            sd = ckpt
 
-            state_dict = ckpt
 
+
+        #
+        # only visual structure
+        #
+
+        arch = "ViT-B-32"
 
 
         print(
@@ -120,11 +101,6 @@ class ClipRegion:
             arch
         )
 
-
-
-        #
-        # build model
-        #
 
         self.model, _, self.preprocess = (
             open_clip
@@ -135,17 +111,16 @@ class ClipRegion:
         )
 
 
-
         #
-        # remove module prefix
+        # remove distributed prefix
         #
 
         if any(
-            k.startswith("module.")
-            for k in state_dict.keys()
+            str(k).startswith("module.")
+            for k in sd.keys()
         ):
 
-            state_dict = {
+            sd = {
 
                 k.replace(
                     "module.",
@@ -154,38 +129,57 @@ class ClipRegion:
                 ):
                 v
 
-                for k, v
-                in state_dict.items()
+                for k, v in sd.items()
 
             }
 
 
 
+        #
+        # load
+        #
+
         missing, unexpected = (
-            self.model
-            .load_state_dict(
-                state_dict,
+            self.model.load_state_dict(
+                sd,
                 strict=False
             )
         )
 
 
-        visual_missing = [
+        missing = list(
+            missing
+        )
+
+        unexpected = list(
+            unexpected
+        )
+
+
+        print(
+            "[ClipRegion] missing:",
+            len(missing),
+            "unexpected:",
+            len(unexpected)
+        )
+
+
+        missing_visual = [
 
             k for k in missing
 
-            if k.startswith(
+            if str(k).startswith(
                 "visual."
             )
 
         ]
 
 
-        visual_unexpected = [
+        unexpected_visual = [
 
             k for k in unexpected
 
-            if k.startswith(
+            if str(k).startswith(
                 "visual."
             )
 
@@ -194,26 +188,39 @@ class ClipRegion:
 
         print(
             "[ClipRegion] visual missing:",
-            len(visual_missing)
+            len(missing_visual),
+            "| visual unexpected:",
+            len(unexpected_visual)
         )
 
-        print(
-            "[ClipRegion] visual unexpected:",
-            len(visual_unexpected)
-        )
+
+        if missing_visual[:5]:
+
+            print(
+                "[ClipRegion] visual missing examples:",
+                missing_visual[:5]
+            )
+
+
+        if unexpected_visual[:5]:
+
+            print(
+                "[ClipRegion] visual unexpected examples:",
+                unexpected_visual[:5]
+            )
 
 
         #
-        # visual tower validation
+        # local visual basin available
         #
 
         self.has_clip = (
 
-            len(visual_missing) == 0
+            len(missing_visual) == 0
 
             and
 
-            len(visual_unexpected) == 0
+            len(unexpected_visual) == 0
 
         )
 
@@ -221,25 +228,22 @@ class ClipRegion:
         if self.has_clip:
 
             print(
-                "[ClipRegion] "
-                "visual tower ready"
+                "[ClipRegion] visual structure loaded"
             )
 
         else:
 
             print(
-                "[ClipRegion] "
-                "visual tower mismatch"
+                "[ClipRegion] visual structure mismatch"
             )
 
 
 
+        #
+        # freeze local structure
+        #
+
         self.model.eval()
-
-
-        self.model.to(
-            self.device
-        )
 
 
         for p in self.model.parameters():
@@ -248,31 +252,26 @@ class ClipRegion:
 
 
 
-    def encode_local(
+    def encode(
         self,
-        patch
+        image_tensor
     ):
-
         """
-        Local visual structure.
+        Local state transition.
 
         Input:
 
-            preprocessed image patch
-
+            local image patch
 
         Output:
 
-            local state only
+            local visual state
 
+        No semantic meaning.
         """
 
 
-        if (
-            patch is None
-            or
-            not self.has_clip
-        ):
+        if not self.has_clip:
 
             return None
 
@@ -280,35 +279,47 @@ class ClipRegion:
 
         with torch.no_grad():
 
-
-            image = (
-                patch
-                .to(
-                    self.device
-                )
-            )
-
-
             z = (
                 self.model
                 .encode_image(
-                    image
+                    image_tensor
                 )
             )
+
+
+        return z
+
+
+
+    def state(
+        self,
+        image_tensor
+    ):
+        """
+        Return local dynamic state.
+        """
+
+        z = self.encode(
+            image_tensor
+        )
+
+
+        if z is None:
+
+            return None
 
 
 
         return {
 
-            "clip_norm":
+            "feature":
+
+                z,
+
+            "norm":
+
                 float(
                     z.norm()
-                ),
-
-
-            "clip_dim":
-                int(
-                    z.shape[-1]
                 )
 
         }
