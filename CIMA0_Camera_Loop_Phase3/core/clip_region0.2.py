@@ -1,10 +1,6 @@
 import torch
 import open_clip
 
-import numpy as np
-from PIL import Image
-
-
 
 class ClipRegion:
     """
@@ -12,8 +8,7 @@ class ClipRegion:
 
     Internal Dynamics component.
 
-
-    Principle:
+    Role:
 
         state
           |
@@ -22,36 +17,30 @@ class ClipRegion:
         change
 
 
-    Role:
-
-        frozen visual structure
-        local visual state evolution
-
-
     Not:
 
         image understanding
         classification
         semantic output
         controller
-        selector
+        global broadcast
+
+
+    External input:
+
+        changes local visual state tendency
     """
-
-
 
     def __init__(
         self,
         weight_path
     ):
 
-
-        print(
-            "[ClipRegion] loading checkpoint..."
-        )
+        print("[ClipRegion] loading checkpoint...")
 
 
         #
-        # load checkpoint
+        # checkpoint
         #
 
         ckpt = torch.load(
@@ -60,12 +49,10 @@ class ClipRegion:
         )
 
 
-
         if isinstance(
             ckpt,
             dict
         ):
-
 
             print(
                 "[ClipRegion] ckpt keys:",
@@ -75,15 +62,18 @@ class ClipRegion:
             )
 
 
-
-            print(
-                "[ClipRegion] checkpoint name:",
+            raw_name = str(
                 ckpt.get(
                     "name",
                     ""
                 )
             )
 
+
+            print(
+                "[ClipRegion] checkpoint name:",
+                raw_name
+            )
 
 
             if "state_dict" in ckpt:
@@ -103,9 +93,8 @@ class ClipRegion:
 
 
 
-
         #
-        # architecture
+        # fixed visual structure
         #
 
         arch = "ViT-B-32"
@@ -115,7 +104,6 @@ class ClipRegion:
             "[ClipRegion] architecture:",
             arch
         )
-
 
 
         self.model, _, self.preprocess = (
@@ -139,7 +127,6 @@ class ClipRegion:
             for k in sd.keys()
         ):
 
-
             sd = {
 
                 k.replace(
@@ -149,15 +136,14 @@ class ClipRegion:
                 ):
                 v
 
-                for k,v in sd.items()
+                for k, v in sd.items()
 
             }
 
 
 
-
         #
-        # load structure
+        # load visual structure
         #
 
         missing, unexpected = (
@@ -175,7 +161,6 @@ class ClipRegion:
         unexpected = list(
             unexpected
         )
-
 
 
         print(
@@ -196,7 +181,6 @@ class ClipRegion:
             )
 
         ]
-
 
 
         unexpected_visual = [
@@ -231,7 +215,6 @@ class ClipRegion:
         )
 
 
-
         if self.has_clip:
 
             print(
@@ -246,13 +229,11 @@ class ClipRegion:
 
 
 
-
         #
         # freeze visual basin
         #
 
         self.model.eval()
-
 
 
         for p in self.model.parameters():
@@ -262,28 +243,24 @@ class ClipRegion:
 
 
         #
-        # local dynamic state
+        # internal local state
         #
 
         self.local_state = None
 
 
 
-
     def encode(
         self,
-        frame
+        image_tensor
     ):
         """
-        Raw camera frame
-        ->
-        local visual feature
+        Local visual transition.
 
+        No semantic meaning.
 
-        No semantic interpretation.
+        Only feature state.
         """
-
-
 
         if not self.has_clip:
 
@@ -291,36 +268,7 @@ class ClipRegion:
 
 
 
-        #
-        # numpy camera frame
-        #
-
-        if isinstance(
-            frame,
-            np.ndarray
-        ):
-
-            frame = Image.fromarray(
-                frame
-            )
-
-
-
-        #
-        # visual tensor
-        #
-
-        image_tensor = (
-            self.preprocess(
-                frame
-            )
-            .unsqueeze(0)
-        )
-
-
-
         with torch.no_grad():
-
 
             z = (
                 self.model
@@ -330,36 +278,31 @@ class ClipRegion:
             )
 
 
-
         return z
-
 
 
 
     def update(
         self,
-        frame
+        image_tensor
     ):
         """
-        Internal local evolution.
+        Internal state change.
+
+        External input only changes
+        local state tendency.
 
 
-        External input:
+        No:
 
-            changes state tendency
-
-
-        Does not:
-
-            control
-            classify
-            select
+            decision
+            filtering
+            interpretation
         """
-
 
 
         z = self.encode(
-            frame
+            image_tensor
         )
 
 
@@ -375,16 +318,13 @@ class ClipRegion:
 
         if self.local_state is None:
 
-
             self.local_state = z
-
 
 
         else:
 
-
             #
-            # slow state evolution
+            # slow local evolution
             #
 
             self.local_state += (
@@ -401,46 +341,22 @@ class ClipRegion:
 
 
 
-
-
     def state(self):
         """
-        Raw local state snapshot.
+        Local snapshot.
 
-        Observer reads this.
+        Observer may read it.
+
+        No interpretation.
         """
-
 
 
         if self.local_state is None:
 
-            return {
-
-                "active": False,
-
-                "norm": 0.0
-
-            }
+            return 0.0
 
 
 
-        return {
-
-
-            "active": True,
-
-
-            "norm":
-
-                float(
-                    self.local_state.norm()
-                ),
-
-
-            "shape":
-
-                list(
-                    self.local_state.shape
-                )
-
-        }
+        return float(
+            self.local_state.norm()
+        )

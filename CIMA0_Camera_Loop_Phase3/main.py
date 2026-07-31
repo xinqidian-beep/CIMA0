@@ -1,62 +1,118 @@
-from archive.planet import Planet
+import numpy as np
+
+
+from core.internal_dynamics import InternalDynamics
+
 from archive.observer import Observer
 from archive.compute import ComputeSystem
 from archive.io import InputField
 
 from hardware.usb_camera import USBCamera
-from core.clip_region import ClipRegion
+from hardware.display_device import DisplayDevice
+
 
 
 CLIP_WEIGHT = r"C:\CIMA0\models\open_clip_pytorch_model.bin"
 
 
+
+def snapshot_to_frame(
+    snapshot,
+    width=640,
+    height=480
+):
+    """
+    IO display projection.
+
+    Only convert data format.
+
+    No:
+        judgment
+        filtering
+        interpretation
+    """
+
+
+    value = snapshot.get(
+        "local_signal",
+        0.0
+    )
+
+
+    value = abs(
+        float(value)
+    )
+
+
+    value = min(
+        1.0,
+        value
+    )
+
+
+    level = int(
+        value * 255
+    )
+
+
+    frame = np.ones(
+        (
+            height,
+            width,
+            3
+        ),
+        dtype=np.uint8
+    )
+
+
+    frame *= level
+
+
+    return frame
+
+
+
+
 def main():
 
-    #
-    # Hardware
-    #
+
     camera = USBCamera()
 
 
-    #
-    # Internal structure
-    #
-    clip = ClipRegion(
-        CLIP_WEIGHT
+    io = InputField()
+
+
+    display = DisplayDevice()
+
+
+
+    internal = InternalDynamics(
+        clip_weight=CLIP_WEIGHT
     )
 
 
-    #
-    # Internal Dynamics
-    #
-    planet = Planet(
-        clip_region=clip
-    )
-
-
-    #
-    # Observation
-    #
     observer = Observer()
 
 
-    #
-    # Computation resource
-    #
     compute = ComputeSystem()
-
-
-    #
-    # IO boundary
-    #
-    io = InputField()
 
 
 
     print("=" * 60)
     print("CIMA0 Camera Loop Phase3")
-    print("camera -> planet -> observer -> display")
-    print("ClipRegion inside Internal Dynamics")
+    print()
+    print("camera")
+    print("  |")
+    print("Internal Dynamics")
+    print("  |")
+    print("  + Planet")
+    print("  + ClipRegion")
+    print("  |")
+    print("Observer(snapshot)")
+    print("  |")
+    print("IO projection")
+    print("  |")
+    print("Display")
     print("=" * 60)
 
 
@@ -66,20 +122,19 @@ def main():
         while True:
 
 
-            #
-            # external state
-            #
             frame = camera.read()
 
 
             if frame is None:
+
                 continue
 
 
 
             #
-            # IO only transfers
+            # external input
             #
+
             external_state = io.receive(
                 frame
             )
@@ -87,44 +142,59 @@ def main():
 
 
             #
-            # Internal Dynamics
+            # internal evolution
             #
-            planet.update(
+
+            internal.update(
                 external_state
             )
 
 
 
             #
-            # Compute resource recovery
+            # observer only reads
             #
+
+            snapshot = observer.describe(
+                internal.observation_state()
+            )
+
+
+
+            #
+            # compute resource
+            #
+
             compute.step()
 
 
 
             #
-            # Observer reads state
+            # snapshot -> display format
             #
-            snapshot = observer.read(
-                planet
+
+            display_frame = snapshot_to_frame(
+                snapshot
             )
 
 
-            #
-            # Temporary output
-            #
-            print(snapshot)
+            display.show(
+                display_frame
+            )
 
 
+            if display.step_display() == 27:
 
-    except KeyboardInterrupt:
+                break
 
-        print("\nStopping...")
 
 
     finally:
 
         camera.release()
+
+        display.close()
+
 
 
 
