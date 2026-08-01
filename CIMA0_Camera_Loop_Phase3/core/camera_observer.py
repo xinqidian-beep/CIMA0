@@ -3,36 +3,154 @@ import numpy as np
 
 class CameraObserver:
     """
-    External camera observer.
+    External camera observation boundary.
 
     Responsibility:
 
-        temporal self comparison
-        ephemeral variation evaluation
-        temporary compute request generation
+        raw camera frame
+            |
+            v
+        spatial sampling
+            |
+            v
+        external state
 
 
-    No:
+        temporal comparison
+            |
+            v
+        delta ephemeral
 
-        image understanding
-        sampling allocation
-        compute allocation
-        priority judgment
-        control
-        prediction
-        long-term memory
+
+    Does not:
+
+        understand image
+        classify
+        predict
+        control dynamics
+        allocate compute
+        select importance
+        modify internal rules
     """
 
 
-    def __init__(self):
+
+    def __init__(
+        self,
+        camera_size=32
+    ):
+
+        #
+        # pixels per cell
+        #
+        self.camera_size = camera_size
+
 
         #
         # previous instantaneous state
         #
-        # overwritten every frame
-        #
+        self.previous_state = None
 
-        self.previous_ephemeral_state = None
+
+
+    def sample(
+        self,
+        frame
+    ):
+        """
+        Raw camera frame -> external state
+
+
+        Input:
+
+            BGR frame
+
+
+        Output:
+
+            cell state matrix
+        """
+
+
+        if frame is None:
+            return None
+
+
+
+        h, w, _ = frame.shape
+
+
+        size = self.camera_size
+
+
+        grid_h = int(
+            np.ceil(
+                h / size
+            )
+        )
+
+
+        grid_w = int(
+            np.ceil(
+                w / size
+            )
+        )
+
+
+        state = np.zeros(
+            (
+                grid_h,
+                grid_w
+            ),
+            dtype=np.float32
+        )
+
+
+
+        for y in range(grid_h):
+
+            for x in range(grid_w):
+
+
+                y0 = y * size
+                y1 = min(
+                    y0 + size,
+                    h
+                )
+
+
+                x0 = x * size
+                x1 = min(
+                    x0 + size,
+                    w
+                )
+
+
+                block = frame[
+                    y0:y1,
+                    x0:x1
+                ]
+
+
+                if block.size == 0:
+                    continue
+
+
+
+                #
+                # only spatial aggregation
+                #
+                # no meaning
+                #
+
+                state[y, x] = (
+                    block.mean()
+                    /
+                    255.0
+                )
+
+
+        return state
 
 
 
@@ -41,26 +159,30 @@ class CameraObserver:
         current_state
     ):
         """
-        Compare current external state
-        with previous instantaneous state.
+        Temporal self comparison.
+
 
         Output:
 
             delta_ephemeral
 
 
-        First frame:
+        No:
 
-            no comparison available
-
+            judgement
+            filtering
+            selection
         """
 
-        if (
-            self.previous_ephemeral_state
-            is None
-        ):
 
-            self.previous_ephemeral_state = (
+        if current_state is None:
+            return None
+
+
+
+        if self.previous_state is None:
+
+            self.previous_state = (
                 current_state.copy()
             )
 
@@ -69,16 +191,18 @@ class CameraObserver:
 
 
         delta_ephemeral = (
-            current_state -
-            self.previous_ephemeral_state
+            current_state
+            -
+            self.previous_state
         )
 
 
+
         #
-        # overwrite previous state
+        # overwrite only
         #
 
-        self.previous_ephemeral_state = (
+        self.previous_state = (
             current_state.copy()
         )
 
@@ -87,93 +211,32 @@ class CameraObserver:
 
 
 
-    def evaluate_request_ephemeral(
-        self,
-        delta_ephemeral
-    ):
-        """
-        Generate temporary computation request.
-
-        This is only a raise signal.
-
-        It does not decide:
-
-            where to compute
-            what is important
-            how much is granted
-
-        """
-
-        if delta_ephemeral is None:
-
-            return 0
-
-
-
-        variation_ephemeral = np.abs(
-            delta_ephemeral
-        )
-
-
-
-        #
-        # collapse local variation
-        # into temporary demand
-        #
-
-        activity_ephemeral = float(
-            variation_ephemeral.mean()
-        )
-
-
-        spread_ephemeral = float(
-            variation_ephemeral.std()
-        )
-
-
-
-        pixel_count = (
-            delta_ephemeral.shape[0]
-            *
-            delta_ephemeral.shape[1]
-        )
-
-
-        request_ephemeral = (
-
-            activity_ephemeral
-            +
-            spread_ephemeral
-
-        ) * pixel_count
-
-
-
-        return int(
-            request_ephemeral
-        )
-
-
-
     def snapshot(
         self
     ):
         """
-        Read-only observation snapshot.
+        Read-only external observation snapshot.
         """
 
-        if (
-            self.previous_ephemeral_state
-            is None
-        ):
 
+        if self.previous_state is None:
             return None
+
 
 
         return {
 
-            "observer_shape":
+            "shape":
+                self.previous_state.shape,
 
-                self.previous_ephemeral_state.shape
+            "mean":
+                float(
+                    self.previous_state.mean()
+                ),
+
+            "std":
+                float(
+                    self.previous_state.std()
+                )
 
         }
