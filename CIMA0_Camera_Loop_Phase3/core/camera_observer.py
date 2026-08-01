@@ -5,6 +5,7 @@ class CameraObserver:
     """
     External camera observation boundary.
 
+
     Responsibility:
 
         raw camera frame
@@ -13,43 +14,72 @@ class CameraObserver:
         spatial sampling
             |
             v
-        external state
+        byte stream
 
 
-        temporal comparison
-            |
-            v
-        delta ephemeral
+    Resource interaction:
+
+        read compute resource state
+
+        decide own sampling density
 
 
     Does not:
 
-        understand image
+        control ComputeSystem
+        understand image meaning
         classify
         predict
-        control dynamics
-        allocate compute
-        select importance
-        modify internal rules
+        control internal dynamics
+        allocate resources
     """
 
 
 
-    def __init__(
-        self,
-        camera_size=32
-    ):
+    def __init__(self):
 
-        #
-        # pixels per cell
-        #
-        self.camera_size = camera_size
+        self.camera_size = 32
 
 
-        #
-        # previous instantaneous state
-        #
         self.previous_state = None
+
+
+
+    def update_resource(
+        self,
+        compute_state
+    ):
+        """
+        Adapt own sampling density.
+
+        Input:
+
+            resource state only
+
+
+        No command.
+        No control.
+        """
+
+
+        available = compute_state[
+            "available"
+        ]
+
+
+        if available > 0.7:
+
+            self.camera_size = 16
+
+
+        elif available > 0.3:
+
+            self.camera_size = 32
+
+
+        else:
+
+            self.camera_size = 64
 
 
 
@@ -58,23 +88,8 @@ class CameraObserver:
         frame
     ):
         """
-        Raw camera frame -> external state
-
-
-        Input:
-
-            BGR frame
-
-
-        Output:
-
-            cell state matrix
+        Camera frame -> local cell state
         """
-
-
-        if frame is None:
-            return None
-
 
 
         h, w, _ = frame.shape
@@ -111,7 +126,6 @@ class CameraObserver:
 
             for x in range(grid_w):
 
-
                 y0 = y * size
                 y1 = min(
                     y0 + size,
@@ -132,18 +146,7 @@ class CameraObserver:
                 ]
 
 
-                if block.size == 0:
-                    continue
-
-
-
-                #
-                # only spatial aggregation
-                #
-                # no meaning
-                #
-
-                state[y, x] = (
+                state[y,x] = (
                     block.mean()
                     /
                     255.0
@@ -159,25 +162,13 @@ class CameraObserver:
         current_state
     ):
         """
-        Temporal self comparison.
+        Temporal variation.
 
-
-        Output:
-
-            delta_ephemeral
-
-
-        No:
-
-            judgement
-            filtering
-            selection
+        delta =
+            current
+            -
+            previous
         """
-
-
-        if current_state is None:
-            return None
-
 
 
         if self.previous_state is None:
@@ -190,41 +181,65 @@ class CameraObserver:
 
 
 
-        delta_ephemeral = (
+        delta = (
             current_state
             -
             self.previous_state
         )
 
 
-
-        #
-        # overwrite only
-        #
-
         self.previous_state = (
             current_state.copy()
         )
 
 
-        return delta_ephemeral
+        return delta
 
 
 
-    def snapshot(
-        self
+    def encode_bytes(
+        self,
+        state
     ):
         """
-        Read-only external observation snapshot.
+        External state -> byte stream.
+
+        No meaning.
+        Only transport format.
         """
 
 
+        normalized = np.clip(
+            state,
+            0.0,
+            1.0
+        )
+
+
+        data = (
+            normalized
+            *
+            255
+        ).astype(
+            np.uint8
+        )
+
+
+        return data.tobytes()
+
+
+
+    def snapshot(self):
+
         if self.previous_state is None:
+
             return None
 
 
-
         return {
+
+            "camera_size":
+                self.camera_size,
 
             "shape":
                 self.previous_state.shape,
