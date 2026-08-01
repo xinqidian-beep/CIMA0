@@ -266,118 +266,143 @@ class ClipRegion:
         #
 
         self.local_state = None
-        
-    def encode(self, frame):
+
+
+
+
+    def encode(
+        self,
+        frame
+    ):
         """
-        Raw input
+        Raw camera frame
         ->
         local visual feature
+
 
         No semantic interpretation.
         """
 
+
+
         if not self.has_clip:
+
             return None
 
-        frame = self._to_frame(frame)
-        if frame is None:
-            return None
 
-        if isinstance(frame, np.ndarray):
-            if frame.ndim == 2:
-                frame = Image.fromarray(frame)
-            elif frame.ndim == 3 and frame.shape[-1] in (1, 3, 4):
-                if frame.shape[-1] == 1:
-                    frame = Image.fromarray(frame[:, :, 0])
-                else:
-                    frame = Image.fromarray(frame)
-            else:
-                return None
 
-        image_tensor = self.preprocess(frame).unsqueeze(0)
+        #
+        # numpy camera frame
+        #
+
+        if isinstance(
+            frame,
+            np.ndarray
+        ):
+
+            frame = Image.fromarray(
+                frame
+            )
+
+
+
+        #
+        # visual tensor
+        #
+
+        image_tensor = (
+            self.preprocess(
+                frame
+            )
+            .unsqueeze(0)
+        )
+
+
 
         with torch.no_grad():
-            z = self.model.encode_image(image_tensor)
+
+
+            z = (
+                self.model
+                .encode_image(
+                    image_tensor
+                )
+            )
+
+
 
         return z
 
 
 
 
-        
-    def _to_frame(self, frame):
-        if frame is None:
-            return None
-
-        if isinstance(frame, bytes):
-            if len(frame) == 0:
-                return None
-            arr = np.frombuffer(frame, dtype=np.uint8)
-            if arr.size == 0:
-                return None
-            side = int(np.sqrt(arr.size))
-            if side <= 0:
-                return None
-            arr = arr[: side * side].reshape(side, side)
-            return arr
-
-        if isinstance(frame, np.ndarray):
-            arr = np.asarray(frame)
-            if arr.size == 0:
-                return None
-            if arr.dtype != np.uint8:
-                arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
-                arr = arr.astype(np.float32)
-                arr = arr - np.min(arr)
-                mx = np.max(arr)
-                if mx > 0:
-                    arr = arr / mx
-                arr = (arr * 255.0).clip(0, 255).astype(np.uint8)
-            if arr.ndim == 1:
-                arr = arr[None, :]
-            return arr
-
-        if isinstance(frame, Image.Image):
-            return frame
-
-        for name in ("frame", "image", "render", "output"):
-            if hasattr(frame, name):
-                obj = getattr(frame, name)
-                value = obj() if callable(obj) else obj
-                if value is not None:
-                    return self._to_frame(value)
-
-        if isinstance(frame, dict):
-            for key in ("frame", "image", "field", "state", "matrix"):
-                if key in frame:
-                    return self._to_frame(frame[key])
-
-        return None
-        
-        
-    def update(self, frame):
+    def update(
+        self,
+        frame
+    ):
         """
         Internal local evolution.
+
+
+        External input:
+
+            changes state tendency
+
+
+        Does not:
+
+            control
+            classify
+            select
         """
-        frame = self._to_frame(frame)
-        if frame is None:
+
+
+
+        z = self.encode(
+            frame
+        )
+
+
+        if z is None:
+
             return
 
-        z = self.encode(frame)
-        if z is None:
-            return
+
 
         z = z.detach()
 
+
+
         if self.local_state is None:
+
+
             self.local_state = z
+
+
+
         else:
-            self.local_state += 0.01 * (z - self.local_state)
+
+
+            #
+            # slow state evolution
+            #
+
+            self.local_state += (
+
+                0.01 *
+
+                (
+                    z
+                    -
+                    self.local_state
+                )
+
+            )
 
 
 
 
-    
+
     def state(self):
         """
         Raw local state snapshot.
@@ -393,13 +418,9 @@ class ClipRegion:
 
                 "active": False,
 
-                "norm": 0.0,
-                
-                "shape": None,
+                "norm": 0.0
 
             }
-            
-        ls = self.local_state.detach()
 
 
 
@@ -407,14 +428,19 @@ class ClipRegion:
 
 
             "active": True,
-            "norm": float(ls.norm()),
-            "shape": list(ls.shape),
-            "mean": float(ls.mean()),
-            "std": float(ls.std()),
-            "max": float(ls.max()),
-            "min": float(ls.min()),
 
 
-            
+            "norm":
+
+                float(
+                    self.local_state.norm()
+                ),
+
+
+            "shape":
+
+                list(
+                    self.local_state.shape
+                )
 
         }
