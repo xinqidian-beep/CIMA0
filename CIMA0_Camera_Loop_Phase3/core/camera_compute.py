@@ -1,174 +1,81 @@
-class CameraCompute:
+class CameraComputeSystem:
     """
-    External camera computation resource.
-
+    Camera computation resource dynamics.
 
     Responsibility:
 
-        estimate own available computation
-        recover own resource
-        grant temporary computation slots
+        manage own compute state
+        allocate own resources
 
+    Does not know:
 
-    No:
-
-        image understanding
-        sampling decision
-        priority judgment
-        control
-        memory
+        camera
+        image
+        meaning
+        importance
+        sampling
     """
-
 
 
     def __init__(
         self,
-        capacity_slots=10000,
-        recovery_rate=0.05
+        capacity=1.0,
+        decay=0.01
     ):
 
+        self.capacity = capacity
 
-        #
-        # maximum temporary capability
-        #
+        self.available = capacity
 
-        self.capacity_slots = int(
-            capacity_slots
-        )
-
-
-        #
-        # current available resource
-        #
-
-        self.available_slots = (
-            self.capacity_slots
-        )
-
-
-        #
-        # natural recovery
-        #
-
-        self.recovery_rate = (
-            recovery_rate
-        )
+        self.decay = decay
 
 
 
-    def step_compute(
-        self
-    ):
-        """
-        Resource self recovery.
+    def step(self):
 
-        No external dependency.
-        """
-
-
-        self.available_slots += (
-
-            self.capacity_slots -
-            self.available_slots
-
-        ) * self.recovery_rate
+        self.available += (
+            self.capacity
+            -
+            self.available
+        ) * self.decay
 
 
 
-        if (
-            self.available_slots >
-            self.capacity_slots
-        ):
+        if self.available > self.capacity:
 
-            self.available_slots = (
-                self.capacity_slots
-            )
+            self.available = self.capacity
 
 
 
-    def grant_ephemeral_slots(
+    def allocate(
         self,
-        request_ephemeral
+        signal
     ):
-        """
-        Respond to temporary computation request.
 
-
-        Input:
-
-            request_ephemeral
-
-        Output:
-
-            temporary granted slots
-
-
-        Does not know:
-
-            request source
-            image structure
-            sampling location
-        """
-
-
-
-        if request_ephemeral < 0:
-
-            request_ephemeral = 0
-
-
-
-        grant_slots = min(
-
-            int(
-                request_ephemeral
-            ),
-
-            int(
-                self.available_slots
-            )
-
+        budget = (
+            self.available
+            *
+            signal
         )
 
 
-
-        #
-        # consume computation
-        #
-
-        self.available_slots -= (
-            grant_slots
-        )
-
-
-
-        if self.available_slots < 0:
-
-            self.available_slots = 0
-
+        self.available -= budget
 
 
         return {
-
-            "compute_slots_ephemeral":
-
-                grant_slots
-
+            "compute_budget":
+                budget
         }
 
 
 
-    def snapshot(
-        self
-    ):
+    def snapshot(self):
 
         return {
 
-            "compute_capacity":
-                self.capacity_slots,
+            "available":
+                self.available,
 
-
-            "compute_available_ephemeral":
-                self.available_slots
-
+            "capacity":
+                self.capacity
         }
