@@ -1,81 +1,94 @@
+import time
+
+
 class CameraComputeSystem:
     """
-    Camera computation resource dynamics.
+    Camera computation system.
 
     Responsibility:
 
-        manage own compute state
-        allocate own resources
+        manage own computation state
+        provide available computation capability
 
-    Does not know:
 
-        camera
-        image
-        meaning
-        importance
+    No:
+
+        image understanding
         sampling
+        semantic judgment
+        camera control
     """
 
 
-    def __init__(
-        self,
-        capacity=1.0,
-        decay=0.01
+    def __init__(self):
+
+        self.available = 1.0
+
+        self.last_time = time.time()
+
+        self.process_time = 0.0
+
+
+    def step(
+        self
     ):
+        """
+        Update own computation state.
 
-        self.capacity = capacity
+        No external decision.
+        """
 
-        self.available = capacity
+        now = time.time()
 
-        self.decay = decay
+        self.process_time = now - self.last_time
 
-
-
-    def step(self):
-
-        self.available += (
-            self.capacity
-            -
-            self.available
-        ) * self.decay
+        self.last_time = now
 
 
+        #
+        # Current simple capability estimation
+        #
+        # Later can be replaced by real hardware statistics.
+        #
 
-        if self.available > self.capacity:
+        if self.process_time <= 0:
 
-            self.available = self.capacity
+            self.available = 1.0
+
+        else:
+
+            load = min(
+                1.0,
+                self.process_time / 0.05
+            )
+
+            self.available = 1.0 - load
 
 
 
-    def allocate(
-        self,
-        signal
+        return self.state()
+
+
+
+    def state(
+        self
     ):
+        """
+        Provide computation state.
 
-        budget = (
-            self.available
-            *
-            signal
-        )
-
-
-        self.available -= budget
-
-
-        return {
-            "compute_budget":
-                budget
-        }
-
-
-
-    def snapshot(self):
+        Used by other modules.
+        """
 
         return {
 
             "available":
-                self.available,
+                float(
+                    self.available
+                ),
 
-            "capacity":
-                self.capacity
+            "process_time":
+                float(
+                    self.process_time
+                )
+
         }

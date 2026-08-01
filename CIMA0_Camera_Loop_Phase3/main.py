@@ -1,75 +1,17 @@
-import numpy as np
+import time
 
+
+from core.camera_planet import CameraPlanet
+from core.camera_compute import CameraComputeSystem
+from core.camera_observer import CameraObserver
+from core.camera_io import CameraIO
 
 from core.internal_dynamics import InternalDynamics
 
-from archive.observer import Observer
-from archive.compute import ComputeSystem
-from archive.io import InputField
+from core.display_io import DisplayIO
 
 from hardware.usb_camera import USBCamera
 from hardware.display_device import DisplayDevice
-
-
-
-CLIP_WEIGHT = r"C:\CIMA0\models\open_clip_pytorch_model.bin"
-
-
-
-def snapshot_to_frame(
-    snapshot,
-    width=640,
-    height=480
-):
-    """
-    IO display projection.
-
-    Only convert data format.
-
-    No:
-        judgment
-        filtering
-        interpretation
-    """
-
-
-    value = snapshot.get(
-        "local_signal",
-        0.0
-    )
-
-
-    value = abs(
-        float(value)
-    )
-
-
-    value = min(
-        1.0,
-        value
-    )
-
-
-    level = int(
-        value * 255
-    )
-
-
-    frame = np.ones(
-        (
-            height,
-            width,
-            3
-        ),
-        dtype=np.uint8
-    )
-
-
-    frame *= level
-
-
-    return frame
-
 
 
 
@@ -79,40 +21,78 @@ def main():
     camera = USBCamera()
 
 
-    io = InputField()
+    planet = CameraPlanet()
+
+
+    compute = CameraComputeSystem()
+
+
+    observer = CameraObserver(
+        cell_px=20
+    )
+
+
+    camera_io = CameraIO()
+
+
+    internal = InternalDynamics()
+
+
+    display_io = DisplayIO()
 
 
     display = DisplayDevice()
 
 
 
-    internal = InternalDynamics(
-        clip_weight=CLIP_WEIGHT
-    )
-
-
-    observer = Observer()
-
-
-    compute = ComputeSystem()
-
-
-
     print("=" * 60)
-    print("CIMA0 Camera Loop Phase3")
+    print("CIMA0 Camera Loop")
     print()
-    print("camera")
-    print("  |")
-    print("Internal Dynamics")
-    print("  |")
-    print("  + Planet")
-    print("  + ClipRegion")
-    print("  |")
-    print("Observer(snapshot)")
-    print("  |")
-    print("IO projection")
-    print("  |")
-    print("Display")
+    print(
+        "Camera"
+    )
+    print(
+        "  |"
+    )
+    print(
+        "CameraPlanet"
+    )
+    print(
+        "  |"
+    )
+    print(
+        "CameraCompute"
+    )
+    print(
+        "  |"
+    )
+    print(
+        "CameraObserver"
+    )
+    print(
+        "  |"
+    )
+    print(
+        "CameraIO"
+    )
+    print(
+        "  |"
+    )
+    print(
+        "InternalDynamics"
+    )
+    print(
+        "  |"
+    )
+    print(
+        "DisplayIO"
+    )
+    print(
+        "  |"
+    )
+    print(
+        "Display"
+    )
     print("=" * 60)
 
 
@@ -122,58 +102,95 @@ def main():
         while True:
 
 
+            #
+            # camera hardware
+            #
+
             frame = camera.read()
 
 
             if frame is None:
-
                 continue
 
 
 
             #
-            # external input
+            # hardware information
             #
 
-            external_state = io.receive(
+            planet_state = planet.step_planet(
                 frame
             )
 
 
 
             #
+            # compute updates own state
+            #
+
+            compute_state = compute.step()
+
+
+
+            #
+            # sampling
+            #
+
+            observed = observer.step_observe(
+                planet_state["frame"]
+                if isinstance(
+                    planet_state,
+                    dict
+                )
+                else frame
+            )
+
+
+            if observed is None:
+                continue
+
+
+
+            #
+            # camera -> internal IO
+            #
+
+            data = camera_io.encode(
+                observed["state"]
+            )
+
+
+            #
+            # external perturbation enters
+            # internal dynamics
+            #
+
+            internal.receive(
+                data
+            )
+
+
+            #
             # internal evolution
             #
 
-            internal.update(
-                external_state
-            )
+            internal.step()
 
 
 
             #
-            # observer only reads
+            # read-only snapshot
             #
 
-            snapshot = observer.describe(
-                internal.observation_state()
-            )
+            snapshot = internal.snapshot()
 
 
 
             #
-            # compute resource
+            # internal -> display
             #
 
-            compute.step()
-
-
-
-            #
-            # snapshot -> display format
-            #
-
-            display_frame = snapshot_to_frame(
+            display_frame = display_io.encode(
                 snapshot
             )
 
@@ -189,12 +206,17 @@ def main():
 
 
 
+            time.sleep(
+                0.001
+            )
+
+
+
     finally:
 
         camera.release()
 
         display.close()
-
 
 
 
