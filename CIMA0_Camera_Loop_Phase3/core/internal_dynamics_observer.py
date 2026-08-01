@@ -2,34 +2,40 @@ import numpy as np
 
 
 class InternalDynamicsObserver:
-
     """
-    Read-only observer.
+    Internal dynamics observer.
+
+
+    Responsibility:
+
+        internal snapshot
+              |
+              v
+        temporal comparison
+              |
+              v
+        observation snapshot
+
 
     Does:
 
-        snapshot
-        self comparison
-        sampling
+        read
+        compare with history
+        expose change
 
 
-    No:
+    Does not:
 
-        evolution
-        control
-        interpretation
-        resource allocation
+        evolve internal state
+        control internal dynamics
+        interpret meaning
+        allocate computation
     """
 
 
-    def __init__(
-        self,
-        sample_size=64
-    ):
+    def __init__(self):
 
-        self.sample_size = sample_size
-
-        self.history = None
+        self.previous = None
 
 
 
@@ -37,163 +43,164 @@ class InternalDynamicsObserver:
         self,
         snapshot
     ):
+        """
+        Observe internal state.
+
+        Only compare state change.
+        """
 
 
         if snapshot is None:
 
-            return None
+            return {
+
+                "active": False,
+
+                "delta": 0.0
+
+            }
 
 
 
-        state = self._flatten(
+        current = self._extract_state(
             snapshot
         )
 
 
-        delta = self._delta(
-            state
-        )
+
+        if current is None:
+
+            return {
+
+                "active": False,
+
+                "delta": 0.0
+
+            }
 
 
-        sample = self._sample(
-            state,
-            delta
+
+        if self.previous is None:
+
+
+            delta = np.zeros_like(
+                current
+            )
+
+
+        else:
+
+
+            delta = (
+
+                current
+
+                -
+
+                self.previous
+
+            )
+
+
+
+        self.previous = (
+            current.copy()
         )
+
 
 
         return {
 
-            "state":
-                sample,
+            "active": True,
 
-            "delta":
-                delta
+            "state": current,
+
+            "delta": delta,
+
+            "activity":
+
+                float(
+                    np.mean(
+                        np.abs(delta)
+                    )
+                )
 
         }
 
 
 
-    def _flatten(
+    def _extract_state(
         self,
         snapshot
     ):
+        """
+        Extract observable field.
+
+        No interpretation.
+
+        Only find numerical state.
+        """
+
 
         if isinstance(
             snapshot,
             np.ndarray
         ):
 
-            return snapshot.flatten()
+            return snapshot
 
 
 
-        values=[]
+        if isinstance(
+            snapshot,
+            dict
+        ):
 
 
-        for v in snapshot.values():
+            #
+            # prefer raw field
+            #
 
-            if isinstance(
-                v,
-                np.ndarray
-            ):
+            if "field" in snapshot:
 
-                values.extend(
-                    v.flatten()
+                return np.asarray(
+                    snapshot["field"],
+                    dtype=np.float32
                 )
 
 
-        if not values:
 
-            return np.zeros(
-                1,
-                dtype=np.float32
-            )
+            #
+            # future internal modules
+            #
 
-
-        return np.asarray(
-            values,
-            dtype=np.float32
-        )
+            for value in snapshot.values():
 
 
+                if isinstance(
+                    value,
+                    np.ndarray
+                ):
 
-    def _delta(
-        self,
-        state
-    ):
-
-        if self.history is None:
-
-            self.history = state.copy()
-
-            return np.zeros_like(
-                state
-            )
-
-
-        delta = (
-            state
-            -
-            self.history
-        )
-
-
-        self.history = state.copy()
-
-
-        return delta
+                    return np.asarray(
+                        value,
+                        dtype=np.float32
+                    )
 
 
 
-    def _sample(
-        self,
-        state,
-        delta
-    ):
-        """
-        Same principle as camera:
-
-        all state exists
-
-        changed area raises
-
-        """
-
-        n = len(state)
-
-
-        if n <= self.sample_size:
-
-            output=np.zeros(
-                self.sample_size,
-                dtype=np.float32
-            )
-
-            output[:n]=state
-
-            return output
+        return None
 
 
 
-        #
-        # raised score
-        #
+    def snapshot(self):
 
-        score=np.abs(
-            delta
-        )
+        return {
 
+            "module":
+                "InternalDynamicsObserver",
 
-        index=np.argsort(
-            score
-        )[::-1]
+            "state":
+                "observing"
 
-
-        selected=index[
-            :self.sample_size
-        ]
-
-
-        return state[
-            selected
-        ]
+        }
