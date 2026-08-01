@@ -113,16 +113,13 @@ class CameraObserver:
 
 
 
-    def step_observe(
-        self,
-        frame
-    ):
-        """
-        Sampling + self comparison.
+    def step_observe(self, camera_state):
 
-        δ = current - history
-        """
-
+        frame = (
+            camera_state["frame"]
+            if isinstance(camera_state, dict)
+            else camera_state
+        )
 
         current = self.sample(
             frame
