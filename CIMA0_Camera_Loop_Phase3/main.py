@@ -1,17 +1,22 @@
-import time
+import numpy as np
 
 
 from core.camera_planet import CameraPlanet
-from core.camera_compute import CameraComputeSystem
 from core.camera_observer import CameraObserver
 from core.camera_io import CameraIO
 
 from core.internal_dynamics import InternalDynamics
+from core.internal_dynamics_observer import InternalDynamicsObserver
 
 from core.display_io import DisplayIO
 
+
 from hardware.usb_camera import USBCamera
 from hardware.display_device import DisplayDevice
+
+
+
+CLIP_WEIGHT = r"C:\CIMA0\models\open_clip_pytorch_model.bin"
 
 
 
@@ -21,83 +26,76 @@ def main():
     camera = USBCamera()
 
 
-    planet = CameraPlanet()
+    display = DisplayDevice()
 
 
-    compute = CameraComputeSystem()
+
+    #
+    # external camera chain
+    #
+
+    camera_planet = CameraPlanet()
 
 
-    observer = CameraObserver(
-        cell_px=20
-    )
+    camera_observer = CameraObserver()
 
 
     camera_io = CameraIO()
 
 
+
+    #
+    # internal dynamics
+    #
+
     internal = InternalDynamics()
 
+
+
+    internal_observer = InternalDynamicsObserver()
+
+
+
+    #
+    # display
+    #
 
     display_io = DisplayIO()
 
 
-    display = DisplayDevice()
-
-
 
     print("=" * 60)
-    print("CIMA0 Camera Loop")
-    print()
+
     print(
-        "Camera"
+        "CIMA0 Camera Loop"
     )
+
     print(
-        "  |"
+        """
+Camera
+  |
+CameraPlanet
+  |
+CameraObserver
+  |
+CameraIO
+  |
+InternalDynamics
+  |
+InternalDynamicsObserver
+  |
+DisplayIO
+  |
+Display
+"""
     )
-    print(
-        "CameraPlanet"
-    )
-    print(
-        "  |"
-    )
-    print(
-        "CameraCompute"
-    )
-    print(
-        "  |"
-    )
-    print(
-        "CameraObserver"
-    )
-    print(
-        "  |"
-    )
-    print(
-        "CameraIO"
-    )
-    print(
-        "  |"
-    )
-    print(
-        "InternalDynamics"
-    )
-    print(
-        "  |"
-    )
-    print(
-        "DisplayIO"
-    )
-    print(
-        "  |"
-    )
-    print(
-        "Display"
-    )
+
     print("=" * 60)
 
 
 
     try:
+
 
         while True:
 
@@ -110,59 +108,43 @@ def main():
 
 
             if frame is None:
+
                 continue
 
 
 
             #
-            # hardware information
+            # external hardware state
             #
 
-            planet_state = planet.step_planet(
+            camera_state = camera_planet.step_planet(
                 frame
             )
 
 
 
             #
-            # compute updates own state
+            # external sampling
             #
 
-            compute_state = compute.step()
-
-
-
-            #
-            # sampling
-            #
-
-            observed = observer.step_observe(
-                planet_state["frame"]
-                if isinstance(
-                    planet_state,
-                    dict
-                )
-                else frame
+            sampled_state = camera_observer.step_observe(
+                camera_state
             )
 
 
-            if observed is None:
-                continue
-
-
 
             #
-            # camera -> internal IO
+            # bytes transport
             #
 
             data = camera_io.encode(
-                observed["state"]
+                sampled_state
             )
 
 
+
             #
-            # external perturbation enters
-            # internal dynamics
+            # internal disturbance
             #
 
             internal.receive(
@@ -170,34 +152,50 @@ def main():
             )
 
 
-            #
-            # internal evolution
-            #
-
             internal.step()
 
 
 
             #
-            # read-only snapshot
+            # internal sampling
             #
 
-            snapshot = internal.snapshot()
+            internal_snapshot = internal.snapshot()
+
+
+
+            observe_snapshot = (
+                internal_observer.step_observe(
+                    internal_snapshot
+                )
+            )
+
+
+
+            print(
+                "OBS",
+                observe_snapshot.get(
+                    "activity"
+                )
+            )
 
 
 
             #
-            # internal -> display
+            # display projection
             #
 
             display_frame = display_io.encode(
-                snapshot
+                observe_snapshot
             )
 
 
-            display.show(
-                display_frame
-            )
+            if display_frame is not None:
+
+                display.show(
+                    display_frame
+                )
+
 
 
             if display.step_display() == 27:
@@ -206,17 +204,13 @@ def main():
 
 
 
-            time.sleep(
-                0.001
-            )
-
-
-
     finally:
+
 
         camera.release()
 
         display.close()
+
 
 
 

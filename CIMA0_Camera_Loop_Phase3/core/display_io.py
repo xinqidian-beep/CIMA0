@@ -7,28 +7,23 @@ class DisplayIO:
 
     Responsibility:
 
-        InternalDynamics snapshot
-                |
-                v
-        display data
+        observer snapshot
+             |
+             v
+        display format
 
 
     No:
 
-        internal interpretation
-        state analysis
-        control
+        state interpretation
+        sampling
+        computation
+        resolution decision
     """
 
 
-    def __init__(
-        self,
-        width=640,
-        height=480
-    ):
-
-        self.width = width
-        self.height = height
+    def __init__(self):
+        pass
 
 
 
@@ -37,58 +32,86 @@ class DisplayIO:
         snapshot
     ):
         """
-        Convert internal snapshot
+        Convert observer output
         into display frame.
 
         Only format conversion.
         """
 
+
         if snapshot is None:
 
-            return np.zeros(
-                (
-                    self.height,
-                    self.width,
-                    3
-                ),
-                dtype=np.uint8
-            )
+            return None
 
 
-        #
-        # snapshot only provides state
-        #
 
-        value = snapshot.get(
-            "value",
-            0.0
+        state = snapshot.get(
+            "delta",
+            None
         )
 
 
-        value = float(value)
+        if state is None:
 
-        value = max(
-            0.0,
-            min(
-                1.0,
-                abs(value)
+            state = snapshot.get(
+                "state",
+                None
             )
+
+
+        if state is None:
+
+            return None
+
+
+
+        array = np.asarray(
+            state,
+            dtype=np.float32
         )
 
 
-        level = int(
+
+        #
+        # debug only
+        #
+
+        print(
+            "DISPLAY INPUT",
+            array.shape,
+            float(np.min(array)),
+            float(np.max(array)),
+            float(np.mean(array))
+        )
+
+
+
+        #
+        # display normalization only
+        #
+
+        value = np.abs(
+            array
+        )
+
+
+        max_value = np.max(
+            value
+        )
+
+
+        if max_value > 0:
+
+            value = value / max_value
+
+
+
+        frame = (
+
             value * 255
-        )
 
-
-        frame = np.full(
-            (
-                self.height,
-                self.width,
-                3
-            ),
-            level,
-            dtype=np.uint8
+        ).astype(
+            np.uint8
         )
 
 
