@@ -1,56 +1,82 @@
+import numpy as np
+
+
 class CameraIO:
     """
-    Camera input boundary.
-
+    Camera IO interface.
 
     Responsibility:
 
-        transfer external frame
+        camera sampled state
+            |
+            v
+        byte stream
+            |
+            v
+        InternalDynamics
 
 
     No:
 
-        interpretation
-        compression
         sampling
-        feature extraction
-        state evaluation
+        computation
+        interpretation
+        filtering
     """
 
 
-
     def __init__(self):
-
         pass
 
 
-
-    def input_frame(
+    def encode(
         self,
-        frame
+        state
     ):
         """
-        Receive raw camera frame.
+        Convert camera state
+        into byte stream.
 
-        Return unchanged frame.
+        Same structure.
+        No meaning added.
         """
 
+        if state is None:
+            return b""
 
-        return frame
+
+        array = np.asarray(
+            state,
+            dtype=np.float32
+        )
+
+
+        return array.tobytes()
 
 
 
-    def output_frame(
+    def decode(
         self,
-        frame
+        data,
+        shape
     ):
         """
-        Output boundary.
+        Restore byte stream
+        into camera state.
 
-        Current stage:
-
-            transparent pass-through
+        Used for IO symmetry.
         """
 
+        if data is None:
+            return None
 
-        return frame
+
+        array = np.frombuffer(
+            data,
+            dtype=np.float32
+        )
+
+
+        return array.reshape(
+            shape
+        )

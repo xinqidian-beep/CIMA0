@@ -1,62 +1,95 @@
-import cv2
 import numpy as np
 
 
 class DisplayIO:
     """
-    Display boundary IO.
-
+    Display IO interface.
 
     Responsibility:
 
-        transfer output frame
-        to display hardware
+        InternalDynamics snapshot
+                |
+                v
+        display data
 
 
     No:
 
-        computation
-        observation
-        interpretation
+        internal interpretation
+        state analysis
+        control
     """
 
 
     def __init__(
         self,
-        window_name="CIMA0"
+        width=640,
+        height=480
     ):
 
-        self.window_name = window_name
-
-        cv2.namedWindow(
-            self.window_name,
-            cv2.WINDOW_NORMAL
-        )
+        self.width = width
+        self.height = height
 
 
 
-    def output_frame(
+    def encode(
         self,
-        frame
+        snapshot
     ):
+        """
+        Convert internal snapshot
+        into display frame.
 
-        if frame is None:
-            return
+        Only format conversion.
+        """
+
+        if snapshot is None:
+
+            return np.zeros(
+                (
+                    self.height,
+                    self.width,
+                    3
+                ),
+                dtype=np.uint8
+            )
 
 
-        display_frame = frame
+        #
+        # snapshot only provides state
+        #
 
-            
-
-        cv2.imshow(
-            self.window_name,
-            frame
+        value = snapshot.get(
+            "value",
+            0.0
         )
 
 
+        value = float(value)
 
-    def step_display(
-        self
-    ):
+        value = max(
+            0.0,
+            min(
+                1.0,
+                abs(value)
+            )
+        )
 
-        return cv2.waitKey(1)
+
+        level = int(
+            value * 255
+        )
+
+
+        frame = np.full(
+            (
+                self.height,
+                self.width,
+                3
+            ),
+            level,
+            dtype=np.uint8
+        )
+
+
+        return frame

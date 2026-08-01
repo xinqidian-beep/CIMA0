@@ -1,167 +1,99 @@
-from archive.planet import Planet
-from core.clip_region import ClipRegion
-
-
-
 class InternalDynamics:
     """
-    Internal Dynamics composition layer.
+    Internal dynamic system.
+
+    Responsibility:
+
+        receive external bytes
+        evolve internal state
+        provide snapshot
 
 
-    Contains local dynamic regions:
+    No:
 
-        Planet
-            |
-            state
-            local relation
-            evolution
-
-
-        ClipRegion
-            |
-            visual local state
-            local relation
-            evolution
-
-
-
-    This layer does not:
-
-        interpret
-        classify
+        observation
+        sampling
+        interpretation
         control
-        select
-
-
-    It only allows local dynamics
-    to coexist.
     """
-
 
 
     def __init__(
         self,
-        clip_weight,
-        planet_size=128
+        planet=None,
+        clip_region=None
     ):
 
+        self.planet = planet
 
-        #
-        # pure internal dynamics
-        #
+        self.clip_region = clip_region
 
-        self.planet = Planet(
-            size=planet_size
-        )
+        self.external_bytes = None
 
 
 
-        #
-        # local visual basin
-        #
-
-        self.clip = ClipRegion(
-            clip_weight
-        )
-
-
-
-
-
-    def update(
+    def receive(
         self,
-        external_state=None
+        data
     ):
         """
-        One internal evolution step.
+        External disturbance.
+
+        Bytes only.
+        """
+
+        self.external_bytes = data
 
 
-        External information:
 
-            only enters local state evolution.
-
-
-        Does not modify:
-
-            dynamics rule
+    def step(
+        self
+    ):
+        """
+        Internal evolution.
         """
 
 
+        if self.planet is not None:
 
-        #
-        # Planet original dynamics
-        #
-        # no input
-        # no modification
-        #
+            self.planet.receive(
+                self.external_bytes
+            )
 
-        self.planet.step()
+            self.planet.step()
 
 
 
-        #
-        # Clip local dynamics
-        #
+        if self.clip_region is not None:
 
-        if external_state is not None:
+            self.clip_region.update()
 
-            self.clip.update(
-                external_state
+
+
+    def snapshot(
+        self
+    ):
+        """
+        Raw internal state.
+
+        Read only.
+        """
+
+        result = {}
+
+
+        if self.planet is not None:
+
+            result["planet"] = (
+                self.planet.snapshot()
             )
 
 
+        if self.clip_region is not None:
+
+            result["clip"] = (
+                self.clip_region.state()
+            )
 
 
-
-
-    def snapshot(self):
-        """
-        Raw internal snapshot.
-
-
-        Observer reads this.
-
-        No semantic interpretation.
-        """
-
-        return {
-
-
-            "planet":
-
-                {
-
-                    "state":
-
-                        self.planet.state.copy(),
-
-                    "mean":
-
-                        float(
-                            self.planet.state.mean()
-                        ),
-
-                    "std":
-
-                        float(
-                            self.planet.state.std()
-                        )
-
-                },
-
-
-
-            "clip":
-
-                self.clip.state()
-
-        }
-        
-    def observation_state(self):
-        """
-        Provide raw local state for Observer.
-
-        No interpretation.
-        """
-
-        return self.planet.state.copy()    
+        return result

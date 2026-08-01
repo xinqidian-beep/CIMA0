@@ -3,27 +3,33 @@ import numpy as np
 
 class CameraPlanet:
     """
-    External camera planet.
+    External camera hardware.
 
     Responsibility:
 
-        map external camera frame
-        into external numerical state
+        provide raw camera facts
+
+
+    Does:
+
+        frame acquisition information
 
 
     No:
 
-        observation
-        temporal comparison
         sampling
+        normalization
+        observation
         computation allocation
-        semantic understanding
-        memory
+        semantic processing
     """
 
 
     def __init__(self):
-        pass
+
+        self.height = None
+        self.width = None
+        self.channels = None
 
 
 
@@ -31,51 +37,59 @@ class CameraPlanet:
         self,
         frame
     ):
-        """
-        Convert raw camera frame
-        into external numerical state.
-
-        Only numeric normalization.
-
-        No interpretation.
-        """
 
         if frame is None:
             return None
 
 
-        external_state = np.asarray(
-            frame,
-            
+        img = np.asarray(
+            frame
         )
 
 
-        #
-        # normalize camera value range
-        #
-
-        
+        h, w = img.shape[:2]
 
 
-        return external_state
+        self.height = h
+        self.width = w
+        self.channels = (
+            img.shape[2]
+            if len(img.shape) == 3
+            else 1
+        )
+
+
+        return {
+
+            "frame": frame,
+
+            "height":
+                self.height,
+
+            "width":
+                self.width,
+
+            "channels":
+                self.channels
+
+        }
 
 
 
-    def snapshot(
-        self
-    ):
-        """
-        Read-only placeholder.
-
-        No internal state.
-        """
+    def snapshot(self):
 
         return {
 
             "module":
                 "CameraPlanet",
 
-            "state":
-                "stateless"
+            "resolution":
+                (
+                    self.height,
+                    self.width
+                ),
+
+            "channels":
+                self.channels
 
         }

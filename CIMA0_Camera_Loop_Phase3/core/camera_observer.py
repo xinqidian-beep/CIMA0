@@ -3,83 +3,38 @@ import numpy as np
 
 class CameraObserver:
     """
-    External camera observation boundary.
-
+    Camera sampling module.
 
     Responsibility:
 
-        raw camera frame
-            |
-            v
-        spatial sampling
-            |
-            v
-        byte stream
+        frame -> sampled state
 
 
-    Resource interaction:
+    No:
 
-        read compute resource state
-
-        decide own sampling density
-
-
-    Does not:
-
-        control ComputeSystem
-        understand image meaning
-        classify
-        predict
-        control internal dynamics
-        allocate resources
+        semantic understanding
+        resource allocation
+        hardware control
+        internal dynamics control
     """
 
 
-
-    def __init__(self):
-
-        self.camera_size = 32
-
-
-        self.previous_state = None
-
-
-
-    def update_resource(
+    def __init__(
         self,
-        compute_state
+        cell_px=20
     ):
         """
-        Adapt own sampling density.
+        cell_px:
+            pixels represented by one sampled cell
 
-        Input:
-
-            resource state only
-
-
-        No command.
-        No control.
+        Topology is derived from camera frame size.
         """
 
+        self.cell_px = cell_px
 
-        available = compute_state[
-            "available"
-        ]
+        self.previous = None
 
-
-        if available > 0.7:
-
-            self.camera_size = 16
-
-
-        elif available > 0.3:
-
-            self.camera_size = 32
-
-
-        else:
-
-            self.camera_size = 64
+        self.last_shape = None
 
 
 
@@ -88,170 +43,164 @@ class CameraObserver:
         frame
     ):
         """
-        Camera frame -> local cell state
+        Full frame deterministic block average.
+
+        BGR preserved.
+
+        frame:
+            H,W,3
+
+        return:
+            sampled field
         """
 
-
-        h, w, _ = frame.shape
-
-
-        size = self.camera_size
+        if frame is None:
+            return None
 
 
-        grid_h = int(
-            np.ceil(
-                h / size
-            )
+        h, w, c = frame.shape
+
+
+        grid_h = h // self.cell_px
+        grid_w = w // self.cell_px
+
+
+        if grid_h <= 0 or grid_w <= 0:
+            return None
+
+
+        #
+        # keep only complete blocks
+        # every remaining pixel participates
+        #
+
+        usable_h = grid_h * self.cell_px
+        usable_w = grid_w * self.cell_px
+
+
+        trimmed = frame[
+            :usable_h,
+            :usable_w
+        ]
+
+
+        #
+        # BGR block mean
+        #
+
+        blocks = trimmed.reshape(
+            grid_h,
+            self.cell_px,
+            grid_w,
+            self.cell_px,
+            3
         )
 
 
-        grid_w = int(
-            np.ceil(
-                w / size
-            )
+        field = blocks.mean(
+            axis=(1, 3)
         )
 
 
-        state = np.zeros(
-            (
-                grid_h,
-                grid_w
-            ),
-            dtype=np.float32
-        )
+        #
+        # normalize
+        #
+
+        field = field / 255.0
 
 
-
-        for y in range(grid_h):
-
-            for x in range(grid_w):
-
-                y0 = y * size
-                y1 = min(
-                    y0 + size,
-                    h
-                )
-
-
-                x0 = x * size
-                x1 = min(
-                    x0 + size,
-                    w
-                )
-
-
-                block = frame[
-                    y0:y1,
-                    x0:x1
-                ]
-
-
-                state[y,x] = (
-                    block.mean()
-                    /
-                    255.0
-                )
-
-
-        return state
+        return field
 
 
 
     def step_observe(
         self,
-        current_state
+        frame
     ):
         """
-        Temporal variation.
+        Sampling + self comparison.
 
-        delta =
-            current
-            -
-            previous
+        δ = current - history
         """
 
 
-        if self.previous_state is None:
+        current = self.sample(
+            frame
+        )
 
-            self.previous_state = (
-                current_state.copy()
+
+        if current is None:
+            return None
+
+
+
+        if self.previous is None:
+
+            delta = np.zeros_like(
+                current
             )
 
-            return None
+        else:
+
+            delta = current - self.previous
 
 
 
-        delta = (
-            current_state
-            -
-            self.previous_state
-        )
+        self.previous = current.copy()
 
-
-        self.previous_state = (
-            current_state.copy()
-        )
-
-
-        return delta
-
-
-
-    def encode_bytes(
-        self,
-        state
-    ):
-        """
-        External state -> byte stream.
-
-        No meaning.
-        Only transport format.
-        """
-
-
-        normalized = np.clip(
-            state,
-            0.0,
-            1.0
-        )
-
-
-        data = (
-            normalized
-            *
-            255
-        ).astype(
-            np.uint8
-        )
-
-
-        return data.tobytes()
-
-
-
-    def snapshot(self):
-
-        if self.previous_state is None:
-
-            return None
 
 
         return {
 
-            "camera_size":
-                self.camera_size,
+            "state": current,
+
+            "delta": delta,
+
+            "shape": current.shape,
+
+            "activity": float(
+                np.mean(
+                    np.abs(delta)
+                )
+            )
+
+        }
+
+
+
+    def snapshot(
+        self
+    ):
+        """
+        Read only summary.
+        """
+
+        if self.previous is None:
+
+            return {
+                "active": False
+            }
+
+
+        return {
+
+            "active": True,
 
             "shape":
-                self.previous_state.shape,
+                self.previous.shape,
 
             "mean":
                 float(
-                    self.previous_state.mean()
+                    np.mean(
+                        self.previous
+                    )
                 ),
 
             "std":
                 float(
-                    self.previous_state.std()
+                    np.std(
+                        self.previous
+                    )
                 )
 
         }
