@@ -3,75 +3,57 @@ import numpy as np
 
 class CameraPlanet:
     """
-    External camera hardware.
+    External camera source.
 
     Responsibility:
 
-        provide raw camera facts
+        hardware frame acquisition
 
+    Output:
 
-    Does:
-
-        frame acquisition information
-
+        byte stream package
 
     No:
 
         sampling
-        normalization
+        compression
         observation
-        computation allocation
-        semantic processing
+        computation
     """
 
 
     def __init__(self):
 
-        self.height = None
-        self.width = None
-        self.channels = None
+        self.shape = None
+        self.dtype = None
 
 
 
-    def step_planet(
-        self,
-        frame
-    ):
+    def step_planet(self, frame):
 
         if frame is None:
             return None
 
 
-        img = np.asarray(
+        array = np.asarray(
             frame
         )
 
 
-        h, w = img.shape[:2]
-
-
-        self.height = h
-        self.width = w
-        self.channels = (
-            img.shape[2]
-            if len(img.shape) == 3
-            else 1
-        )
+        self.shape = array.shape
+        self.dtype = str(array.dtype)
 
 
         return {
 
-            "frame": frame,
+            "bytes":
+                array.tobytes(),
 
-            "height":
-                self.height,
+            "shape":
+                array.shape,
 
-            "width":
-                self.width,
-
-            "channels":
-                self.channels
-
+            "dtype":
+                self.dtype
         }
 
 
@@ -80,16 +62,10 @@ class CameraPlanet:
 
         return {
 
-            "module":
-                "CameraPlanet",
+            "shape":
+                self.shape,
 
-            "resolution":
-                (
-                    self.height,
-                    self.width
-                ),
-
-            "channels":
-                self.channels
+            "dtype":
+                self.dtype
 
         }

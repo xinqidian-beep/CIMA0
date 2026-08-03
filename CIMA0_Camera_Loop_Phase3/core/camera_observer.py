@@ -3,201 +3,115 @@ import numpy as np
 
 class CameraObserver:
     """
-    Camera sampling module.
+    Byte stream dynamic gate.
 
-    Responsibility:
+    Input:
+        bytes
 
-        frame -> sampled state
+    Output:
+        bytes
 
-
-    No:
-
-        semantic understanding
-        resource allocation
-        hardware control
-        internal dynamics control
+    Internal:
+        local history
+        delta
+        age
     """
-
 
     def __init__(
         self,
-        cell_px=20
+        threshold=0.01,
+        max_output=4096
     ):
-        """
-        cell_px:
-            pixels represented by one sampled cell
-
-        Topology is derived from camera frame size.
-        """
-
-        self.cell_px = cell_px
 
         self.previous = None
+        self.age = None
 
-        self.last_shape = None
+        self.threshold = threshold
+        self.max_output = max_output
 
 
 
-    def sample(
+    def observe(
         self,
-        frame
+        data
     ):
-        """
-        Full frame deterministic block average.
 
-        BGR preserved.
-
-        frame:
-            H,W,3
-
-        return:
-            sampled field
-        """
-
-        if frame is None:
-            return None
+        if data is None:
+            return b""
 
 
-        h, w, c = frame.shape
-
-
-        grid_h = h // self.cell_px
-        grid_w = w // self.cell_px
-
-
-        if grid_h <= 0 or grid_w <= 0:
-            return None
-
-
-        #
-        # keep only complete blocks
-        # every remaining pixel participates
-        #
-
-        usable_h = grid_h * self.cell_px
-        usable_w = grid_w * self.cell_px
-
-
-        trimmed = frame[
-            :usable_h,
-            :usable_w
-        ]
-
-
-        #
-        # BGR block mean
-        #
-
-        blocks = trimmed.reshape(
-            grid_h,
-            self.cell_px,
-            grid_w,
-            self.cell_px,
-            3
+        current = np.frombuffer(
+            data,
+            dtype=np.uint8
         )
 
 
-        field = blocks.mean(
-            axis=(1, 3)
-        )
-
-
-        #
-        # normalize
-        #
-
-        field = field / 255.0
-
-
-        return field
-
-
-
-    def step_observe(self, camera_state):
-
-        frame = (
-            camera_state["frame"]
-            if isinstance(camera_state, dict)
-            else camera_state
-        )
-
-        current = self.sample(
-            frame
-        )
-
-
-        if current is None:
-            return None
-
+        size = current.size
 
 
         if self.previous is None:
 
-            delta = np.zeros_like(
-                current
+            self.previous = current.copy()
+
+            self.age = np.zeros(
+                size,
+                dtype=np.int32
             )
 
-        else:
+            return data[:self.max_output]
 
-            delta = current - self.previous
 
+
+        delta = np.abs(
+            current.astype(np.int16)
+            -
+            self.previous.astype(np.int16)
+        )
 
 
         self.previous = current.copy()
 
 
 
-        return {
+        self.age += 1
 
-            "state": current,
 
-            "delta": delta,
+        active = delta > self.threshold
 
-            "shape": current.shape,
 
-            "activity": float(
-                np.mean(
-                    np.abs(delta)
-                )
-            )
-
-        }
+        self.age[
+            active
+        ] = 0
 
 
 
-    def snapshot(
-        self
-    ):
-        """
-        Read only summary.
-        """
-
-        if self.previous is None:
-
-            return {
-                "active": False
-            }
+        score = (
+            delta.astype(np.float32)
+            +
+            self.age * 0.05
+        )
 
 
-        return {
 
-            "active": True,
+        count = min(
+            self.max_output,
+            size
+        )
 
-            "shape":
-                self.previous.shape,
 
-            "mean":
-                float(
-                    np.mean(
-                        self.previous
-                    )
-                ),
+        index = np.argpartition(
+            score,
+            -count
+        )[-count:]
 
-            "std":
-                float(
-                    np.std(
-                        self.previous
-                    )
-                )
 
-        }
+
+        index.sort()
+
+
+        output = current[
+            index
+        ]
+
+
+        return output.tobytes()
