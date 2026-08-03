@@ -1,45 +1,42 @@
-# main.py
-
-import time
 import cv2
+import time
 
 
-from archive.planet import Planet
-from core.clip_region import ClipRegion
 from core.internal_dynamics import InternalDynamics
 from core.internal_dynamics_observer import InternalDynamicsObserver
+from core.compute_system import ComputeSystem
 from core.display_io import DisplayIO
 
 
-
-CLIP_WEIGHT = r"C:\CIMA0\models\open_clip_pytorch_model.bin"
+from core.camera_planet import CameraPlanet
+from core.clip_region import ClipRegion
 
 
 
 def main():
 
-
     print("=" * 60)
     print("CIMA0 Internal Dynamics Loop")
-    print()
+    print("")
     print("ESC : exit")
     print("=" * 60)
 
 
 
     #
-    # internal world
+    # local modules
     #
 
-    planet = Planet()
+    planet = CameraPlanet()
+
+
+    clip = ClipRegion()
 
 
 
-    clip = ClipRegion(
-        CLIP_WEIGHT
-    )
-
-
+    #
+    # lifecycle
+    #
 
     internal = InternalDynamics(
         planet,
@@ -48,40 +45,51 @@ def main():
 
 
 
+    #
+    # observer
+    #
+
     observer = InternalDynamicsObserver()
 
 
 
-    display_io = DisplayIO()
+    #
+    # compute
+    #
+
+    compute = ComputeSystem(
+        capacity=100
+    )
 
 
 
     #
-    # runtime
+    # output
     #
 
-    running = True
+    display = DisplayIO()
 
 
 
-    while running:
+    while True:
 
 
         #
-        # external byte stream
-        #
-        # CameraIO will provide this later.
-        #
-        # Current internal test:
+        # camera byte input
         #
 
-        data = b""
+        if hasattr(
+            planet,
+            "camera_bytes"
+        ):
 
+            data = planet.camera_bytes()
 
+            if data is not None:
 
-        internal.receive(
-            data
-        )
+                internal.receive(
+                    data
+                )
 
 
 
@@ -94,30 +102,29 @@ def main():
 
 
         #
-        # observation boundary
+        # snapshot
         #
 
-        snapshot = (
-            internal.snapshot()
+        snapshot = internal.snapshot()
+
+
+
+        #
+        # local observation
+        #
+
+        request = observer.observe(
+            snapshot
         )
 
 
-        observed = (
-            observer.observe(
-                snapshot
-            )
-        )
-
-
 
         #
-        # output
+        # resource allocation
         #
 
-        frame = (
-            display_io.encode(
-                observed
-            )
+        allocation = compute.allocate(
+            request
         )
 
 
@@ -126,31 +133,23 @@ def main():
         # display
         #
 
+        frame = display.encode(
+            snapshot
+        )
+
+
+
         if frame is not None:
 
-
-            if isinstance(
-                frame,
-                dict
-            ):
-
-                print(
-                    "DISPLAY",
-                    frame.keys()
-                )
-
-
-            else:
-
-                cv2.imshow(
-                    "CIMA0 Display",
-                    frame
-                )
+            cv2.imshow(
+                "CIMA0",
+                frame
+            )
 
 
 
         #
-        # ESC exit
+        # ESC
         #
 
         key = cv2.waitKey(1) & 0xff
@@ -158,7 +157,11 @@ def main():
 
         if key == 27:
 
-            running = False
+            print(
+                "CIMA0 stopped"
+            )
+
+            break
 
 
 
@@ -169,12 +172,6 @@ def main():
 
 
     cv2.destroyAllWindows()
-
-
-
-    print(
-        "CIMA0 stopped"
-    )
 
 
 

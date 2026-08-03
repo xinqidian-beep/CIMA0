@@ -1,78 +1,151 @@
-# core/internal_dynamics_observer.py
+import numpy as np
 
 
 class InternalDynamicsObserver:
     """
-    Read-only observation boundary.
-
-    Responsibility:
-
-        internal request
-              |
-              v
-
-        consume observation resource
-              |
-              v
-
-        output snapshot
-
+    Read only observer.
 
     Does NOT:
 
-        interpret
-        merge
-        classify
-        control
-        select
+        modify state
+        allocate resource
+        control modules
     """
 
 
     def __init__(self):
 
-        self.resource = 0
-
-
-
-    def update_resource(
-        self,
-        resource
-    ):
-        """
-        Resource comes from Compute.
-
-        Observer does not request.
-        """
-
-        self.resource = max(
-            0,
-            int(resource)
-        )
+        self.previous = {}
 
 
 
     def observe(
         self,
-        internal_state
+        snapshot
     ):
-        """
-        Consume available observation resource.
 
-        Internal state decides what can be observed.
-        """
-
-        if internal_state is None:
-            return None
+        requests = {}
 
 
-        if hasattr(
-            internal_state,
-            "observe"
-        ):
+        for name,state in snapshot.items():
 
-            return internal_state.observe(
-                self.resource
+            requests[name] = (
+                self._measure(
+                    name,
+                    state
+                )
             )
 
 
-        return internal_state
+        return requests
+
+
+
+    def _measure(
+        self,
+        name,
+        state
+    ):
+
+        current = self._extract(
+            state
+        )
+
+
+        if current is None:
+            return 0.0
+
+
+
+        previous = self.previous.get(
+            name,
+            current
+        )
+
+
+        delta = abs(
+            current -
+            previous
+        )
+
+
+        self.previous[name] = current
+
+
+        return float(
+            min(
+                1.0,
+                0.7 * current +
+                0.3 * delta
+            )
+        )
+
+
+
+    def _extract(
+        self,
+        obj
+    ):
+
+        values = []
+
+        self._collect(
+            obj,
+            values
+        )
+
+
+        if values:
+
+            return np.mean(
+                np.abs(values)
+            )
+
+
+        return None
+
+
+
+    def _collect(
+        self,
+        obj,
+        out
+    ):
+
+        if isinstance(
+            obj,
+            dict
+        ):
+
+            for v in obj.values():
+
+                self._collect(
+                    v,
+                    out
+                )
+
+
+        elif isinstance(
+            obj,
+            np.ndarray
+        ):
+
+            if obj.size:
+
+                out.append(
+                    float(
+                        np.mean(
+                            np.abs(obj)
+                        )
+                    )
+                )
+
+
+        elif isinstance(
+            obj,
+            (int,float)
+        ):
+
+            out.append(
+                float(obj)
+            )
