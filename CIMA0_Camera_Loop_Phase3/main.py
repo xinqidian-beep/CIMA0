@@ -9,10 +9,17 @@ from core.display_io import DisplayIO
 
 
 from core.camera_planet import CameraPlanet
+from core.camera_io import CameraIO
+from core.camera_observer import CameraObserver
+
+
 from archive.planet import Planet
 from core.clip_region import ClipRegion
 
+
 CLIP_WEIGHT = r"C:\CIMA0\models\open_clip_pytorch_model.bin"
+
+
 
 def main():
 
@@ -25,13 +32,10 @@ def main():
 
 
     #
-    # local modules
+    # internal world
     #
 
     planet = Planet()
-
-
-    CLIP_WEIGHT = r"C:\CIMA0\models\open_clip_pytorch_model.bin"
 
 
     clip = ClipRegion(
@@ -39,15 +43,25 @@ def main():
     )
 
 
-
-    #
-    # lifecycle
-    #
-
     internal = InternalDynamics(
         planet,
         clip
     )
+
+
+
+    #
+    # camera chain
+    #
+
+    camera = cv2.VideoCapture(0)
+
+
+    camera_planet = CameraPlanet()
+
+    camera_io = CameraIO()
+
+    camera_observer = CameraObserver()
 
 
 
@@ -68,6 +82,17 @@ def main():
     )
 
 
+    #
+    # camera compute
+    #
+    # camera自身资源状态
+    #
+
+    from core.camera_compute import CameraComputeSystem
+
+    camera_compute = CameraComputeSystem()
+
+
 
     #
     # output
@@ -77,30 +102,79 @@ def main():
 
 
 
+    if not camera.isOpened():
+
+        print(
+            "Camera open failed"
+        )
+
+
+
     while True:
 
 
         #
-        # camera byte input
+        # ============================
+        # camera input chain
+        # ============================
         #
 
-        if hasattr(
-            planet,
-            "camera_bytes"
-        ):
+        ret, frame = camera.read()
 
-            data = planet.camera_bytes()
 
-            if data is not None:
+        if ret:
 
-                internal.receive(
-                    data
-                )
+
+            #
+            # hardware fact
+            #
+
+            camera_state = camera_planet.step_planet(
+                frame
+            )
+
+
+            #
+            # BGR -> bytes
+            #
+
+            data = camera_io.encode(
+                camera_state["frame"]
+            )
+
+
+            #
+            # camera computation state
+            #
+
+            camera_state_compute = camera_compute.step()
+
+
+
+            #
+            # sparse focus update
+            #
+
+            data = camera_observer.observe(
+                data,
+                camera_state_compute
+            )
+
+
+            #
+            # byte stream enters internal
+            #
+
+            internal.receive(
+                data
+            )
 
 
 
         #
-        # internal evolution
+        # ============================
+        # internal dynamics
+        # ============================
         #
 
         internal.step()
@@ -116,7 +190,7 @@ def main():
 
 
         #
-        # local observation
+        # readonly observation
         #
 
         request = observer.observe(
@@ -132,35 +206,37 @@ def main():
         allocation = compute.allocate(
             request
         )
+
+
+
         #
         # sparse read
         #
 
-        observed = observer.read(snapshot, allocation)
-
-        #
-        # display
-        #
-
-        frame = display.encode(observed)
-
-
-
-        #
-        # display
-        #
-
-        frame = display.encode(
-            snapshot
+        observed = observer.read(
+            snapshot,
+            allocation
         )
 
 
 
-        if frame is not None:
+        #
+        # display
+        #
+        # only once
+        #
+
+        frame_out = display.encode(
+            observed
+        )
+
+
+
+        if frame_out is not None:
 
             cv2.imshow(
                 "CIMA0",
-                frame
+                frame_out
             )
 
 
@@ -187,6 +263,8 @@ def main():
         )
 
 
+
+    camera.release()
 
     cv2.destroyAllWindows()
 

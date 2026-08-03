@@ -46,8 +46,8 @@ class CameraPlanet:
 
         return {
 
-            "bytes":
-                array.tobytes(),
+            "frame":
+                frame,
 
             "shape":
                 array.shape,
