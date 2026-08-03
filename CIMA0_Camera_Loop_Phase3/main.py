@@ -11,7 +11,7 @@ from core.display_io import DisplayIO
 from core.camera_planet import CameraPlanet
 from core.clip_region import ClipRegion
 
-
+CLIP_WEIGHT = r"C:\CIMA0\models\open_clip_pytorch_model.bin"
 
 def main():
 
@@ -30,7 +30,12 @@ def main():
     planet = CameraPlanet()
 
 
-    clip = ClipRegion()
+    CLIP_WEIGHT = r"C:\CIMA0\models\open_clip_pytorch_model.bin"
+
+
+    clip = ClipRegion(
+        CLIP_WEIGHT
+    )
 
 
 
