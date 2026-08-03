@@ -5,117 +5,385 @@ class InternalDynamicsObserver:
     """
     Read only observer.
 
-    Does NOT:
-        modify state
+    Responsibility:
+
+        snapshot
+            |
+            v
+        local competitive read
+            |
+            v
+        cached same-structure output
+
+
+    Own state only:
+
+        previous
+        cache
+        age
+
+
+    No:
+
+        modify source state
+        understand planet
+        understand clip
         allocate resource
         control modules
     """
 
-    def __init__(self, coarse_ratio=0.15):
-        self.previous = {}          # observe() 用：每个顶层 key 的活跃度历史
-        self.previous_arrays = {}   # read() 用：每个数组各自的上一次读数，用来求 δ
-        self.coarse_ratio = coarse_ratio  # 粗算基线保留多大比例，暂定值，见下方说明
 
-    # ------------------------------------------------------------
-    # observe()：产生资源需求，逻辑不变
-    # ------------------------------------------------------------
+    def __init__(self):
+
+        self.previous = {}
+
+        self.cache = {}
+
+        self.age = {}
+
+
+
+    # ---------------------------------------------------------
+    # request estimation
+    # ---------------------------------------------------------
 
     def observe(self, snapshot):
+
         requests = {}
-        for name, state in snapshot.items():
-            requests[name] = self._measure(name, state)
+
+        for key, value in snapshot.items():
+
+            requests[key] = self._activity(
+                key,
+                value
+            )
+
         return requests
 
-    def _measure(self, name, state):
-        current = self._extract(state)
-        if current is None:
-            return 0.0
-        previous = self.previous.get(name, current)
-        delta = abs(current - previous)
-        self.previous[name] = current
-        return float(min(1.0, 0.7 * current + 0.3 * delta))
 
-    def _extract(self, obj):
-        values = []
-        self._collect(obj, values)
-        if values:
-            return np.mean(np.abs(values))
-        return None
 
-    def _collect(self, obj, out):
-        if isinstance(obj, dict):
-            for v in obj.values():
-                self._collect(v, out)
-        elif isinstance(obj, np.ndarray):
-            if obj.size:
-                out.append(float(np.mean(np.abs(obj))))
-        elif isinstance(obj, (int, float)):
-            out.append(float(obj))
+    def _activity(self, path, value):
 
-    # ------------------------------------------------------------
-    # read()：按预算做举手竞争 + 粗算基线 + 焦点精算
-    # ------------------------------------------------------------
-
-    def read(self, snapshot, allocation):
-        result = {}
-        for key, value in snapshot.items():
-            budget = allocation.get(key, 0)
-            result[key] = self._read_value(value, budget, path=key)
-        return result
-
-    def _read_value(self, value, budget, path):
         if isinstance(value, dict):
-            if not value or budget <= 0:
-                return {}
-            share = budget / len(value)
-            return {
-                k: self._read_value(v, share, f"{path}.{k}")
-                for k, v in value.items()
-            }
+
+            total = 0.0
+
+            count = 0
+
+            for k, v in value.items():
+
+                total += self._activity(
+                    f"{path}.{k}",
+                    v
+                )
+
+                count += 1
+
+            if count:
+
+                return min(
+                    1.0,
+                    total / count
+                )
+
+            return 0.0
+
+
 
         if isinstance(value, np.ndarray):
-            return self._hand_raise_read(value, budget, path)
+
+            flat = value.reshape(-1).astype(
+                np.float32
+            )
+
+
+            old = self.previous.get(
+                path
+            )
+
+
+            if old is None:
+
+                delta = 1.0
+
+            else:
+
+                delta = float(
+                    np.mean(
+                        np.abs(
+                            flat - old
+                        )
+                    )
+                )
+
+
+            self.previous[path] = flat.copy()
+
+
+            return min(
+                1.0,
+                delta
+            )
+
+
 
         if isinstance(value, (int, float)):
+
+            old = self.previous.get(
+                path,
+                value
+            )
+
+
+            delta = abs(
+                float(value) -
+                float(old)
+            )
+
+
+            self.previous[path] = value
+
+
+            return min(
+                1.0,
+                delta
+            )
+
+
+
+        return 0.0
+
+
+
+    # ---------------------------------------------------------
+    # budget controlled read
+    # ---------------------------------------------------------
+
+    def read(
+        self,
+        snapshot,
+        allocation
+    ):
+
+        result = {}
+
+        for key, value in snapshot.items():
+
+            budget = allocation.get(
+                key,
+                0
+            )
+
+
+            result[key] = self._read(
+                key,
+                value,
+                budget
+            )
+
+
+        return result
+
+
+
+    def _read(
+        self,
+        path,
+        value,
+        budget
+    ):
+
+
+        if isinstance(value, dict):
+
+            result = {}
+
+            count = max(
+                1,
+                len(value)
+            )
+
+
+            child_budget = (
+                budget / count
+            )
+
+
+            for k, v in value.items():
+
+                result[k] = self._read(
+                    f"{path}.{k}",
+                    v,
+                    child_budget
+                )
+
+
+            return result
+
+
+
+        if isinstance(value, np.ndarray):
+
+            return self._read_array(
+                path,
+                value,
+                budget
+            )
+
+
+
+        if isinstance(value, (int, float)):
+
             return value
 
-        return None
 
-    def _hand_raise_read(self, arr, budget, path):
-        """
-        粗算基线：永远覆盖全数组，压缩比例固定，
-                  保证任何区域都不会被彻底漏看（这是这次要修的核心问题）。
-        焦点精算：与自身历史求 δ，举手竞争，δ 最大的位置在预算内获得精确读数。
-        """
-        flat = arr.reshape(-1).astype(np.float32)
-        total = flat.size
 
-        # 粗算：固定比例压缩，不管预算多少、不管这次谁举手，永远存在
-        coarse_n = max(1, int(total * self.coarse_ratio))
-        coarse_stride = max(1, total // coarse_n)
-        coarse = flat[::coarse_stride]
+        return value
 
-        # 自比较求 delta：这一步就是让"活跃区域"真正被找到，而不是瞎抽
-        prev = self.previous_arrays.get(path)
-        if prev is None or prev.shape != flat.shape:
-            delta = np.zeros_like(flat)
+
+
+    # ---------------------------------------------------------
+    # local sparse focus read
+    # ---------------------------------------------------------
+
+    def _read_array(
+        self,
+        path,
+        array,
+        budget
+    ):
+
+        flat = array.reshape(-1).astype(
+            np.float32
+        )
+
+
+        size = flat.size
+
+
+
+        #
+        # initialize cache
+        #
+
+        if path not in self.cache:
+
+
+            self.cache[path] = flat.copy()
+
+            self.age[path] = np.zeros(
+                size,
+                dtype=np.int32
+            )
+
+
+            return self.cache[path].reshape(
+                array.shape
+            )
+
+
+
+        #
+        # previous comparison
+        #
+
+        old = self.previous.get(
+            path
+        )
+
+
+        if old is None:
+
+            delta = np.ones(
+                size,
+                dtype=np.float32
+            )
+
         else:
-            delta = np.abs(flat - prev)
-        self.previous_arrays[path] = flat.copy()
 
-        # 精算名额：预算换算成这次能精确读取几个位置
-        n_precise = max(0, min(total, int(budget)))
+            delta = np.abs(
+                flat - old
+            )
 
-        if n_precise > 0:
-            winners = np.argsort(delta)[::-1][:n_precise]
-            precise_values = flat[winners]
-            precise_indices = winners
+
+
+        self.previous[path] = flat.copy()
+
+
+
+        #
+        # aging
+        #
+
+        self.age[path] += 1
+
+
+
+        #
+        # competition score
+        #
+
+        score = (
+            delta +
+            self.age[path].astype(
+                np.float32
+            ) * 0.01
+        )
+
+
+
+        #
+        # compute budget decides precision count
+        #
+
+        count = int(
+            budget
+        )
+
+
+        count = max(
+            1,
+            min(
+                size,
+                count
+            )
+        )
+
+
+
+        #
+        # focus selection
+        #
+
+        if count >= size:
+
+            index = np.arange(
+                size
+            )
+
         else:
-            precise_values = np.zeros(0, dtype=np.float32)
-            precise_indices = np.zeros(0, dtype=np.int64)
 
-        return {
-            "coarse": coarse,
-            "precise_values": precise_values,
-            "precise_indices": precise_indices,
-        }
+            index = np.argpartition(
+                score,
+                -count
+            )[-count:]
+
+
+
+        #
+        # local precision update
+        #
+
+        self.cache[path][index] = flat[index]
+
+        self.age[path][index] = 0
+
+
+
+        #
+        # return same shape
+        #
+
+        return self.cache[path].reshape(
+            array.shape
+        )
