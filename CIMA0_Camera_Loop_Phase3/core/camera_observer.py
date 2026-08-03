@@ -3,115 +3,288 @@ import numpy as np
 
 class CameraObserver:
     """
-    Byte stream dynamic gate.
+    Dynamic BGR byte observer.
 
     Input:
-        bytes
+        BGR byte stream
 
     Output:
-        bytes
+        complete BGR byte stream
 
-    Internal:
-        local history
+
+    Rule:
+
         delta
+          +
         age
+          +
+        compute budget
+
+        ->
+        select update positions
+
+        ->
+        keep complete field
+
+
+    No:
+
+        image understanding
+        semantic extraction
+        feature generation
+        packet generation
     """
+
 
     def __init__(
         self,
-        threshold=0.01,
-        max_output=4096
+        pixel_size=3
     ):
 
-        self.previous = None
-        self.age = None
+        self.pixel_size = pixel_size
 
-        self.threshold = threshold
-        self.max_output = max_output
+        self.previous = None
+
+        # current maintained field
+        self.field = None
+
+        # refresh age
+        self.age = None
 
 
 
     def observe(
         self,
-        data
+        data,
+        compute_state=None
     ):
 
         if data is None:
             return b""
 
 
-        current = np.frombuffer(
+        raw = np.frombuffer(
             data,
             dtype=np.uint8
         )
 
 
-        size = current.size
+        #
+        # keep BGR alignment
+        #
+
+        usable = (
+            raw.size //
+            self.pixel_size
+        ) * self.pixel_size
 
 
-        if self.previous is None:
-
-            self.previous = current.copy()
-
-            self.age = np.zeros(
-                size,
-                dtype=np.int32
-            )
-
-            return data[:self.max_output]
+        raw = raw[:usable]
 
 
-
-        delta = np.abs(
-            current.astype(np.int16)
-            -
-            self.previous.astype(np.int16)
+        pixels = raw.reshape(
+            -1,
+            self.pixel_size
         )
 
 
-        self.previous = current.copy()
+        count = pixels.shape[0]
 
 
+
+        #
+        # first frame
+        #
+
+        if self.previous is None:
+
+            self.previous = pixels.copy()
+
+            self.field = pixels.copy()
+
+            self.age = np.zeros(
+                count,
+                dtype=np.int32
+            )
+
+
+            return self.field.reshape(
+                -1
+            ).tobytes()
+
+
+
+        #
+        # delta
+        #
+
+        delta = np.mean(
+            np.abs(
+                pixels.astype(np.int16)
+                -
+                self.previous.astype(np.int16)
+            ),
+            axis=1
+        )
+
+
+        self.previous = pixels.copy()
+
+
+
+        #
+        # age update
+        #
 
         self.age += 1
 
 
-        active = delta > self.threshold
 
+        #
+        # compute resource
+        #
+
+        available = 0.1
+
+
+        if isinstance(
+            compute_state,
+            dict
+        ):
+
+            available = compute_state.get(
+                "available",
+                0.1
+            )
+
+
+        available = float(
+            np.clip(
+                available,
+                0.01,
+                1.0
+            )
+        )
+
+
+
+        #
+        # dynamic precision budget
+        #
+
+        budget = int(
+            count *
+            available
+        )
+
+
+        budget = max(
+            1,
+            min(
+                count,
+                budget
+            )
+        )
+
+
+
+        #
+        # local raise score
+        #
+
+        score = (
+            delta
+            +
+            self.age.astype(
+                np.float32
+            ) * 0.02
+        )
+
+
+
+        #
+        # choose update positions
+        #
+
+        if budget >= count:
+
+            selected = np.arange(
+                count
+            )
+
+        else:
+
+            selected = np.argpartition(
+                score,
+                -budget
+            )[-budget:]
+
+
+
+        #
+        # focus precision update
+        #
+
+        self.field[
+            selected
+        ] = pixels[
+            selected
+        ]
+
+
+
+        #
+        # refreshed areas reset age
+        #
 
         self.age[
-            active
+            selected
         ] = 0
 
 
 
-        score = (
-            delta.astype(np.float32)
-            +
-            self.age * 0.05
-        )
+        #
+        # output full BGR field
+        #
+
+        return self.field.reshape(
+            -1
+        ).tobytes()
 
 
 
-        count = min(
-            self.max_output,
-            size
-        )
+    def snapshot(
+        self
+    ):
+
+        if self.field is None:
+
+            return {
+                "active": False
+            }
 
 
-        index = np.argpartition(
-            score,
-            -count
-        )[-count:]
+        return {
 
+            "active": True,
 
+            "pixels":
+                int(
+                    self.field.shape[0]
+                ),
 
-        index.sort()
+            "mean":
+                float(
+                    np.mean(
+                        self.field
+                    )
+                ),
 
+            "std":
+                float(
+                    np.std(
+                        self.field
+                    )
+                )
 
-        output = current[
-            index
-        ]
-
-
-        return output.tobytes()
+        }
