@@ -1,46 +1,20 @@
-# core/internal_dynamics.py
-
-
 class InternalDynamics:
     """
-    Internal composite system.
+    Internal lifecycle container.
 
-    Responsibility:
+    Only:
 
-        byte stream
-             |
-             v
+        receive()
+        step()
+        snapshot()
 
-        dispatch only
+    No:
 
-             |
-        +----+----+
-        |         |
-        v         v
-
-     Planet    ClipRegion
-
-
-        |
-        v
-
-     snapshot
-
-
-    Does NOT:
-
-        decode bytes
-        interpret input
-        create cloud
-        merge states
-        control modules
-        modify internal rules
-
-
-    Planet and ClipRegion
-    own their own byte interpretation.
+        byte interpretation
+        sampling decision
+        resource allocation
+        state modification
     """
-
 
 
     def __init__(
@@ -50,7 +24,6 @@ class InternalDynamics:
     ):
 
         self.planet = planet
-
         self.clip = clip
 
 
@@ -59,14 +32,6 @@ class InternalDynamics:
         self,
         data
     ):
-        """
-        Pass external disturbance.
-
-        Raw bytes only.
-
-        No interpretation.
-        """
-
 
         if hasattr(
             self.planet,
@@ -92,12 +57,6 @@ class InternalDynamics:
     def step(
         self
     ):
-        """
-        Advance internal time.
-
-        Each module evolves independently.
-        """
-
 
         if hasattr(
             self.planet,
@@ -107,24 +66,18 @@ class InternalDynamics:
             self.planet.step()
 
 
-
         if hasattr(
             self.clip,
             "step"
         ):
 
             self.clip.step()
-            
-            
+
+
+
     def snapshot(
         self
     ):
-        """
-        Structural observation.
-
-        No fusion.
-        No compression.
-        """
 
         result = {}
 
@@ -133,21 +86,10 @@ class InternalDynamics:
             self.planet,
             "snapshot"
         ):
- 
+
             result["planet"] = (
                 self.planet.snapshot()
             )
-
-        elif hasattr(
-            self.planet,
-            "state"
-        ):
-
-            result["planet"] = {
-                "state":
-                    self.planet.state
-            }
-
 
 
         if hasattr(
@@ -159,25 +101,5 @@ class InternalDynamics:
                 self.clip.snapshot()
             )
 
-        elif hasattr(
-            self.clip,
-            "state"
-        ):
-
-            result["clip"] = (
-                self.clip.state()
-            )
-
-
 
         return result
-
-
-
-        
-            
-            
-        
-    
-
-    
