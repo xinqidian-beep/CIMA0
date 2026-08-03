@@ -131,6 +131,17 @@ def main():
         allocation = compute.allocate(
             request
         )
+        #
+        # sparse read
+        #
+
+        observed = observer.read(snapshot, allocation)
+
+        #
+        # display
+        #
+
+        frame = display.encode(observed)
 
 
 
