@@ -1,30 +1,26 @@
-import torch
-import open_clip
-
 import numpy as np
-from PIL import Image
 
 
 
 class ClipRegion:
     """
-    Local visual dynamic region.
+    Local structural layer.
 
     Responsibility:
 
-        external bytes / field disturbance
+        external byte stream
                 |
                 v
-          local projection
+        local structural projection
                 |
                 v
-          local state evolution
+        local state evolution
 
 
     Does NOT:
 
         understand camera
-        understand image meaning
+        understand image
         classify
         control
         allocate resources
@@ -35,215 +31,36 @@ class ClipRegion:
         input_state
         local_state
         age
-        response timing
     """
 
 
 
     def __init__(
         self,
-        weight_path
+        width=64,
+        height=64,
+        channels=3,
+        weight_path=None
     ):
-
-        print(
-            "[ClipRegion] loading checkpoint..."
-        )
-
-
-        ckpt = torch.load(
-            weight_path,
-            map_location="cpu"
-        )
-
-
-        if isinstance(
-            ckpt,
-            dict
-        ):
-
-            print(
-                "[ClipRegion] ckpt keys:",
-                list(
-                    ckpt.keys()
-                )[:10]
-            )
-
-
-            print(
-                "[ClipRegion] checkpoint name:",
-                ckpt.get(
-                    "name",
-                    ""
-                )
-            )
-
-
-            if "state_dict" in ckpt:
-
-                sd = ckpt["state_dict"]
-
-            else:
-
-                sd = ckpt
-
-
-        else:
-
-            sd = ckpt
-
-
-
-        arch = "ViT-B-32"
-
-
-        print(
-            "[ClipRegion] architecture:",
-            arch
-        )
-
-
-
-        self.model, _, self.preprocess = (
-            open_clip
-            .create_model_and_transforms(
-                arch,
-                pretrained=None
-            )
-        )
-
-
-
         #
-        # remove distributed prefix
+        # compatibility:
+        # old call:
+        # ClipRegion(weight_path)
         #
 
-        if any(
-            str(k).startswith(
-                "module."
-            )
-            for k in sd.keys()
-        ):
+        if isinstance(width, str):
 
+            weight_path = width
 
-            sd = {
+            width = 64
+            height = 64
+            channels = 3   
+ 
+    
 
-                k.replace(
-                    "module.",
-                    "",
-                    1
-                ):
-                v
-
-                for k, v in sd.items()
-
-            }
-
-
-
-        missing, unexpected = (
-            self.model.load_state_dict(
-                sd,
-                strict=False
-            )
-        )
-
-
-
-        missing = list(
-            missing
-        )
-
-        unexpected = list(
-            unexpected
-        )
-
-
-
-        print(
-            "[ClipRegion] missing:",
-            len(missing),
-            "unexpected:",
-            len(unexpected)
-        )
-
-
-
-        missing_visual = [
-
-            k for k in missing
-
-            if str(k).startswith(
-                "visual."
-            )
-
-        ]
-
-
-        unexpected_visual = [
-
-            k for k in unexpected
-
-            if str(k).startswith(
-                "visual."
-            )
-
-        ]
-
-
-
-        print(
-            "[ClipRegion] visual missing:",
-            len(missing_visual),
-            "| visual unexpected:",
-            len(unexpected_visual)
-        )
-
-
-
-        self.has_clip = (
-
-            len(missing_visual) == 0
-
-            and
-
-            len(unexpected_visual) == 0
-
-        )
-
-
-
-        if self.has_clip:
-
-            print(
-                "[ClipRegion] visual structure loaded"
-            )
-
-        else:
-
-            print(
-                "[ClipRegion] visual structure mismatch"
-            )
-
-
-
-        #
-        # frozen structure
-        #
-
-        self.model.eval()
-
-
-        for p in self.model.parameters():
-
-            p.requires_grad = False
-
-
-
-        #
-        # local dynamics state
-        #
-
-        self.local_state = None
+        self.width = int(width)
+        self.height = int(height)
+        self.channels = int(channels)
 
 
         #
@@ -252,6 +69,12 @@ class ClipRegion:
 
         self.input_state = None
 
+
+        #
+        # local layer state
+        #
+
+        self.local_state = None
 
 
         #
@@ -263,12 +86,10 @@ class ClipRegion:
 
 
         #
-        # local response period
+        # evolution rate
         #
 
-        self.response_period = 5
-
-
+        self.rate = 0.01
 
 
 
@@ -277,17 +98,14 @@ class ClipRegion:
         data
     ):
         """
-        External disturbance input.
+        Receive raw bytes.
 
-        Store only.
-
-        No computation.
         No interpretation.
+
+        Only store.
         """
 
         self.input_state = data
-
-
 
 
 
@@ -295,166 +113,62 @@ class ClipRegion:
         self
     ):
         """
-        Local evolution.
-
-        Internal timing decides response.
+        Local autonomous evolution.
         """
-
 
         self.age += 1
 
 
-
         if self.input_state is None:
-
             return
 
 
 
-        if (
-            self.age %
-            self.response_period
-            != 0
-        ):
-
-            return
-
-
-
-        z = self.encode(
+        field = self.project(
             self.input_state
         )
 
 
-
-        if z is None:
-
+        if field is None:
             return
-
-
-
-        z = z.detach()
 
 
 
         if self.local_state is None:
 
-            self.local_state = z
+            self.local_state = field
 
 
 
         else:
 
             self.local_state += (
-                0.01 *
+                self.rate *
                 (
-                    z -
+                    field -
                     self.local_state
                 )
             )
 
 
 
-
-
-
-
-    def encode(
+    def project(
         self,
         data
     ):
         """
-        External disturbance
+        Byte stream
         ->
-        frozen local structure projection
+        local matrix
 
-        No semantic interpretation.
+
+        No semantic conversion.
+
+        Only structural reconstruction.
         """
 
-        if not self.has_clip:
-
-            return None
-
-
-
-        frame = self._to_frame(
-            data
-        )
-
-
-        if frame is None:
-
-            return None
-
-
-
-        if isinstance(
-            frame,
-            np.ndarray
-        ):
-
-            if frame.ndim == 2:
-
-                frame = Image.fromarray(
-                    frame
-                )
-
-
-            elif (
-                frame.ndim == 3
-                and frame.shape[-1]
-                in (1,3,4)
-            ):
-
-
-                if frame.shape[-1] == 1:
-
-                    frame = Image.fromarray(
-                        frame[:, :, 0]
-                    )
-
-                else:
-
-                    frame = Image.fromarray(
-                        frame
-                    )
-
-
-            else:
-
-                return None
-
-
-
-        image_tensor = (
-            self.preprocess(frame)
-            .unsqueeze(0)
-        )
-
-
-
-        with torch.no_grad():
-
-            z = self.model.encode_image(
-                image_tensor
-            )
-
-
-
-        return z
-
-
-
-
-
-
-    def _to_frame(
-        self,
-        data
-    ):
 
         if data is None:
-
             return None
 
 
@@ -464,160 +178,106 @@ class ClipRegion:
             bytes
         ):
 
-            if len(data) == 0:
-
-                return None
-
-
             arr = np.frombuffer(
                 data,
                 dtype=np.uint8
             )
 
 
-            if arr.size == 0:
-
-                return None
-
-
-            side = int(
-                np.sqrt(
-                    arr.size
-                )
-            )
-
-
-            if side <= 0:
-
-                return None
-
-
-
-            arr = arr[
-                :
-                side * side
-            ].reshape(
-                side,
-                side
-            )
-
-
-            return arr
-
-
-
-
-
-        if isinstance(
+        elif isinstance(
             data,
             np.ndarray
         ):
 
-
             arr = np.asarray(
-                data
+                data,
+                dtype=np.uint8
+            ).reshape(-1)
+
+
+        else:
+
+            return None
+
+
+
+        if arr.size == 0:
+            return None
+
+
+
+        size = (
+            int(self.width) *
+            int(self.height) *
+            int(self.channels)
+        )
+
+
+
+        if arr.size < size:
+
+            buf = np.zeros(
+                size,
+                dtype=np.uint8
             )
 
+            buf[:arr.size] = arr
 
-            if arr.size == 0:
-
-                return None
-
+            arr = buf
 
 
-            if arr.dtype != np.uint8:
+        else:
 
-                arr = np.nan_to_num(
-                    arr,
-                    nan=0.0,
-                    posinf=0.0,
-                    neginf=0.0
-                )
-
-
-                arr = arr.astype(
-                    np.float32
-                )
-
-
-                arr -= np.min(
-                    arr
-                )
-
-
-                mx = np.max(
-                    arr
-                )
-
-
-                if mx > 0:
-
-                    arr /= mx
+            arr = arr[:size]
 
 
 
-                arr = (
-                    arr *
-                    255.0
-                ).clip(
-                    0,
-                    255
-                ).astype(
-                    np.uint8
-                )
+        field = arr.reshape(
+            self.height,
+            self.width,
+            self.channels
+        )
 
 
 
-            if arr.ndim == 1:
+        #
+        # keep numerical range
+        #
 
-                arr = arr[None,:]
-
-
-
-            return arr
-
-
-
-
-
-        if isinstance(
-            data,
-            Image.Image
-        ):
-
-            return data
+        field = (
+            field.astype(
+                np.float32
+            )
+            /
+            255.0
+        )
 
 
 
-
-
-        if isinstance(
-            data,
-            dict
-        ):
-
-            for key in (
-                "data",
-                "frame",
-                "image",
-                "field",
-                "state",
-                "matrix"
-            ):
-
-                if key in data:
-
-                    return self._to_frame(
-                        data[key]
-                    )
+        return field
 
 
 
-        return None
+    def snapshot(
+        self
+    ):
+        """
+        Raw local layer state.
+
+        Read only.
+        """
+
+
+        if self.local_state is None:
+
+            return None
 
 
 
-
+        return (
+            self.local_state
+            .copy()
+        )
 
 
 
@@ -625,17 +285,17 @@ class ClipRegion:
         self
     ):
         """
-        Read only snapshot.
+        Observer summary.
+
+        Does not replace snapshot.
         """
 
-        if self.local_state is None:
 
+        if self.local_state is None:
 
             return {
 
                 "active": False,
-
-                "norm": 0.0,
 
                 "shape": None
 
@@ -643,44 +303,25 @@ class ClipRegion:
 
 
 
-
-        ls = self.local_state.detach()
-
-
-
         return {
-
 
             "active": True,
 
+            "shape":
+                list(
+                    self.local_state.shape
+                ),
 
-            "norm": float(
-                ls.norm()
-            ),
+            "mean":
+                float(
+                    self.local_state.mean()
+                ),
 
+            "std":
+                float(
+                    self.local_state.std()
+                ),
 
-            "shape": list(
-                ls.shape
-            ),
-
-
-            "mean": float(
-                ls.mean()
-            ),
-
-
-            "std": float(
-                ls.std()
-            ),
-
-
-            "max": float(
-                ls.max()
-            ),
-
-
-            "min": float(
-                ls.min()
-            )
-
+            "age":
+                self.age
         }

@@ -3,44 +3,97 @@ class InternalDynamics:
     Internal lifecycle container.
 
     Only:
+
         receive()
         step()
         snapshot()
 
-    No:
-        byte interpretation
-        sampling decision
-        resource allocation
-        state modification
+
+    Does NOT:
+
+        interpret bytes
+        sample
+        allocate resources
+        modify internal rules
+
+
+    External bytes are passed into
+    internal organs.
+
+    Each organ owns its own
+    structural projection.
     """
 
-    def __init__(self, planet, clip):
+
+    def __init__(
+        self,
+        planet,
+        clip
+    ):
+
         self.planet = planet
         self.clip = clip
 
-    def receive(self, data):
-        """
-        外部字节流只作为扰动进入 clip。
-        planet 完全不接触外部数据，保持自驱动、不与外界沟通。
-        """
-        self.clip.receive(data)
 
-    def step(self):
+
+    def receive(
+        self,
+        data
+    ):
         """
-        只推进 planet 自己的演化。
-        clip 已经在 receive() 的 update() 里演化过了，这里不再重复。
+        External byte stream.
+
+        No interpretation here.
+
+        Planet and Clip decide
+        their own internal projection.
         """
+
+        self.clip.receive(
+            data
+        )
+
+        self.clip.receive(
+            data
+        )
+
+
+
+    def step(
+        self
+    ):
+        """
+        Advance internal dynamics.
+
+        Each component follows
+        its own local rule.
+        """
+
         self.planet.step()
+
         self.clip.step()
 
-    def snapshot(self):
+
+
+    def snapshot(
+        self
+    ):
         """
-        只读快照，不修改任何内部状态。
-        对 planet.state 做拷贝，避免下游任何操作反向污染它。
+        Read-only state export.
+
+        No modification.
         """
+
         return {
-            "planet": {
-                "state": self.planet.state.copy()
+
+            "planet":
+            {
+                "state":
+                self.planet.state.copy()
             },
-            "clip": self.clip.state()
+
+
+            "clip":
+            self.clip.state()
+
         }
