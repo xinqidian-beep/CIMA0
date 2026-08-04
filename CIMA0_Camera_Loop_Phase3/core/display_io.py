@@ -3,23 +3,22 @@ import numpy as np
 
 class DisplayIO:
     """
-    Pure output adapter.
+    Pure display port.
 
-    Responsibility:
+    Input:
+        existing field structure
 
-        array structure
-              |
-              v
-        display byte stream
+    Output:
+        RGB byte stream
 
 
     No:
-
         interpretation
         semantic mapping
         field selection
         control
     """
+
 
     def __init__(
         self,
@@ -53,7 +52,7 @@ class DisplayIO:
 
 
         #
-        # preserve structure
+        # keep spatial relation
         #
 
         arr = self._normalize(
@@ -68,19 +67,30 @@ class DisplayIO:
 
         if arr.ndim == 2:
 
-
-            rgb = np.stack(
-                [
-                    arr,
-                    arr,
-                    arr
-                ],
-                axis=2
+            rgb = np.zeros(
+                (
+                    arr.shape[0],
+                    arr.shape[1],
+                    3
+                ),
+                dtype=np.float32
             )
 
 
+            #
+            # identical mapping
+            #
+            # no color creation
+            #
+
+            rgb[:,:,0] = arr
+            rgb[:,:,1] = arr
+            rgb[:,:,2] = arr
+
+
+
         #
-        # already vector field
+        # already RGB
         #
 
         elif arr.ndim == 3:
@@ -101,7 +111,7 @@ class DisplayIO:
 
 
         return (
-            rgb * 255
+            rgb * 255.0
         ).clip(
             0,
             255
@@ -115,7 +125,6 @@ class DisplayIO:
         self,
         arr
     ):
-
 
         mn = np.min(
             arr
@@ -145,7 +154,6 @@ class DisplayIO:
         self,
         img
     ):
-
 
         h,w,c = img.shape
 
