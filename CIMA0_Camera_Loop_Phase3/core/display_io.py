@@ -3,24 +3,18 @@ import numpy as np
 
 class DisplayIO:
     """
-    Structural display adapter.
+    Simple video output port.
 
-    internal read result -> display frame
+    input:
+        structured data
 
+    output:
+        fixed RGB byte frame
 
     Does NOT:
-
         analyze
         interpret
-        fuse semantics
         control
-        modify state
-
-
-    Only:
-
-        collect structural fields
-        project fields into display space
     """
 
 
@@ -34,117 +28,65 @@ class DisplayIO:
         self.width = width
 
 
+        self.frame_buffer = np.zeros(
+            (
+                height,
+                width,
+                3
+            ),
+            dtype=np.uint8
+        )
+
+
+    # --------------------------------------------------
+    # public output
+    # --------------------------------------------------
 
     def encode(
         self,
-        read_result
+        data
     ):
 
-        if not read_result:
-            return None
-
-
-        frame = np.zeros(
-            (
-                self.height,
-                self.width,
-                3
-            ),
-            dtype=np.float32
+        field = self._find_array(
+            data
         )
 
 
-        fields = []
+        if field is None:
+
+            return self.frame_buffer
 
 
-        self._collect(
-            read_result,
-            fields
+
+        frame = self._to_rgb(
+            field
         )
 
 
-        if not fields:
-            return None
+        self.frame_buffer[:] = frame
 
 
-
-        #
-        # all local fields project into one field
-        #
-
-        count = 0
-
-
-        for field in fields:
-
-            image = self._field_to_image(
-                field
-            )
-
-
-            if image is None:
-                continue
-
-
-            image = self._resize(
-                image,
-                self.height,
-                self.width
-            )
-
-
-            if image.ndim == 2:
-
-                image = np.stack(
-                    [
-                        image,
-                        image,
-                        image
-                    ],
-                    axis=2
-                )
-
-
-            frame += image.astype(
-                np.float32
-            )
-
-
-            count += 1
-
-
-
-        if count > 0:
-
-            frame /= count
-
-
-
-        frame = np.clip(
-            frame,
-            0,
-            255
-        )
-
-
-        return frame.astype(
-            np.uint8
-        )
+        return self.frame_buffer
 
 
 
     # --------------------------------------------------
-    # recursive structure traversal
+    # find display payload
     # --------------------------------------------------
 
-    def _collect(
+    def _find_array(
         self,
-        obj,
-        fields
+        obj
     ):
 
-        if obj is None:
-            return
+        if isinstance(
+            obj,
+            np.ndarray
+        ):
+
+            if obj.size:
+
+                return obj
 
 
         if isinstance(
@@ -154,42 +96,29 @@ class DisplayIO:
 
             for value in obj.values():
 
-                self._collect(
-                    value,
-                    fields
+                result = self._find_array(
+                    value
                 )
 
+                if result is not None:
 
-            return
-
-
-
-        if isinstance(
-            obj,
-            np.ndarray
-        ):
-
-            if obj.size:
-
-                fields.append(
-                    obj
-                )
+                    return result
 
 
-            return
+        return None
 
 
 
     # --------------------------------------------------
-    # ndarray -> display field
+    # ndarray -> RGB bytes
     # --------------------------------------------------
 
-    def _field_to_image(
+    def _to_rgb(
         self,
         array
     ):
 
-        arr = np.nan_to_num(
+        data = np.nan_to_num(
             array.astype(
                 np.float32
             )
@@ -197,122 +126,111 @@ class DisplayIO:
 
 
         #
-        # RGB/BGR field
+        # RGB input
         #
 
         if (
-            arr.ndim == 3
-            and arr.shape[2] >= 3
+            data.ndim == 3
+            and data.shape[2] >= 3
         ):
 
-            value = np.abs(
-                arr[:, :, :3]
-            )
+            image = data[:, :, :3]
 
 
-            mx = value.max()
+        #
+        # scalar field
+        #
 
-            if mx > 0:
+        elif data.ndim == 2:
 
-                value = (
-                    value /
-                    mx *
-                    255
+            mn = data.min()
+            mx = data.max()
+
+
+            if mx > mn:
+
+                image = (
+                    data - mn
+                ) / (
+                    mx - mn
+                ) * 255
+
+            else:
+
+                image = np.zeros_like(
+                    data
                 )
 
 
-            return value
-
-
-
-        #
-        # 2D field
-        #
-
-        if arr.ndim == 2:
-
-            value = np.abs(
-                arr
+            image = np.stack(
+                [
+                    image,
+                    image,
+                    image
+                ],
+                axis=2
             )
 
 
-            mx = value.max()
+        else:
 
+            flat = data.reshape(
+                -1
+            )
 
-            if mx > 0:
-
-                value = (
-                    value /
-                    mx *
-                    255
+            side = int(
+                np.sqrt(
+                    flat.size
                 )
-
-
-            return value
-
-
-
-        #
-        # 1D field
-        #
-
-        flat = arr.reshape(
-            -1
-        )
-
-
-        if flat.size == 0:
-            return None
-
-
-        mx = np.max(
-            np.abs(flat)
-        )
-
-
-        if mx > 0:
-
-            flat = (
-                np.abs(flat)
-                /
-                mx *
-                255
             )
 
 
-        side = int(
-            np.sqrt(
-                len(flat)
-            )
-        )
+            if side < 1:
+
+                return self.frame_buffer
 
 
-        if side > 1:
-
-            usable = side * side
-
-            return flat[:usable].reshape(
+            image = flat[:side*side].reshape(
                 side,
                 side
             )
 
 
-        return flat.reshape(
-            1,
-            -1
+            image = np.stack(
+                [
+                    image,
+                    image,
+                    image
+                ],
+                axis=2
+            )
+
+
+        image = self._resize(
+            image
+        )
+
+
+        image = np.clip(
+            image,
+            0,
+            255
+        )
+
+
+        return image.astype(
+            np.uint8
         )
 
 
 
     # --------------------------------------------------
-    # simple nearest resize
+    # fixed output size
     # --------------------------------------------------
 
     def _resize(
         self,
-        image,
-        height,
-        width
+        image
     ):
 
         h, w = image.shape[:2]
@@ -321,7 +239,7 @@ class DisplayIO:
         ys = np.linspace(
             0,
             h - 1,
-            height
+            self.height
         ).astype(
             np.int32
         )
@@ -330,28 +248,16 @@ class DisplayIO:
         xs = np.linspace(
             0,
             w - 1,
-            width
+            self.width
         ).astype(
             np.int32
         )
-
-
-        if image.ndim == 2:
-
-            return image[
-                np.ix_(
-                    ys,
-                    xs
-                )
-            ]
 
 
         return image[
             np.ix_(
                 ys,
                 xs,
-                np.arange(
-                    image.shape[2]
-                )
+                np.arange(3)
             )
         ]
