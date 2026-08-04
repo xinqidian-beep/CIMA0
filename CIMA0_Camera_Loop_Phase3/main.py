@@ -227,7 +227,7 @@ def main():
         #
 
         frame_out = display.encode(
-            snapshot
+            observed["planet"]["state"]
         )
 
 

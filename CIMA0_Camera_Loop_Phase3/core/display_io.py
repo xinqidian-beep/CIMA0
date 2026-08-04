@@ -3,20 +3,23 @@ import numpy as np
 
 class DisplayIO:
     """
-    Simple video output port.
+    Pure output adapter.
 
-    input:
-        structured data
+    Responsibility:
 
-    output:
-        fixed RGB byte frame
+        array structure
+              |
+              v
+        display byte stream
 
-    Does NOT:
-        analyze
-        interpret
+
+    No:
+
+        interpretation
+        semantic mapping
+        field selection
         control
     """
-
 
     def __init__(
         self,
@@ -28,217 +31,128 @@ class DisplayIO:
         self.width = width
 
 
-        self.frame_buffer = np.zeros(
-            (
-                height,
-                width,
-                3
-            ),
-            dtype=np.uint8
-        )
-
-
-    # --------------------------------------------------
-    # public output
-    # --------------------------------------------------
 
     def encode(
         self,
-        data
+        field
     ):
-
-        field = self._find_array(
-            data
-        )
-
 
         if field is None:
-
-            return self.frame_buffer
-
+            return None
 
 
-        frame = self._to_rgb(
-            field
+        arr = np.asarray(
+            field,
+            dtype=np.float32
         )
 
 
-        self.frame_buffer[:] = frame
-
-
-        return self.frame_buffer
-
-
-
-    # --------------------------------------------------
-    # find display payload
-    # --------------------------------------------------
-
-    def _find_array(
-        self,
-        obj
-    ):
-
-        if isinstance(
-            obj,
-            np.ndarray
-        ):
-
-            if obj.size:
-
-                return obj
-
-
-        if isinstance(
-            obj,
-            dict
-        ):
-
-            for value in obj.values():
-
-                result = self._find_array(
-                    value
-                )
-
-                if result is not None:
-
-                    return result
-
-
-        return None
+        if arr.size == 0:
+            return None
 
 
 
-    # --------------------------------------------------
-    # ndarray -> RGB bytes
-    # --------------------------------------------------
+        #
+        # preserve structure
+        #
 
-    def _to_rgb(
-        self,
-        array
-    ):
-
-        data = np.nan_to_num(
-            array.astype(
-                np.float32
-            )
+        arr = self._normalize(
+            arr
         )
 
-
-        #
-        # RGB input
-        #
-
-        if (
-            data.ndim == 3
-            and data.shape[2] >= 3
-        ):
-
-            image = data[:, :, :3]
 
 
         #
         # scalar field
         #
 
-        elif data.ndim == 2:
-
-            mn = data.min()
-            mx = data.max()
+        if arr.ndim == 2:
 
 
-            if mx > mn:
-
-                image = (
-                    data - mn
-                ) / (
-                    mx - mn
-                ) * 255
-
-            else:
-
-                image = np.zeros_like(
-                    data
-                )
-
-
-            image = np.stack(
+            rgb = np.stack(
                 [
-                    image,
-                    image,
-                    image
+                    arr,
+                    arr,
+                    arr
                 ],
                 axis=2
             )
+
+
+        #
+        # already vector field
+        #
+
+        elif arr.ndim == 3:
+
+            rgb = arr
+
 
 
         else:
 
-            flat = data.reshape(
-                -1
-            )
-
-            side = int(
-                np.sqrt(
-                    flat.size
-                )
-            )
+            return None
 
 
-            if side < 1:
 
-                return self.frame_buffer
-
-
-            image = flat[:side*side].reshape(
-                side,
-                side
-            )
-
-
-            image = np.stack(
-                [
-                    image,
-                    image,
-                    image
-                ],
-                axis=2
-            )
-
-
-        image = self._resize(
-            image
+        rgb = self._resize(
+            rgb
         )
 
 
-        image = np.clip(
-            image,
+        return (
+            rgb * 255
+        ).clip(
             0,
             255
-        )
-
-
-        return image.astype(
+        ).astype(
             np.uint8
         )
 
 
 
-    # --------------------------------------------------
-    # fixed output size
-    # --------------------------------------------------
+    def _normalize(
+        self,
+        arr
+    ):
+
+
+        mn = np.min(
+            arr
+        )
+
+        mx = np.max(
+            arr
+        )
+
+
+        if mx == mn:
+
+            return np.zeros_like(
+                arr
+            )
+
+
+        return (
+            arr - mn
+        ) / (
+            mx - mn
+        )
+
+
 
     def _resize(
         self,
-        image
+        img
     ):
 
-        h, w = image.shape[:2]
+
+        h,w,c = img.shape
 
 
         ys = np.linspace(
             0,
-            h - 1,
+            h-1,
             self.height
         ).astype(
             np.int32
@@ -247,17 +161,17 @@ class DisplayIO:
 
         xs = np.linspace(
             0,
-            w - 1,
+            w-1,
             self.width
         ).astype(
             np.int32
         )
 
 
-        return image[
+        return img[
             np.ix_(
                 ys,
                 xs,
-                np.arange(3)
+                np.arange(c)
             )
         ]
