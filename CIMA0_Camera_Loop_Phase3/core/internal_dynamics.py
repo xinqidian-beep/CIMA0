@@ -23,7 +23,7 @@ class InternalDynamics:
         外部字节流只作为扰动进入 clip。
         planet 完全不接触外部数据，保持自驱动、不与外界沟通。
         """
-        self.clip.update(data)
+        self.clip.receive(data)
 
     def step(self):
         """
@@ -31,6 +31,7 @@ class InternalDynamics:
         clip 已经在 receive() 的 update() 里演化过了，这里不再重复。
         """
         self.planet.step()
+        self.clip.step()
 
     def snapshot(self):
         """
