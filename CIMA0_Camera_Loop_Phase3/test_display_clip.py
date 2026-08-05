@@ -41,8 +41,9 @@ def main():
 
         if not ret:
             continue
+            
 
-
+        data = frame.tobytes()
 
         #
         # BGR frame
@@ -50,9 +51,12 @@ def main():
         # 直接进入 ClipRegion
         #
 
-        clip.update(
-            frame
+        clip.receive(
+            data
         )
+        clip.step()
+        
+        field = clip.snapshot()
 
 
 
@@ -60,24 +64,7 @@ def main():
         # 临时访问真实内部状态
         #
 
-        if hasattr(clip, "state"):
-
-            field = clip.state
-
-
-        elif hasattr(clip, "frame"):
-
-            field = clip.frame
-
-
-        else:
-
-            print(
-                "NO RAW FIELD",
-                clip.__dict__.keys()
-            )
-
-            break
+        
 
 
 
