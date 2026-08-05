@@ -54,10 +54,28 @@ class DisplayIO:
         #
         # keep spatial relation
         #
+        
+        if arr.ndim == 2:
 
-        arr = self._normalize(
-            arr
-        )
+            arr = self._normalize(arr)
+
+            rgb = np.zeros(
+                (
+                    arr.shape[0],
+                    arr.shape[1],
+                    3
+                ),
+                dtype=np.float32
+            )
+
+            rgb[:,:,0] = arr
+            rgb[:,:,1] = arr
+            rgb[:,:,2] = arr
+
+
+        elif arr.ndim == 3:
+
+            rgb = arr
 
 
 
