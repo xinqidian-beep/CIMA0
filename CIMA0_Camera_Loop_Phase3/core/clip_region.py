@@ -214,29 +214,79 @@ class ClipRegion:
 
 
 
-        if arr.size < size:
+        # original camera structure
+        
+        pixel_count = arr.size // self.channels
 
-            buf = np.zeros(
-                size,
-                dtype=np.uint8
+
+        side = int(
+            np.sqrt(pixel_count)
+        )
+        
+        if pixel_count * self.channels == arr.size:
+            src = arr.reshape(
+                -1,
+                self.channels
+            )
+        
+        else:
+
+            return None
+
+
+        # infer original frame
+        
+        if src.shape[0] >= self.width * self.height:
+            
+            src_h = int(
+                src.shape[0] / 640
+            )
+            
+            src_w = 640
+            
+            src = src[:src_h * src_w]
+            
+            src = src.reshape(
+                src_h,
+                src_w,
+                self.channels
             )
 
-            buf[:arr.size] = arr
-
-            arr = buf
+    
 
 
         else:
 
-            arr = arr[:size]
+            return None
+        ys = np.linspace(
+            0,
+            src.shape[0]-1,
+            self.height
+        ).astype(np.int32)
 
 
 
-        field = arr.reshape(
-            self.height,
-            self.width,
-            self.channels
-        )
+
+    
+
+
+        xs = np.linspace(
+            0,
+            src.shape[1]-1,
+            self.width
+        ).astype(np.int32)
+
+
+        field = src[
+            np.ix_(
+                ys,
+                xs
+            )
+        ]
+        
+        
+
+
 
 
 
