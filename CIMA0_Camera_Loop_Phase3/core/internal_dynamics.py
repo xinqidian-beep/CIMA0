@@ -53,9 +53,7 @@ class InternalDynamics:
             data
         )
 
-        self.clip.receive(
-            data
-        )
+        
 
 
 
@@ -94,6 +92,6 @@ class InternalDynamics:
 
 
             "clip":
-            self.clip.state()
+            self.clip.snapshot()
 
         }
