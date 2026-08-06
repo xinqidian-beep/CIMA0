@@ -1,60 +1,67 @@
 class InternalDynamics:
     """
-    Internal lifecycle container.
+    Internal dynamics container.
 
-    Only:
 
-        receive()
+    Only manages:
+
+        registered local organs
+
+
+    Does NOT know:
+
+        planet
+        clip
+        camera
+        CLIP
+        image
+        meaning
+
+
+    Every organ only needs:
+
+        receive(raw)
         step()
         snapshot()
-
-
-    Does NOT:
-
-        interpret bytes
-        sample
-        allocate resources
-        modify internal rules
-
-
-    External bytes are passed into
-    internal organs.
-
-    Each organ owns its own
-    structural projection.
     """
 
 
-    def __init__(
+
+    def __init__(self):
+
+        self.organs = {}
+
+        self.last_snapshot = {}
+
+
+
+    def register(
         self,
-        planet,
-        clip
+        name,
+        organ
     ):
 
-        self.planet = planet
-        self.clip = clip
+        self.organs[name] = organ
 
 
 
     def receive(
         self,
-        data
+        raw
     ):
         """
         External byte stream.
 
-        No interpretation here.
+        Broadcast only.
 
-        Planet and Clip decide
-        their own internal projection.
+        No interpretation.
         """
 
-        self.clip.receive(
-            data
-        )
-        
+        for organ in self.organs.values():
 
-        
+            organ.receive(
+                raw
+            )
 
 
 
@@ -62,15 +69,27 @@ class InternalDynamics:
         self
     ):
         """
-        Advance internal dynamics.
+        Local evolution.
 
-        Each component follows
-        its own local rule.
+        Each organ owns
+        its own rule.
         """
 
-        self.planet.step()
+        for name,organ in self.organs.items():
 
-        self.clip.step()
+            organ.step()
+
+
+
+        self.last_snapshot = {
+
+            name:
+            organ.snapshot()
+
+            for name, organ
+            in self.organs.items()
+
+        }
 
 
 
@@ -78,22 +97,31 @@ class InternalDynamics:
         self
     ):
         """
-        Read-only state export.
-
-        No modification.
+        Read only export.
         """
-        clip_state = self.clip.snapshot()
 
-        return {
+        return self.last_snapshot.copy()
+        
+    def output(
+        self,
+        name
+    ):
+        """
+        Read one organ snapshot
+        as external output source.
 
-            "planet":
-            {
-                "state":
-                self.planet.state.copy()
-            },
+        No interpretation.
+        """
+
+        organ = self.organs.get(
+            name
+        )
+
+        if organ is None:
+            return None
 
 
-            "clip":
-            clip_state
+        data = organ.snapshot()
 
-        }
+
+        return data

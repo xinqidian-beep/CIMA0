@@ -1,6 +1,5 @@
 import cv2
-import time
-
+import numpy as np
 
 from core.internal_dynamics import InternalDynamics
 from core.internal_dynamics_observer import InternalDynamicsObserver
@@ -9,17 +8,18 @@ from core.display_io import DisplayIO
 
 
 from core.camera_planet import CameraPlanet
+from core.camera_io import CameraIO
 from core.camera_observer import CameraObserver
-from core.camera_compute import CameraComputeSystem
 
 
 from archive.planet import Planet
 from core.clip_region import ClipRegion
 
-CLIP_WEIGHT = r"C:\CIMA0\models\open_clip_pytorch_model.bin"
+
+from core.camera_compute import CameraComputeSystem
 
 
-
+import time
 class LocalClock:
     """
     Independent module clock.
@@ -29,7 +29,6 @@ class LocalClock:
 
         self.interval = interval
         self.last = time.perf_counter()
-
 
 
     def due(self):
@@ -42,9 +41,6 @@ class LocalClock:
             return True
 
         return False
-
-
-
 
 
 def main():
@@ -61,13 +57,9 @@ def main():
     #
     # internal world
     #
-    
-    internal = InternalDynamics()
-
-
 
     planet = Planet()
-    
+
     clip = ClipRegion(
         64,
         64,
@@ -75,21 +67,12 @@ def main():
     )
 
 
-
-    internal.register(
-        "planet",
-        planet
-    )
-
-
-    internal.register(
-        "clip",
+    internal = InternalDynamics(
+        planet,
         clip
     )
 
 
-
-    
 
     #
     # camera input
@@ -100,6 +83,8 @@ def main():
 
     camera_planet = CameraPlanet()
 
+    camera_io = CameraIO()
+
     camera_observer = CameraObserver()
 
     camera_compute = CameraComputeSystem()
@@ -107,7 +92,7 @@ def main():
 
 
     #
-    # observer + compute
+    # observers
     #
 
     observer = InternalDynamicsObserver()
@@ -124,11 +109,8 @@ def main():
     #
 
     display = DisplayIO()
-
-
-
     #
-    # module clocks
+    # independent module clocks
     #
 
     camera_clock = LocalClock(
@@ -152,24 +134,14 @@ def main():
 
 
 
-    #
-    # readonly snapshot cache
-    #
-
-    latest_snapshot = None
-
-
 
     if not camera.isOpened():
 
         print(
             "Camera open failed"
         )
-
-
-
+        
     while True:
-
 
 
         #
@@ -178,41 +150,34 @@ def main():
 
         if camera_clock.due():
 
-
             ret, frame = camera.read()
-
 
             if ret:
 
-
-                camera_planet.step(
-                
+                camera_state = camera_planet.step_planet(
                     frame
-                    
                 )
 
 
-                camera_state = camera_planet.state()
-                
-                data = camera_state["bytes"]
-                
+                data = camera_io.encode(
+                    camera_state["frame"]
+                )
+
+
                 data = camera_observer.observe(
                     data,
                     camera_compute.step()
                 )
-                
+
+
                 internal.receive(
                     data
                 )
 
 
 
-                
-
-
-
         #
-        # internal dynamics own time
+        # planet/internal own time
         #
 
         if planet_clock.due():
@@ -227,15 +192,12 @@ def main():
 
         if observer_clock.due():
 
-
-            latest_snapshot = internal.snapshot()
-
+            snapshot = internal.snapshot()
 
 
             request = observer.observe(
-                latest_snapshot
+                snapshot
             )
-
 
 
             allocation = compute.allocate(
@@ -243,9 +205,8 @@ def main():
             )
 
 
-
             observer.read(
-                latest_snapshot,
+                snapshot,
                 allocation
             )
 
@@ -257,49 +218,34 @@ def main():
 
         if display_clock.due():
 
+            snapshot = internal.snapshot()
 
-            if latest_snapshot is not None:
+
+            frame_out = display.encode(
+                snapshot["clip"]
+            )
 
 
-                frame_out = display.encode(
-                    latest_snapshot["clip"]
+            if frame_out is not None:
+
+                cv2.imshow(
+                    "CIMA0",
+                    frame_out
                 )
 
 
 
-                if frame_out is not None:
-
-
-                    cv2.imshow(
-                        "CIMA0",
-                        frame_out
-                    )
-
-
-
-        #
-        # keyboard
-        #
-
         key = cv2.waitKey(1) & 0xff
 
 
-
         if key == 27:
-
-            print(
-                "CIMA0 stopped"
-            )
-
             break
-
-
-
+        
+        
+        
     camera.release()
 
     cv2.destroyAllWindows()
-
-
 
 
 

@@ -1,27 +1,35 @@
+import cv2
+
+
 class CameraIO:
-    """
-    Pure byte transport.
 
-    No:
+    def __init__(self, index=0):
+        self.cap = cv2.VideoCapture(index)
 
-        decoding
-        sampling
-        interpretation
-    """
+        self.previous_state = None
+        self.current_state = None
 
 
-    def encode(self, data):
+    def step(self):
+        frame = self._read()
 
-        if data is None:
-            return b""
-
-        return bytes(data)
-
+        self.previous_state = self.current_state
+        self.current_state = frame
 
 
-    def decode(self, data):
+    def _read(self):
 
-        if data is None:
-            return b""
+        ok, frame = self.cap.read()
 
-        return bytes(data)
+        if not ok:
+            return None
+
+        return {
+            "frame": frame,
+            "shape": frame.shape,
+            "dtype": str(frame.dtype)
+        }
+
+
+    def state(self):
+        return self.current_state

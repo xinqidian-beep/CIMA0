@@ -50,6 +50,9 @@ class InternalDynamicsObserver:
     def observe(self, snapshot):
 
         requests = {}
+        
+        if snapshot is None:
+            return requests
 
         for key, value in snapshot.items():
 
@@ -63,6 +66,9 @@ class InternalDynamicsObserver:
 
 
     def _activity(self, path, value):
+        
+        if value is None:
+            return 0.0
 
         if isinstance(value, dict):
 
