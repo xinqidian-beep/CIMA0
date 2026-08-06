@@ -213,7 +213,7 @@ def main():
                     #
                     
                     internal.receive(
-                        processed["bytes"]
+                        processed
                     )
                     
                 
