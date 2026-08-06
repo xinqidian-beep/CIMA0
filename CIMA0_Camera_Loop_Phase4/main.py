@@ -186,7 +186,7 @@ def main():
 
 
                 camera_planet.step(
-                
+                    
                     frame
                     
                 )
@@ -194,15 +194,25 @@ def main():
 
                 camera_state = camera_planet.state()
                 
-                data = camera_state["bytes"]
                 
-                data = camera_observer.observe(
-                    data,
-                    camera_compute.step()
-                )
+                if camera_state is not None:
+                    data = camera_state["bytes"]
                 
+                packet = camera_state
+
+
                 internal.receive(
-                    data
+                    packet
+                )
+
+
+                request = camera_observer.observe(
+                    packet
+                )
+
+
+                allocation = camera_compute.allocate(
+                    request
                 )
 
 
@@ -256,13 +266,15 @@ def main():
         #
 
         if display_clock.due():
+            
+            snapshot = internal.snapshot()
 
 
-            if latest_snapshot is not None:
+            if snapshot is not None:
 
 
                 frame_out = display.encode(
-                    latest_snapshot["clip"]
+                    snapshot.get("clip")
                 )
 
 

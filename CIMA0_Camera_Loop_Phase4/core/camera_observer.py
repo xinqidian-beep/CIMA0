@@ -55,18 +55,22 @@ class CameraObserver:
 
     def observe(
         self,
-        data,
+        packet,
         compute_state=None
     ):
 
-        if data is None:
-            return b""
+        if packet is None:
+            return None
 
 
         raw = np.frombuffer(
-            data,
+            packet["bytes"],
             dtype=np.uint8
         )
+        
+        
+        shape = packet["shape"]
+        dtype = packet["dtype"]
 
 
         #
@@ -108,9 +112,20 @@ class CameraObserver:
             )
 
 
-            return self.field.reshape(
-                -1
-            ).tobytes()
+            return {
+
+                "bytes":
+                    self.field.reshape(
+                        -1
+                    ).tobytes(),
+
+                "shape":
+                    shape,
+
+                "dtype":
+                    dtype
+
+            }
 
 
 
@@ -247,9 +262,20 @@ class CameraObserver:
         # output full BGR field
         #
 
-        return self.field.reshape(
-            -1
-        ).tobytes()
+        return {
+
+            "bytes":
+                self.field.reshape(
+                    -1
+                ).tobytes(),
+
+            "shape":
+                shape,
+
+            "dtype":
+                dtype
+
+        }
 
 
 
