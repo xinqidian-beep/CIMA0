@@ -1,14 +1,23 @@
 import numpy as np
 
 
-
 class ClipRegion:
     """
     Local structural layer.
 
-    Responsibility:
+    Input:
 
-        external byte stream
+        external data
+        {
+            bytes,
+            shape,
+            dtype
+        }
+
+
+    Flow:
+
+        external byte field
                 |
                 v
         local structural projection
@@ -23,7 +32,7 @@ class ClipRegion:
         understand image
         classify
         control
-        allocate resources
+        allocate
 
 
     Own state:
@@ -39,42 +48,31 @@ class ClipRegion:
         self,
         width=64,
         height=64,
-        channels=3,
-        weight_path=None
+        channels=3
     ):
-        #
-        # compatibility:
-        # old call:
-        # ClipRegion(weight_path)
-        #
-
-        if isinstance(width, str):
-
-            weight_path = width
-
-            width = 64
-            height = 64
-            channels = 3   
- 
-    
 
         self.width = int(width)
+
         self.height = int(height)
+
         self.channels = int(channels)
 
 
+
         #
-        # external disturbance buffer
+        # external disturbance
         #
 
         self.input_state = None
 
 
+
         #
-        # local layer state
+        # local field
         #
 
         self.local_state = None
+
 
 
         #
@@ -86,10 +84,11 @@ class ClipRegion:
 
 
         #
-        # evolution rate
+        # evolution speed
         #
 
         self.rate = 0.01
+
 
 
 
@@ -98,7 +97,7 @@ class ClipRegion:
         data
     ):
         """
-        Receive raw bytes.
+        Receive external data.
 
         No interpretation.
 
@@ -106,6 +105,7 @@ class ClipRegion:
         """
 
         self.input_state = data
+
 
 
 
@@ -136,8 +136,7 @@ class ClipRegion:
 
         if self.local_state is None:
 
-            self.local_state = field
-
+            self.local_state = field.copy()
 
 
         else:
@@ -149,101 +148,147 @@ class ClipRegion:
                     self.local_state
                 )
             )
+
+
+
+
     def project(
         self,
         data
     ):
         """
-        Byte stream
-        ->
+        External data
+            |
+            v
         local matrix
 
-
-        No camera assumption.
 
         Only structural projection.
         """
 
 
         if data is None:
+
             return None
 
 
 
-        if isinstance(data, bytes):
+        if not isinstance(
+            data,
+            dict
+        ):
+
+            return None
+
+
+
+        raw = data.get(
+            "bytes"
+        )
+
+
+        shape = data.get(
+            "shape"
+        )
+
+
+        dtype = data.get(
+            "dtype"
+        )
+
+
+        if raw is None:
+
+            return None
+
+
+        if shape is None:
+
+            return None
+
+
+
+
+        #
+        # rebuild external field
+        #
+
+        try:
 
             arr = np.frombuffer(
-                data,
+                raw,
                 dtype=np.uint8
             )
 
 
-        elif isinstance(data, np.ndarray):
-
-            arr = np.asarray(
-                data,
-                dtype=np.uint8
-            ).reshape(-1)
+            src = arr.reshape(
+                shape
+            )
 
 
-        else:
+        except Exception:
 
             return None
 
 
 
-        if arr.size == 0:
+
+        #
+        # keep spatial relation
+        #
+
+        if src.ndim != 3:
 
             return None
 
 
 
+        h,w,c = src.shape
+
+
+
+        if c != self.channels:
+
+            return None
+
+
+
+
         #
-        # local target size
+        # local sampling
         #
 
-        target_size = (
-            self.width *
-            self.height *
-            self.channels
+        ys = np.linspace(
+            0,
+            h - 1,
+            self.height
+        ).astype(
+            np.int32
+        )
+
+
+        xs = np.linspace(
+            0,
+            w - 1,
+            self.width
+        ).astype(
+            np.int32
         )
 
 
 
-        #
-        # enough bytes
-        #
-
-        if arr.size < target_size:
-
-            arr = np.pad(
-                arr,
-                (
-                    0,
-                    target_size-arr.size
-                )
+        field = src[
+            np.ix_(
+                ys,
+                xs
             )
+        ]
+
 
 
         #
-        # too much input
+        # numerical field
         #
-        # local module decides
-        #
-
-        else:
-
-            arr = arr[:target_size]
-
-
-
-        field = arr.reshape(
-            self.height,
-            self.width,
-            self.channels
-        )
-
-
 
         field = (
             field.astype(
@@ -254,7 +299,7 @@ class ClipRegion:
         )
 
 
-        return field        
+        return field
 
 
 
@@ -263,11 +308,10 @@ class ClipRegion:
         self
     ):
         """
-        Raw local layer state.
+        Raw local field.
 
         Read only.
         """
-
 
         if self.local_state is None:
 
@@ -275,10 +319,8 @@ class ClipRegion:
 
 
 
-        return (
-            self.local_state
-            .copy()
-        )
+        return self.local_state.copy()
+
 
 
 
@@ -287,10 +329,7 @@ class ClipRegion:
     ):
         """
         Observer summary.
-
-        Does not replace snapshot.
         """
-
 
         if self.local_state is None:
 
