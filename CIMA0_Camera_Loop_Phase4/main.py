@@ -183,8 +183,9 @@ def main():
 
 
             if ret:
-
-
+                #
+                # camera local module
+                #
                 camera_planet.step(
                     
                     frame
@@ -196,24 +197,27 @@ def main():
                 
                 
                 if camera_state is not None:
-                    data = camera_state["bytes"]
+                    
+                    #
+                    # external observation
+                    #
+                    
+                    processed = camera_observer.observe(
+                    
+                        camera_state,
+                        camera_compute.step()
+                    )    
+                    
+                    #
+                    # byte interface boundary
+                    #
+                    
+                    internal.receive(
+                        processed["bytes"]
+                    )
+                    
                 
-                packet = camera_state
-
-
-                internal.receive(
-                    packet
-                )
-
-
-                request = camera_observer.observe(
-                    packet
-                )
-
-
-                allocation = camera_compute.allocate(
-                    request
-                )
+                
 
 
 
