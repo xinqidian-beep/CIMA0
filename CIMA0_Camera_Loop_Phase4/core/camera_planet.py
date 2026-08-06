@@ -2,70 +2,45 @@ import numpy as np
 
 
 class CameraPlanet:
-    """
-    External camera source.
-
-    Responsibility:
-
-        hardware frame acquisition
-
-    Output:
-
-        byte stream package
-
-    No:
-
-        sampling
-        compression
-        observation
-        computation
-    """
 
 
     def __init__(self):
 
-        self.shape = None
-        self.dtype = None
+        self.previous_state = None
+        self.current_state = None
 
 
 
-    def step_planet(self, frame):
+    def step(
+        self,
+        frame
+    ):
 
         if frame is None:
-            return None
+            return
 
 
-        array = np.asarray(
-            frame
-        )
+
+        self.previous_state = self.current_state
 
 
-        self.shape = array.shape
-        self.dtype = str(array.dtype)
+        self.current_state = {
 
-
-        return {
-
-            "frame":
-                frame,
+            "bytes":
+                frame.tobytes(),
 
             "shape":
-                array.shape,
+                frame.shape,
 
             "dtype":
-                self.dtype
+                str(frame.dtype)
+
         }
 
 
 
-    def snapshot(self):
+    def state(
+        self
+    ):
 
-        return {
-
-            "shape":
-                self.shape,
-
-            "dtype":
-                self.dtype
-
-        }
+        return self.current_state

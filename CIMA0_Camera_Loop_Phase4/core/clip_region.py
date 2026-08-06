@@ -149,9 +149,6 @@ class ClipRegion:
                     self.local_state
                 )
             )
-
-
-
     def project(
         self,
         data
@@ -162,9 +159,9 @@ class ClipRegion:
         local matrix
 
 
-        No semantic conversion.
+        No camera assumption.
 
-        Only structural reconstruction.
+        Only structural projection.
         """
 
 
@@ -173,10 +170,7 @@ class ClipRegion:
 
 
 
-        if isinstance(
-            data,
-            bytes
-        ):
+        if isinstance(data, bytes):
 
             arr = np.frombuffer(
                 data,
@@ -184,10 +178,7 @@ class ClipRegion:
             )
 
 
-        elif isinstance(
-            data,
-            np.ndarray
-        ):
+        elif isinstance(data, np.ndarray):
 
             arr = np.asarray(
                 data,
@@ -202,97 +193,57 @@ class ClipRegion:
 
 
         if arr.size == 0:
-            return None
-
-
-
-        size = (
-            int(self.width) *
-            int(self.height) *
-            int(self.channels)
-        )
-
-
-
-        # original camera structure
-        
-        pixel_count = arr.size // self.channels
-
-
-        side = int(
-            np.sqrt(pixel_count)
-        )
-        
-        if pixel_count * self.channels == arr.size:
-            src = arr.reshape(
-                -1,
-                self.channels
-            )
-        
-        else:
 
             return None
-
-
-        # infer original frame
-        
-        if src.shape[0] >= self.width * self.height:
-            
-            src_h = int(
-                src.shape[0] / 640
-            )
-            
-            src_w = 640
-            
-            src = src[:src_h * src_w]
-            
-            src = src.reshape(
-                src_h,
-                src_w,
-                self.channels
-            )
-
-    
-
-
-        else:
-
-            return None
-        ys = np.linspace(
-            0,
-            src.shape[0]-1,
-            self.height
-        ).astype(np.int32)
-
-
-
-
-    
-
-
-        xs = np.linspace(
-            0,
-            src.shape[1]-1,
-            self.width
-        ).astype(np.int32)
-
-
-        field = src[
-            np.ix_(
-                ys,
-                xs
-            )
-        ]
-        
-        
-
-
 
 
 
         #
-        # keep numerical range
+        # local target size
         #
+
+        target_size = (
+            self.width *
+            self.height *
+            self.channels
+        )
+
+
+
+        #
+        # enough bytes
+        #
+
+        if arr.size < target_size:
+
+            arr = np.pad(
+                arr,
+                (
+                    0,
+                    target_size-arr.size
+                )
+            )
+
+
+        #
+        # too much input
+        #
+        # local module decides
+        #
+
+        else:
+
+            arr = arr[:target_size]
+
+
+
+        field = arr.reshape(
+            self.height,
+            self.width,
+            self.channels
+        )
+
+
 
         field = (
             field.astype(
@@ -303,8 +254,8 @@ class ClipRegion:
         )
 
 
+        return field        
 
-        return field
 
 
 

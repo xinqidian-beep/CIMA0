@@ -181,3 +181,26 @@ state = observer.sample(frame)                  # 接收结果，不干预过程
 ## 7. 修订记录
 
 - v1.0（本版）：首次整理"模块自治"操作范式，覆盖权限表、逐模块决策逻辑、举手竞争通用范式、反模式清单、待校准参数表、标准工作流。与《CIMA0_设计约束与框架_v1.0.md》配套使用，原则冲突时以约束文件为准，操作细节冲突时以本手册为准。
+时间自治原则（Time Autonomy Principle）
+
+四大核心模块各自拥有自己的时间序列，不共享外部主循环时间。
+
+compute.py
+    |
+    | own time
+    v
+
+io.py
+    |
+    | own time
+    v
+
+observer.py
+    |
+    | own time
+    v
+
+planet.py
+    |
+    | own time
+    v
