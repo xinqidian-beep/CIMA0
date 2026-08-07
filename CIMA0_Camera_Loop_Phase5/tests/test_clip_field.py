@@ -1,42 +1,39 @@
-
-import sys
 import os
+import sys
+import numpy as np
 
-sys.path.append(
+
+# project root
+ROOT = os.path.dirname(
     os.path.dirname(
-        os.path.dirname(
-            os.path.abspath(__file__)
-        )
+        os.path.abspath(__file__)
     )
 )
-import cv2
-import time
+
+sys.path.insert(
+    0,
+    ROOT
+)
 
 
 from core.clip_field import CLIPField
 
 
 
-CLIP_WEIGHT = (
-    r"C:\CIMA0\models"
-    r"\open_clip_pytorch_model.bin"
-)
+CLIP_WEIGHT = r"C:\CIMA0\models\open_clip_pytorch_model.bin"
 
 
 
 def main():
 
-
     print("=" * 60)
     print("CIMA0 Phase5 CLIPField Test")
-    print("")
-    print("ESC : exit")
     print("=" * 60)
 
 
 
     #
-    # CLIP visual cloud
+    # create field
     #
 
     clip_field = CLIPField(
@@ -45,130 +42,164 @@ def main():
     )
 
 
+    print("CLIPField loaded")
+
+
 
     #
-    # camera
+    # synthetic byte input
+    #
+    # simulate camera packet
     #
 
-    camera = cv2.VideoCapture(0)
+    frame = np.zeros(
+        (480, 640, 3),
+        dtype=np.uint8
+    )
+
+
+    # add simple structure
+    frame[100:300, 200:400, 0] = 255
+    frame[200:350, 300:500, 1] = 128
 
 
 
-    if not camera.isOpened():
+    packet = {
+
+        "bytes":
+            frame.tobytes(),
+
+        "shape":
+            frame.shape,
+
+        "dtype":
+            str(frame.dtype)
+
+    }
+
+
+
+    #
+    # send
+    #
+
+    clip_field.receive(
+        packet
+    )
+
+
+    #
+    # compute
+    #
+
+    clip_field.step()
+
+
+
+    #
+    # inspect
+    #
+
+    snapshot = clip_field.snapshot()
+
+
+    print("-" * 60)
+
+    print(
+        "age:",
+        snapshot["age"]
+    )
+
+
+    print(
+        "output_shape:",
+        snapshot["output_shape"]
+    )
+
+
+    print(
+        "layers:"
+    )
+
+
+    for name, shape in snapshot["layers"].items():
 
         print(
-            "Camera open failed"
-        )
-
-        return
-
-
-
-    counter = 0
-
-
-
-    while True:
-
-
-        ok, frame = camera.read()
-
-
-        if not ok:
-
-            continue
-
-
-
-        #
-        # same byte boundary
-        # as CameraPlanet
-        #
-
-        packet = {
-
-            "bytes":
-                frame.tobytes(),
-
-            "shape":
-                frame.shape,
-
-            "dtype":
-                str(frame.dtype)
-
-        }
-
-
-
-        #
-        # external collision
-        #
-
-        clip_field.receive(
-            packet
+            " ",
+            name,
+            shape
         )
 
 
 
-        #
-        # CLIP cloud evolution
-        #
-
-        clip_field.step()
+    print("-" * 60)
 
 
 
-        counter += 1
+    if clip_field.output is not None:
+
+        print(
+            "output dtype:",
+            clip_field.output.dtype
+        )
+
+        print(
+            "output min:",
+            clip_field.output.min()
+        )
+
+        print(
+            "output max:",
+            clip_field.output.max()
+        )
+
+        print(
+            "output sample:",
+            clip_field.output[0][:10]
+        )
 
 
+    else:
 
-        #
-        # low frequency snapshot
-        #
-
-        if counter % 30 == 0:
-
-
-            state = clip_field.snapshot()
-
-
-
-            print()
-            print(
-                "time:",
-                counter
-            )
-
-
-            print(
-                state
-            )
-
-
-
-        #
-        # display original camera
-        #
-
-        cv2.imshow(
-            "Phase5 Camera Input",
-            frame
+        print(
+            "NO OUTPUT"
         )
 
 
 
-        key = cv2.waitKey(1) & 0xff
+    print("=" * 60)
+    
+    print(
+        "snapshot:",
+        clip_field.snapshot()
+    )
 
 
-        if key == 27:
+    if clip_field.output is not None:
 
-            break
+        print(
+            "output shape:",
+            clip_field.output.shape
+        )
 
+        print(
+            "output dtype:",
+            clip_field.output.dtype
+        )
 
+        print(
+            "output first 10:",
+            clip_field.output[0][:10]
+        )
 
-    camera.release()
+    else:
 
-    cv2.destroyAllWindows()
+        print(
+            "output is None"
+        )
+    
+    
+    print("CLIPField test finished")
 
 
 

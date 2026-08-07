@@ -1,14 +1,13 @@
 import numpy as np
 import torch
 import open_clip
-
+from PIL import Image
 
 class CLIPField:
     """
-    CLIP visual multi-layer field.
+    CLIP visual field.
 
     Input:
-
         byte field
         {
             bytes,
@@ -16,27 +15,22 @@ class CLIPField:
             dtype
         }
 
-
     Output:
-
         visual internal layers
-
+        final 512 dimension visual state
 
     Own:
-
         model
         layer states
         age
 
-
     Does NOT:
-
         classify
         understand image
         generate text
         control modules
-
     """
+
 
     def __init__(
         self,
@@ -48,16 +42,58 @@ class CLIPField:
 
 
         #
-        # load CLIP
+        # create empty CLIP model
         #
 
         model, _, preprocess = open_clip.create_model_and_transforms(
             "ViT-B-32",
-            pretrained=weight_path
+            pretrained=None
+        )
+
+
+        #
+        # load local checkpoint
+        #
+
+        checkpoint = torch.load(
+            weight_path,
+            map_location="cpu"
+        )
+
+
+        state_dict = checkpoint["state_dict"]
+
+
+        clean = {}
+
+        for k, v in state_dict.items():
+
+            if k.startswith("module."):
+                k = k[7:]
+
+            clean[k] = v
+
+
+        visual_state = {}
+
+        for k, v in state_dict.items():
+
+            if k.startswith("module.visual."):
+                k = k.replace(
+                    "module.visual.",
+                    ""
+                )
+
+                visual_state[k] = v
+
+
+        model.visual.load_state_dict(
+            visual_state
         )
 
 
         self.model = model.visual
+
 
         self.model.eval()
 
@@ -65,11 +101,14 @@ class CLIPField:
         self.preprocess = preprocess
 
 
+
         #
-        # local cloud state
+        # local state
         #
 
         self.layers = {}
+
+        self.output = None
 
         self.input_state = None
 
@@ -153,10 +192,15 @@ class CLIPField:
         #
         # BGR -> RGB
         #
+        
 
-        img = img[:,:,::-1]
+        img = img[:, :, ::-1]
 
 
+        img = Image.fromarray(
+            img
+        )
+        
         tensor = self.preprocess(
             img
         )
@@ -181,6 +225,7 @@ class CLIPField:
         result = {}
 
 
+
         #
         # patch embedding
         #
@@ -190,9 +235,7 @@ class CLIPField:
         )
 
 
-        result[
-            "patch_embedding"
-        ] = (
+        result["patch_embedding"] = (
             x.detach()
             .cpu()
             .numpy()
@@ -201,7 +244,7 @@ class CLIPField:
 
 
         #
-        # token reshape
+        # flatten patches
         #
 
         x = x.reshape(
@@ -218,8 +261,61 @@ class CLIPField:
         )
 
 
+
         #
-        # transformer layers
+        # add CLS token
+        #
+
+        cls = visual.class_embedding
+
+
+        cls = cls.to(
+            x.dtype
+        )
+
+
+        cls = cls + torch.zeros(
+            x.shape[0],
+            1,
+            x.shape[-1],
+            device=x.device,
+            dtype=x.dtype
+        )
+
+
+        x = torch.cat(
+            [
+                cls,
+                x
+            ],
+            dim=1
+        )
+
+
+
+        #
+        # positional embedding
+        #
+
+        x = x + visual.positional_embedding
+
+
+
+        x = visual.ln_pre(
+            x
+        )
+
+
+        x = x.permute(
+            1,
+            0,
+            2
+        )
+
+
+
+        #
+        # transformer
         #
 
         for index, block in enumerate(
@@ -235,11 +331,44 @@ class CLIPField:
             result[
                 f"block_{index}"
             ] = (
-                x.detach()
+                x.permute(1,0,2)
+                .detach()
                 .cpu()
                 .numpy()
             )
 
+
+
+        #
+        # final visual state
+        #
+
+        x = x.permute(
+            1,
+            0,
+            2
+        )
+
+
+        x = visual.ln_post(
+            x[:,0,:]
+        )
+
+
+        if visual.proj is not None:
+
+            x = x @ visual.proj
+
+
+
+        self.output = (
+            x.detach()
+            .cpu()
+            .numpy()
+        )
+
+
+        result["output"] = self.output
 
 
         return result
@@ -256,13 +385,19 @@ class CLIPField:
                 self.age,
 
 
+            "output_shape":
+                None
+                if self.output is None
+                else list(self.output.shape),
+
+
             "layers":
             {
 
                 name:
                     list(value.shape)
 
-                for name,value
+                for name, value
                 in self.layers.items()
 
             }
