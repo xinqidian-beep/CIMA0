@@ -18,7 +18,8 @@ class InternalDynamicsObserver:
 
     Own state only:
 
-        previous
+        observe_previous
+        read_previous
         cache
         age
 
@@ -30,12 +31,15 @@ class InternalDynamicsObserver:
         understand clip
         allocate resource
         control modules
+
     """
 
 
     def __init__(self):
 
-        self.previous = {}
+        self.observe_previous = {}
+
+        self.read_previous = {}
 
         self.cache = {}
 
@@ -47,12 +51,16 @@ class InternalDynamicsObserver:
     # request estimation
     # ---------------------------------------------------------
 
-    def observe(self, snapshot):
+    def observe(
+        self,
+        snapshot
+    ):
 
         requests = {}
-        
+
         if snapshot is None:
             return requests
+
 
         for key, value in snapshot.items():
 
@@ -61,20 +69,27 @@ class InternalDynamicsObserver:
                 value
             )
 
+
         return requests
 
 
 
-    def _activity(self, path, value):
-        
+    def _activity(
+        self,
+        path,
+        value
+    ):
+
         if value is None:
             return 0.0
+
 
         if isinstance(value, dict):
 
             total = 0.0
 
             count = 0
+
 
             for k, v in value.items():
 
@@ -85,12 +100,14 @@ class InternalDynamicsObserver:
 
                 count += 1
 
+
             if count:
 
                 return min(
                     1.0,
                     total / count
                 )
+
 
             return 0.0
 
@@ -103,7 +120,7 @@ class InternalDynamicsObserver:
             )
 
 
-            old = self.previous.get(
+            old = self.observe_previous.get(
                 path
             )
 
@@ -123,7 +140,7 @@ class InternalDynamicsObserver:
                 )
 
 
-            self.previous[path] = flat.copy()
+            self.observe_previous[path] = flat.copy()
 
 
             return min(
@@ -135,7 +152,7 @@ class InternalDynamicsObserver:
 
         if isinstance(value, (int, float)):
 
-            old = self.previous.get(
+            old = self.observe_previous.get(
                 path,
                 value
             )
@@ -147,14 +164,13 @@ class InternalDynamicsObserver:
             )
 
 
-            self.previous[path] = value
+            self.observe_previous[path] = value
 
 
             return min(
                 1.0,
                 delta
             )
-
 
 
         return 0.0
@@ -172,6 +188,7 @@ class InternalDynamicsObserver:
     ):
 
         result = {}
+
 
         for key, value in snapshot.items():
 
@@ -237,11 +254,9 @@ class InternalDynamicsObserver:
             )
 
 
-
         if isinstance(value, (int, float)):
 
             return value
-
 
 
         return value
@@ -268,12 +283,7 @@ class InternalDynamicsObserver:
 
 
 
-        #
-        # initialize cache
-        #
-
         if path not in self.cache:
-
 
             self.cache[path] = flat.copy()
 
@@ -283,17 +293,16 @@ class InternalDynamicsObserver:
             )
 
 
+            self.read_previous[path] = flat.copy()
+
+
             return self.cache[path].reshape(
                 array.shape
             )
 
 
 
-        #
-        # previous comparison
-        #
-
-        old = self.previous.get(
+        old = self.read_previous.get(
             path
         )
 
@@ -313,21 +322,13 @@ class InternalDynamicsObserver:
 
 
 
-        self.previous[path] = flat.copy()
+        self.read_previous[path] = flat.copy()
 
 
-
-        #
-        # aging
-        #
 
         self.age[path] += 1
 
 
-
-        #
-        # competition score
-        #
 
         score = (
             delta +
@@ -337,10 +338,6 @@ class InternalDynamicsObserver:
         )
 
 
-
-        #
-        # compute budget decides precision count
-        #
 
         count = int(
             budget
@@ -357,10 +354,6 @@ class InternalDynamicsObserver:
 
 
 
-        #
-        # focus selection
-        #
-
         if count >= size:
 
             index = np.arange(
@@ -376,19 +369,11 @@ class InternalDynamicsObserver:
 
 
 
-        #
-        # local precision update
-        #
-
         self.cache[path][index] = flat[index]
 
         self.age[path][index] = 0
 
 
-
-        #
-        # return same shape
-        #
 
         return self.cache[path].reshape(
             array.shape

@@ -36,6 +36,7 @@ class CLIPField:
     ):
 
         self.device = device
+        self.visual_field = None
 
 
         #
@@ -103,6 +104,9 @@ class CLIPField:
         self.layers = {}
 
         self.age = 0
+        
+        self.compute_interval = 30
+        self.compute_age = 0 
 
 
 
@@ -135,16 +139,20 @@ class CLIPField:
             return
 
 
-        image = self._decode(
-            self.input_state
-        )
+        self.compute_age += 1
 
 
-        if image is None:
+        if self.compute_age < self.compute_interval:
 
             return
-
-
+            
+        self.compute_age = 0    
+        image = self._decode(
+            self.input_state
+        ) 
+        if image is None:
+            return
+             
         with torch.no_grad():
 
             self._capture(
@@ -219,8 +227,69 @@ class CLIPField:
         self,
         image
     ):
+        """
+        CLIP visual capture.
+
+        Own:
+
+            visual field
+            embedding output
+
+        Output:
+
+            field:
+                internal spatial visual feature
+
+            output:
+                final CLIP visual vector
+        """ 
+        visual = self.model   
+        #
+        # patch embedding field
+        #
+        # image:
+        #   (1,3,224,224)
+        #
+        # conv1:
+        #   (1,768,7,7)
+        #
+        patch = visual.conv1(
+            image
+        )
+        self.visual_field = (
+            patch.detach()
+            .cpu()
+            .numpy()
+        )    
+        #
+        # normal CLIP visual output
+        #
+        output = self.model(
+            image
+        )
+        self.output = (
+            output.detach()
+            .cpu()
+            .numpy()
+        )
+             
+        #
+        # output ports
+        #
+        self.layers = {
+
+            "field":
+                self.visual_field,
 
 
+            "output":
+                self.output
+
+        }
+        
+        
+   
+        
         output = self.model(
             image
         )
