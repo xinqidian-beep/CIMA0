@@ -222,95 +222,62 @@ class CLIPField:
     #
     # internal CLIP
     #
-
+    
+    
+    
+    
+    
+        
+        
+        
+            
     def _capture(
         self,
         image
     ):
-        """
-        CLIP visual capture.
 
-        Own:
+        with torch.no_grad():
 
-            visual field
-            embedding output
 
-        Output:
+            x = self.model.conv1(
+                image
+            )
 
-            field:
-                internal spatial visual feature
 
-            output:
-                final CLIP visual vector
-        """ 
-        visual = self.model   
-        #
-        # patch embedding field
-        #
-        # image:
-        #   (1,3,224,224)
-        #
-        # conv1:
-        #   (1,768,7,7)
-        #
-        patch = visual.conv1(
-            image
-        )
-        self.visual_field = (
-            patch.detach()
-            .cpu()
-            .numpy()
-        )    
-        #
-        # normal CLIP visual output
-        #
-        output = self.model(
-            image
-        )
-        self.output = (
-            output.detach()
-            .cpu()
-            .numpy()
-        )
-             
-        #
-        # output ports
-        #
+            self.visual_field = (
+                x[0]
+                .mean(dim=0)
+                .cpu()
+                .numpy()
+            )
+
+
+            output = self.model(
+                image
+            )
+
+
+            self.output = (
+                output
+                .detach()
+                .cpu()
+                .numpy()
+            )
+
+
         self.layers = {
 
-            "field":
+            "visual_field":
                 self.visual_field,
 
-
             "output":
                 self.output
 
         }
-        
-        
-   
-        
-        output = self.model(
-            image
-        )
-
-
-        self.output = (
-            output.detach()
-            .cpu()
-            .numpy()
-        )
-
-
-        self.layers = {
-
-            "output":
-                self.output
-
-        }
-
-
-
+            
+    
+    
+    
     #
     # output port
     #
@@ -320,6 +287,30 @@ class CLIPField:
     ):
 
         return self.output
+        
+        
+    def display_field(
+        self
+    ):
+        """
+        Temporary structural display output.
+
+        Not semantic.
+        Only reshape local vector.
+        """
+
+        if self.output is None:
+
+            return None
+
+
+        x = self.output[0]
+
+
+        return x.reshape(
+            16,
+            32
+        )
 
 
 
@@ -337,25 +328,10 @@ class CLIPField:
                 self.age,
 
 
-            "output_shape":
+            "field":
 
-                list(
-                    self.output.shape
-                )
-                if self.output is not None
-                else None,
-
-
-            "layers":
-
-            {
-
-                name:
-                    list(value.shape)
-
-                for name,value
-                in self.layers.items()
-
-            }
+                self.visual_field,
+            "output":
+                self.output
 
         }

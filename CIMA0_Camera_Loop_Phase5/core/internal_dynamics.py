@@ -119,9 +119,15 @@ class InternalDynamics:
 
         if organ is None:
             return None
+            
+        if hasattr(
+            organ,
+            "read"
+        ):    
+            return organ.read()
 
 
-        data = organ.snapshot()
+        
 
 
-        return data
+        return None

@@ -23,7 +23,10 @@ class LocalClock:
     Independent module clock.
     """
 
-    def __init__(self, interval):
+    def __init__(
+        self,
+        interval
+    ):
 
         self.interval = interval
         self.last = time.perf_counter()
@@ -37,6 +40,7 @@ class LocalClock:
         if now - self.last >= self.interval:
 
             self.last = now
+
             return True
 
         return False
@@ -45,6 +49,7 @@ class LocalClock:
 
 
 def main():
+
 
     print("=" * 60)
     print("CIMA0 Phase5 Internal Clock Loop")
@@ -63,6 +68,7 @@ def main():
 
 
     planet = Planet()
+
 
 
     clip = CLIPField(
@@ -86,10 +92,11 @@ def main():
 
 
     #
-    # camera
+    # camera input
     #
 
     camera = cv2.VideoCapture(0)
+
 
 
     camera_planet = CameraPlanet()
@@ -141,18 +148,12 @@ def main():
 
 
     display_clock = LocalClock(
-        1 / 30
+        1 / 10
     )
 
 
 
-    #
-    # observer cache
-    #
-
     latest_snapshot = None
-
-    latest_sample = None
 
 
 
@@ -169,7 +170,7 @@ def main():
 
 
         #
-        # camera input
+        # camera
         #
 
         if camera_clock.due():
@@ -189,7 +190,9 @@ def main():
                 raw = camera_planet.state()
 
 
+
                 if raw is not None:
+
 
                     #
                     # byte stream boundary
@@ -202,17 +205,18 @@ def main():
 
 
         #
-        # internal evolution
+        # internal organs
         #
 
         if internal_clock.due():
+
 
             internal.step()
 
 
 
         #
-        # observer sampling
+        # observer
         #
 
         if observer_clock.due():
@@ -232,7 +236,7 @@ def main():
             )
 
 
-            latest_sample = observer.read(
+            observer.read(
                 latest_snapshot,
                 allocation
             )
@@ -246,23 +250,29 @@ def main():
         if display_clock.due():
 
 
-            if latest_sample is not None:
+            clip_organ = internal.organs.get(
+                "clip"
+            )
 
 
-                field = latest_sample.get(
-                    "planet"
-                )
+
+            if clip_organ is not None:
+
+
+                field = clip_organ.display_field()
+
 
 
                 if field is not None:
 
 
                     print(
-                        "display:",
+                        "clip display:",
                         field.shape,
                         field.min(),
                         field.max()
                     )
+
 
 
                     frame_out = display.encode(
@@ -270,7 +280,9 @@ def main():
                     )
 
 
+
                     if frame_out is not None:
+
 
                         cv2.imshow(
                             "CIMA0",
@@ -280,13 +292,15 @@ def main():
 
 
         #
-        # exit
+        # keyboard
         #
 
         key = cv2.waitKey(1) & 0xff
 
 
+
         if key == 27:
+
 
             print(
                 "CIMA0 stopped"
