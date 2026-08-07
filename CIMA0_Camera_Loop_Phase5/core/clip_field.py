@@ -105,6 +105,8 @@ class CLIPField:
 
         self.age = 0
         
+        self.visual_field = None
+        
         self.compute_interval = 30
         self.compute_age = 0 
 
@@ -237,11 +239,18 @@ class CLIPField:
     ):
 
         with torch.no_grad():
+            #
+            # patch spatial feature
+            #
 
 
             x = self.model.conv1(
                 image
             )
+            #
+            # x:
+            #(1,768,7,7)
+            #
 
 
             self.visual_field = (
@@ -250,6 +259,9 @@ class CLIPField:
                 .cpu()
                 .numpy()
             )
+            #
+            # final CLIP vector
+            #
 
 
             output = self.model(
@@ -335,3 +347,50 @@ class CLIPField:
                 self.output
 
         }
+        
+        
+    def display_field(
+        self
+    ):
+        """
+        Spatial visual field.
+
+        For DisplayIO only.
+
+        Not semantic output.
+        """
+
+        if self.visual_field is None:
+
+            return None
+
+
+        return self.visual_field.copy()
+        
+        
+        
+        
+    def output(
+        self
+    ):
+        """
+        Export visual field
+        as byte stream.
+        """
+
+        if self.visual_field is None:
+            return None
+
+
+        return {
+            "bytes":
+                self.visual_field.astype(
+                    np.float32
+                ).tobytes(),
+
+            "shape":
+                self.visual_field.shape,
+
+            "dtype":
+                "float32"
+        }        
