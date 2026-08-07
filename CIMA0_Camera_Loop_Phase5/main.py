@@ -1,20 +1,18 @@
 import cv2
 import time
 
-
 from core.internal_dynamics import InternalDynamics
 from core.internal_dynamics_observer import InternalDynamicsObserver
 from core.compute_system import ComputeSystem
 from core.display_io import DisplayIO
 
-
 from core.camera_planet import CameraPlanet
 from core.camera_observer import CameraObserver
 from core.camera_compute import CameraComputeSystem
 
-
 from archive.planet import Planet
-from core.clip_region import ClipRegion
+from core.clip_field import CLIPField
+
 
 CLIP_WEIGHT = r"C:\CIMA0\models\open_clip_pytorch_model.bin"
 
@@ -46,13 +44,11 @@ class LocalClock:
 
 
 
-
 def main():
 
-
     print("=" * 60)
-    print("CIMA0 Phase4 Internal Clock Loop")
-    print("")
+    print("CIMA0 Phase5 Internal Clock Loop")
+    print()
     print("ESC : exit")
     print("=" * 60)
 
@@ -61,17 +57,17 @@ def main():
     #
     # internal world
     #
-    
+
     internal = InternalDynamics()
 
 
 
     planet = Planet()
-    
-    clip = ClipRegion(
-        64,
-        64,
-        3
+
+
+    clip = CLIPField(
+        weight_path=CLIP_WEIGHT,
+        device="cpu"
     )
 
 
@@ -89,10 +85,8 @@ def main():
 
 
 
-    
-
     #
-    # camera input
+    # camera
     #
 
     camera = cv2.VideoCapture(0)
@@ -107,7 +101,7 @@ def main():
 
 
     #
-    # observer + compute
+    # observer
     #
 
     observer = InternalDynamicsObserver()
@@ -128,7 +122,7 @@ def main():
 
 
     #
-    # module clocks
+    # clocks
     #
 
     camera_clock = LocalClock(
@@ -136,7 +130,7 @@ def main():
     )
 
 
-    planet_clock = LocalClock(
+    internal_clock = LocalClock(
         0.01
     )
 
@@ -147,16 +141,18 @@ def main():
 
 
     display_clock = LocalClock(
-        1 / 60
+        1 / 30
     )
 
 
 
     #
-    # readonly snapshot cache
+    # observer cache
     #
 
     latest_snapshot = None
+
+    latest_sample = None
 
 
 
@@ -173,7 +169,7 @@ def main():
 
 
         #
-        # camera own time
+        # camera input
         #
 
         if camera_clock.due():
@@ -183,60 +179,40 @@ def main():
 
 
             if ret:
-                #
-                # camera local module
-                #
+
+
                 camera_planet.step(
-                    
                     frame
-                    
                 )
 
 
-                camera_state = camera_planet.state()
-                
-                
-                if camera_state is not None:
-                    
+                raw = camera_planet.state()
+
+
+                if raw is not None:
+
                     #
-                    # external observation
+                    # byte stream boundary
                     #
-                    
-                    processed = camera_observer.observe(
-                    
-                        camera_state,
-                        camera_compute.step()
-                    )    
-                    
-                    #
-                    # byte interface boundary
-                    #
-                    
+
                     internal.receive(
-                        processed
+                        raw
                     )
-                    
-                
-                
-
-
-
-                
 
 
 
         #
-        # internal dynamics own time
+        # internal evolution
         #
 
-        if planet_clock.due():
+        if internal_clock.due():
 
             internal.step()
 
 
 
         #
-        # observer own time
+        # observer sampling
         #
 
         if observer_clock.due():
@@ -251,14 +227,12 @@ def main():
             )
 
 
-
             allocation = compute.allocate(
                 request
             )
 
 
-
-            observer.read(
+            latest_sample = observer.read(
                 latest_snapshot,
                 allocation
             )
@@ -266,39 +240,50 @@ def main():
 
 
         #
-        # display own time
+        # display
         #
 
         if display_clock.due():
-            
-            snapshot = internal.snapshot()
 
 
-            if snapshot is not None:
+            if latest_sample is not None:
 
 
-                frame_out = display.encode(
-                    snapshot.get("clip")
+                field = latest_sample.get(
+                    "planet"
                 )
 
 
+                if field is not None:
 
-                if frame_out is not None:
 
-
-                    cv2.imshow(
-                        "CIMA0",
-                        frame_out
+                    print(
+                        "display:",
+                        field.shape,
+                        field.min(),
+                        field.max()
                     )
 
 
+                    frame_out = display.encode(
+                        field
+                    )
+
+
+                    if frame_out is not None:
+
+                        cv2.imshow(
+                            "CIMA0",
+                            frame_out
+                        )
+
+
 
         #
-        # keyboard
+        # exit
         #
 
         key = cv2.waitKey(1) & 0xff
-
 
 
         if key == 27:
@@ -314,7 +299,6 @@ def main():
     camera.release()
 
     cv2.destroyAllWindows()
-
 
 
 
