@@ -7,17 +7,22 @@ from core.internal_dynamics_observer import InternalDynamicsObserver
 from core.compute_system import ComputeSystem
 from core.display_io import DisplayIO
 
+
 from core.camera_planet import CameraPlanet
+
+from archive.planet import Planet
+
 from core.clip_field import CLIPField
 
 
-CLIP_WEIGHT = (
-    r"C:\CIMA0\models\open_clip_pytorch_model.bin"
-)
+CLIP_WEIGHT = r"C:\CIMA0\models\open_clip_pytorch_model.bin"
 
 
 
 class LocalClock:
+    """
+    Independent module clock.
+    """
 
     def __init__(
         self,
@@ -25,13 +30,17 @@ class LocalClock:
     ):
 
         self.interval = interval
+
         self.last = time.perf_counter()
 
 
 
-    def due(self):
+    def due(
+        self
+    ):
 
         now = time.perf_counter()
+
 
         if now - self.last >= self.interval:
 
@@ -39,7 +48,9 @@ class LocalClock:
 
             return True
 
+
         return False
+
 
 
 
@@ -47,29 +58,29 @@ class LocalClock:
 def main():
 
 
-    print("="*60)
-
-    print(
-        "CIMA0 Phase5.1 Camera Loop"
-    )
-
-    print(
-        "ESC : exit"
-    )
-
-    print("="*60)
+    print("=" * 60)
+    print("CIMA0 Phase5 Internal Clock Loop")
+    print("ESC : exit")
+    print("=" * 60)
 
 
 
     #
-    # internal system
+    # internal world
     #
 
     internal = InternalDynamics()
 
 
 
-    clip = CLIPField(
+    #
+    # organs
+    #
+
+    planet = Planet()
+
+
+    visual = CLIPField(
         weight_path=CLIP_WEIGHT,
         device="cpu"
     )
@@ -77,14 +88,20 @@ def main():
 
 
     internal.register(
-        "clip",
-        clip
+        "planet",
+        planet
+    )
+
+
+    internal.register(
+        "visual",
+        visual
     )
 
 
 
     #
-    # camera boundary
+    # external input
     #
 
     camera = cv2.VideoCapture(0)
@@ -107,6 +124,10 @@ def main():
 
 
 
+    #
+    # display
+    #
+
     display = DisplayIO()
 
 
@@ -116,7 +137,7 @@ def main():
     #
 
     camera_clock = LocalClock(
-        1/30
+        1 / 30
     )
 
 
@@ -131,8 +152,12 @@ def main():
 
 
     display_clock = LocalClock(
-        0.1
+        1 / 10
     )
+
+
+
+    latest_snapshot = None
 
 
 
@@ -151,7 +176,7 @@ def main():
 
 
         #
-        # Camera
+        # Camera -> IO boundary
         #
 
         if camera_clock.due():
@@ -168,46 +193,68 @@ def main():
                 )
 
 
-                raw = camera_planet.state()
+                packet = camera_planet.state()
 
 
-                if raw is not None:
+
+                if packet is not None:
 
 
                     #
-                    # byte broadcast
+                    # broadcast only
                     #
 
                     internal.receive(
-                        raw
+                        packet
                     )
 
 
 
 
         #
-        # Internal evolution
+        # internal evolution
         #
 
         if internal_clock.due():
+            
+            
+            
+            request = {
+
+                "internal": 1.0
+
+            }
 
 
-            internal.step()
+            allocation = compute.allocate(
+                request
+            )
+
+
+            if allocation.get(
+                "internal",
+                0
+            ) > 0:    
+
+
+                internal.step()
+
 
 
 
         #
-        # Observer
+        # observer
         #
 
         if observer_clock.due():
 
 
-            snapshot = internal.snapshot()
+            latest_snapshot = internal.snapshot()
+
 
 
             request = observer.observe(
-                snapshot
+                latest_snapshot
             )
 
 
@@ -217,7 +264,7 @@ def main():
 
 
             observer.read(
-                snapshot,
+                latest_snapshot,
                 allocation
             )
 
@@ -225,37 +272,36 @@ def main():
 
 
         #
-        # Display only
+        # display
         #
 
         if display_clock.due():
 
 
-            clip = internal.organs.get(
-                "clip"
+            visual_organ = internal.organs.get(
+                "visual"
             )
 
 
-            if clip is not None:
+            if visual_organ is not None:
 
 
-                field = clip.display_field()
+                #
+                # only temporary display source
+                #
+                # not semantic
+                #
+
+                data = visual_organ.field
 
 
-                if field is not None:
+
+                frame_out = display.encode(
+                    data
+                )
 
 
-                    print(
-                        "field:",
-                        field.shape,
-                        field.min(),
-                        field.max()
-                    )
-
-
-                    frame_out = display.encode(
-                        field
-                    )
+                if frame_out is not None:
 
 
                     cv2.imshow(
@@ -266,18 +312,29 @@ def main():
 
 
 
+        #
+        # keyboard
+        #
+
         key = cv2.waitKey(1) & 0xff
 
 
         if key == 27:
 
+            print(
+                "CIMA0 stopped"
+            )
+
             break
+
 
 
 
     camera.release()
 
     cv2.destroyAllWindows()
+
+
 
 
 
