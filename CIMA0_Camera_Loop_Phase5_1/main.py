@@ -278,12 +278,12 @@ def main():
         if display_clock.due():
 
 
-            visual_organ = internal.organs.get(
+            packet = internal.output(
                 "visual"
             )
 
 
-            if visual_organ is not None:
+            if packet is not None:
 
 
                 #
@@ -292,13 +292,13 @@ def main():
                 # not semantic
                 #
 
-                data = visual_organ.field
+                packet = visual_organ.read()
 
+                if packet is not None:
 
-
-                frame_out = display.encode(
-                    data
-                )
+                    frame_out = display.encode(
+                        packet
+                    )
 
 
                 if frame_out is not None:
