@@ -5,18 +5,32 @@ class DisplayIO:
     """
     Pure display port.
 
+
     Input:
-        existing field
+
+        byte packet
+
+        {
+            bytes,
+            shape,
+            dtype
+        }
+
 
     Output:
-        RGB byte stream
+
+        RGB uint8 frame
+
 
     No:
-        interpretation
-        normalization
-        semantic mapping
+
+        semantic interpretation
+        model knowledge
+        feature meaning
         control
+
     """
+
 
 
     def __init__(
@@ -32,41 +46,33 @@ class DisplayIO:
 
     def encode(
         self,
-        field
+        packet
     ):
 
-        if field is None:
+
+        if packet is None:
+
             return None
 
 
-        arr = np.asarray(
-            field,
-            dtype=np.float32
+
+        array = self._decode(
+            packet
         )
 
 
-        if arr.size == 0:
+        if array is None:
+
             return None
 
 
 
-        if arr.ndim == 2:
+        rgb = self._to_rgb(
+            array
+        )
 
 
-            rgb = np.repeat(
-                arr[:,:,None],
-                3,
-                axis=2
-            )
-
-
-        elif arr.ndim == 3:
-
-
-            rgb = arr
-
-
-        else:
+        if rgb is None:
 
             return None
 
@@ -77,20 +83,138 @@ class DisplayIO:
         )
 
 
-        return np.clip(
-            (rgb + 1.0) * 127.5,
-            0,
-            255
-        ).astype(
-            np.uint8
+
+        return self._to_uint8(
+            rgb
         )
 
 
+
+
+    #
+    # byte -> array
+    #
+
+    def _decode(
+        self,
+        packet
+    ):
+
+
+        try:
+
+            raw = np.frombuffer(
+                packet["bytes"],
+                dtype=np.dtype(
+                    packet["dtype"]
+                )
+            )
+
+
+            array = raw.reshape(
+                packet["shape"]
+            )
+
+
+            return array.astype(
+                np.float32
+            )
+
+
+        except Exception as e:
+
+            print(
+                "display decode error:",
+                e
+            )
+
+            return None
+
+
+
+
+
+    #
+    # dimension adapter only
+    #
+
+    def _to_rgb(
+        self,
+        array
+    ):
+
+
+        if array.ndim == 2:
+
+
+            return np.repeat(
+                array[:, :, None],
+                3,
+                axis=2
+            )
+
+
+
+        if array.ndim == 3:
+
+
+            #
+            # already image-like
+            #
+
+            if array.shape[2] == 3:
+
+                return array
+
+
+
+            #
+            # arbitrary feature channels
+            #
+            # take first 3 channels only
+            # no semantic meaning
+            #
+
+            if array.shape[2] > 3:
+
+                return array[:, :, :3]
+
+
+
+        if array.ndim == 1:
+
+
+            #
+            # vector state
+            #
+            # reshape as line field
+            #
+
+            return array.reshape(
+                1,
+                -1,
+                1
+            ).repeat(
+                3,
+                axis=2
+            )
+
+
+        return None
+
+
+
+
+
+    #
+    # resize
+    #
 
     def _resize(
         self,
         img
     ):
+
 
         h,w,c = img.shape
 
@@ -120,3 +244,44 @@ class DisplayIO:
                 np.arange(c)
             )
         ]
+
+
+
+
+
+    #
+    # numeric -> framebuffer
+    #
+
+    def _to_uint8(
+        self,
+        img
+    ):
+
+
+        minimum = img.min()
+
+        maximum = img.max()
+
+
+        if maximum > minimum:
+
+            img = (
+                img - minimum
+            ) / (
+                maximum - minimum
+            )
+
+        else:
+
+            img = np.zeros_like(
+                img
+            )
+
+
+
+        return (
+            img * 255.0
+        ).astype(
+            np.uint8
+        )

@@ -1,18 +1,4 @@
 class ComputeSystem:
-    """
-    Autonomous resource allocator.
-
-    Only knows:
-
-        capacity
-        requests
-
-    Does NOT know:
-
-        planet
-        clip
-        meaning
-    """
 
 
     def __init__(
@@ -24,24 +10,13 @@ class ComputeSystem:
 
 
 
-    def self_check(
-        self
-    ):
-
-        return {
-            "capacity":
-                self.capacity
-        }
-
-
-
     def allocate(
         self,
         requests
     ):
 
-        total = sum(
-            requests.values()
+        total = self._sum_activity(
+            requests
         )
 
 
@@ -50,16 +25,89 @@ class ComputeSystem:
             return {}
 
 
-        result = {}
+
+        return self._allocate_tree(
+            requests,
+            self.capacity,
+            total
+        )
 
 
-        for key,value in requests.items():
 
-            result[key] = (
-                self.capacity *
-                value /
+    def _sum_activity(
+        self,
+        value
+    ):
+
+        if isinstance(
+            value,
+            dict
+        ):
+
+            total = 0.0
+
+            for v in value.values():
+
+                total += self._sum_activity(
+                    v
+                )
+
+            return total
+
+
+
+        if isinstance(
+            value,
+            (int,float)
+        ):
+
+            return float(value)
+
+
+
+        return 0.0
+
+
+
+    def _allocate_tree(
+        self,
+        node,
+        capacity,
+        total
+    ):
+
+        if isinstance(
+            node,
+            dict
+        ):
+
+            result = {}
+
+
+            for key, value in node.items():
+
+                result[key] = self._allocate_tree(
+                    value,
+                    capacity,
+                    total
+                )
+
+
+            return result
+
+
+
+        if isinstance(
+            node,
+            (int,float)
+        ):
+
+            return (
+                capacity *
+                float(node) /
                 total
             )
 
 
-        return result
+
+        return 0.0
