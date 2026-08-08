@@ -86,30 +86,18 @@ class InternalDynamicsObserver:
 
         if isinstance(value, dict):
 
-            total = 0.0
-
-            count = 0
+            result = {}
 
 
             for k, v in value.items():
 
-                total += self._activity(
+                result[k] = self._activity(
                     f"{path}.{k}",
                     v
                 )
+                           
 
-                count += 1
-
-
-            if count:
-
-                return min(
-                    1.0,
-                    total / count
-                )
-
-
-            return 0.0
+            return result
 
 
 
