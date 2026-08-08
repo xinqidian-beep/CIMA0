@@ -7,7 +7,7 @@ from PIL import Image
 
 class CLIPField:
     """
-    CLIP visual organ.
+    CIMA0 CLIP visual organ.
 
     INPUT:
 
@@ -20,21 +20,33 @@ class CLIPField:
 
     OUTPUT:
 
-        field
+        field:
             (7,7)
 
-        embedding
+        embedding:
             (1,512)
 
-        cloud
-            (600,768)
+        cloud:
+
+            {
+                layer0:
+                    (50,768)
+
+                ...
+
+                layer11:
+                    (50,768)
+            }
 
 
-    Internal:
+    No interpretation.
 
-        CLIP visual encoder
+    No semantic decision.
 
+    Only feature emission.
     """
+
+
 
     def __init__(
         self,
@@ -58,7 +70,7 @@ class CLIPField:
 
 
         #
-        # create empty model
+        # create model
         #
 
         model, _, preprocess = open_clip.create_model_and_transforms(
@@ -69,7 +81,7 @@ class CLIPField:
 
 
         #
-        # load local visual checkpoint
+        # load checkpoint
         #
 
         checkpoint = torch.load(
@@ -84,7 +96,7 @@ class CLIPField:
         visual_state = {}
 
 
-        for k, v in state_dict.items():
+        for k,v in state_dict.items():
 
             if k.startswith(
                 "module.visual."
@@ -99,8 +111,19 @@ class CLIPField:
 
 
 
-        model.visual.load_state_dict(
-            visual_state
+        missing, unexpected = (
+            model.visual.load_state_dict(
+                visual_state,
+                strict=False
+            )
+        )
+
+
+        print(
+            "visual missing:",
+            len(missing),
+            "unexpected:",
+            len(unexpected)
         )
 
 
@@ -120,7 +143,7 @@ class CLIPField:
 
 
         #
-        # input state
+        # input
         #
 
         self.input_state = None
@@ -128,13 +151,12 @@ class CLIPField:
 
 
         #
-        # internal transformer cache
+        # transformer cloud cache
         #
 
         self._layers = {}
 
         self.layer_handles = []
-
 
         self._register_layer_hooks()
 
@@ -152,9 +174,6 @@ class CLIPField:
 
 
 
-    #
-    # input port
-    #
 
     def receive(
         self,
@@ -165,9 +184,6 @@ class CLIPField:
 
 
 
-    #
-    # update
-    #
 
     def step(
         self
@@ -177,21 +193,17 @@ class CLIPField:
 
 
         if self.input_state is None:
-
             return
-
 
 
         self.compute_age += 1
 
 
         if self.compute_age < self.compute_interval:
-
             return
 
 
         self.compute_age = 0
-
 
 
         image = self._decode(
@@ -200,22 +212,15 @@ class CLIPField:
 
 
         if image is None:
-
             return
 
 
-
-        with torch.no_grad():
-
-            self._capture(
-                image
-            )
+        self._capture(
+            image
+        )
 
 
 
-    #
-    # bytes -> tensor
-    #
 
     def _decode(
         self,
@@ -250,7 +255,7 @@ class CLIPField:
         # BGR -> RGB
         #
 
-        img = img[:, :, ::-1]
+        img = img[:,:,::-1]
 
 
         img = Image.fromarray(
@@ -271,9 +276,6 @@ class CLIPField:
 
 
 
-    #
-    # transformer hooks
-    #
 
     def _register_layer_hooks(
         self
@@ -286,12 +288,11 @@ class CLIPField:
         )
 
 
-        for i, block in enumerate(blocks):
+        for i,block in enumerate(blocks):
 
             handle = block.register_forward_hook(
-                self._make_layer_hook(i)
+                self._make_hook(i)
             )
-
 
             self.layer_handles.append(
                 handle
@@ -299,11 +300,11 @@ class CLIPField:
 
 
 
-    def _make_layer_hook(
+
+    def _make_hook(
         self,
         index
     ):
-
 
         def hook(
             module,
@@ -325,9 +326,7 @@ class CLIPField:
 
 
 
-    #
-    # CLIP computation
-    #
+
 
     def _capture(
         self,
@@ -340,19 +339,14 @@ class CLIPField:
 
         with torch.no_grad():
 
-
             #
-            # spatial field
+            # conv patch field
             #
 
             x = self.model.conv1(
                 image
             )
 
-
-            #
-            # (1,768,7,7)
-            #
 
             self.field = (
                 x[0]
@@ -364,7 +358,7 @@ class CLIPField:
 
 
             #
-            # transformer + projection
+            # final embedding
             #
 
             output = self.model(
@@ -374,7 +368,6 @@ class CLIPField:
 
             self.embedding = (
                 output
-                .detach()
                 .cpu()
                 .numpy()
             )
@@ -382,86 +375,99 @@ class CLIPField:
 
 
         #
-        # transformer layers -> visual cloud
+        # preserve cloud hierarchy
         #
 
-        cloud = {}
+        self.cloud = {}
 
 
-        for layer_name, value in self._layers.items():
+        for k,v in self._layers.items():
 
-            #
-            # value:
-            #
-            # (1,50,768)
-            #
-
-            cloud[layer_name] = (
-                value[0]
+            self.cloud[k] = (
+                v[0]
                 .copy()
             )
 
 
-        self.cloud = cloud
 
-
-
-    #
-    # output port
-    #
 
     def read(
         self
     ):
 
         if self.cloud is None:
-
             return None
 
 
-        buffer = []
+        chunks = []
 
 
-        for layer_name in sorted(
+        for name in sorted(
             self.cloud.keys()
         ):
 
-            layer = self.cloud[layer_name]
-
-
-            buffer.append(
-                layer.astype(
-                    np.float32
-                ).tobytes()
+            chunks.append(
+                self.cloud[name]
+                .astype(np.float32)
+                .tobytes()
             )
 
 
-        return b"".join(
-            buffer
+        data = b"".join(
+            chunks
         )
 
 
+        return {
 
-    #
-    # DisplayIO interface
-    #
+            "bytes":
+                data,
+
+            "shape":
+                (
+                    12,
+                    50,
+                    768
+                ),
+
+            "dtype":
+                "float32"
+        }
+
+
+
 
     def display_field(
         self
     ):
 
         if self.field is None:
-
             return None
 
 
-        return self.field.copy()
+        field = self.field.copy()
+
+
+        field -= field.min()
+
+
+        m = field.max()
+
+
+        if m > 0:
+
+            field /= m
+
+
+        field = field * 2.0 - 1.0
+
+
+        return field.astype(
+            np.float32
+        )
 
 
 
-    #
-    # observer interface
-    #
 
     def snapshot(
         self
@@ -472,14 +478,11 @@ class CLIPField:
             "age":
                 self.age,
 
-
             "field":
                 self.field,
 
-
             "embedding":
                 self.embedding,
-
 
             "cloud":
                 self.cloud
