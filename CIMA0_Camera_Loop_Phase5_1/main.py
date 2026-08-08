@@ -292,13 +292,10 @@ def main():
                 # not semantic
                 #
 
-                packet = visual_organ.read()
-
-                if packet is not None:
-
-                    frame_out = display.encode(
-                        packet
-                    )
+                
+                frame_out = display.encode(
+                    packet
+                )
 
 
                 if frame_out is not None:
