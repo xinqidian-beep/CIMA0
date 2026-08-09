@@ -52,17 +52,24 @@ class DisplayIO:
         
     def encode(
         self,
-        data
+        packet
     ):
 
 
-        if data is None:
+        if packet is None:
 
             return None
+            
+        data = self._decode(
+            packet
+        )
             
         #
         # receive new display state
         #
+        if data is None:
+            return None
+        
                 
         return self._render(
             data
