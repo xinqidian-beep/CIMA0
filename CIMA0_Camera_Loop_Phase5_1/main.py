@@ -278,23 +278,16 @@ def main():
         if display_clock.due():
 
 
-            packet = internal.output(
-                "visual"
-            )
+            visual_organ = internal.organs["visual"]
 
 
-            if packet is not None:
+            display_packet = visual_organ.display_field()
+
+            if display_packet is not None:
 
 
-                #
-                # only temporary display source
-                #
-                # not semantic
-                #
-
-                
                 frame_out = display.encode(
-                    packet
+                    display_packet["field"]
                 )
 
 
@@ -305,6 +298,7 @@ def main():
                         "CIMA0",
                         frame_out
                     )
+            
 
 
 
