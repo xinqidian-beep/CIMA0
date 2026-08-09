@@ -278,16 +278,16 @@ def main():
         if display_clock.due():
 
 
-            visual_organ = internal.organs["visual"]
+            display_packet = internal.output_display(
+                "visual"
+            )
 
-
-            display_packet = visual_organ.display_field()
 
             if display_packet is not None:
 
 
                 frame_out = display.encode(
-                    display_packet["field"]
+                    display_packet
                 )
 
 

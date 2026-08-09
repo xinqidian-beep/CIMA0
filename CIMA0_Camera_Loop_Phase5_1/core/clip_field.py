@@ -443,15 +443,20 @@ class CLIPField:
 
         if self.field is None:
             return None
-
-
+            
+        data = self.field.astype(
+            np.float32
+        )
         
         return {
-            "field":
-                self.field.copy(),
+            "bytes":
+                data.tobytes(),
 
-            "age":
-                self.age,
+            "shape":
+                data.shape,
+
+            "dtype":
+                "float32",
 
             "timestamp":
                 self.age
