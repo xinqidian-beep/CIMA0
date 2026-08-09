@@ -458,36 +458,156 @@ class InternalDynamicsObserver:
     # same structure packet
     #
 
+        
     def pack(
         self,
         data,
         source="internal",
         timestamp=None
     ):
+        
+        if data is None:
+            return None
         """
-        Preserve internal structure.
+        Internal state tree
 
-        No flatten.
-        No semantic interpretation.
-        No display conversion.
-        """
+            |
+            v
 
-
-        return {
-
-            "type":
-                "field",
+        anonymous byte packet
 
 
-            "source":
-                source,
+        Output only:
 
-
-            "data":
-                data,
-
-
-            "timestamp":
-                timestamp
-
+        {
+            bytes,
+            shape,
+            dtype
         }
+
+
+        No knowledge of structure.
+        """
+        #
+        # preserve tree
+        #
+        
+        if isinstance(
+            data,
+            dict
+        ):
+            
+            result = {}
+
+            for key,value in data.items():
+
+                result[key] = self.pack(
+                    value,
+                    source=f"{source}.{key}",
+                    timestamp=timestamp
+                )
+
+            return result
+            
+        #
+        # ndarray leaf
+        #
+
+        if isinstance(
+            data,
+            np.ndarray
+        ):
+
+            array = data.astype(
+                np.float32
+            )
+
+
+            return {
+
+
+                "type":
+                    "field",
+
+
+                "source":
+                    source,
+
+                "bytes":
+                    array.tobytes(),
+
+                "shape":
+                    array.shape,
+
+                "dtype":
+                    str(array.dtype),
+
+                "timestamp":
+                    timestamp
+
+            }
+            
+        #
+        # scalar
+        #
+
+        if isinstance(
+            data,
+            (int,float)
+        ):
+
+            return {
+
+                "type":
+                    "scalar",
+
+                "source":
+                    source,
+
+                "value":
+                    data,
+
+                "timestamp":
+                    timestamp
+
+            }
+
+
+
+        return None
+        
+        
+    def _collect_arrays(
+        self,
+        value,
+        result
+    ):
+
+
+        if isinstance(
+            value,
+            np.ndarray
+        ):
+
+            result.append(
+                value
+            )
+
+            return
+
+
+
+        if isinstance(
+            value,
+            dict
+        ):
+
+            for v in value.values():
+
+                self._collect_arrays(
+                    v,
+                    result
+                )
+
+
+            return
