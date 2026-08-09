@@ -5,300 +5,6 @@ class InternalDynamicsObserver:
     """
     Read only observer.
 
-    Responsibility:
-
-        snapshot
-            |
-            v
-        local competitive read
-            |
-            v
-        cached same-structure output
-
-
-    Own state only:
-
-        observe_previous
-        read_previous
-        cache
-        age
-
-
-    No:
-
-        modify source state
-        understand planet
-        understand clip
-        allocate resource
-        control modules
-
-    """
-
-
-    def __init__(self):
-
-        self.observe_previous = {}
-
-        self.read_previous = {}
-
-        self.cache = {}
-
-        self.age = {}
-
-
-
-    # ---------------------------------------------------------
-    # request estimation
-    # ---------------------------------------------------------
-
-    def observe(
-        self,
-        snapshot
-    ):
-
-        requests = {}
-
-        if snapshot is None:
-            return requests
-
-
-        for key, value in snapshot.items():
-
-            requests[key] = self._activity(
-                key,
-                value
-            )
-
-
-        return requests
-
-
-
-    def _activity(
-        self,
-        path,
-        value
-    ):
-
-        if value is None:
-            return 0.0
-
-
-        if isinstance(value, dict):
-
-            result = {}
-
-
-            for k, v in value.items():
-
-                result[k] = self._activity(
-                    f"{path}.{k}",
-                    v
-                )
-                           
-
-            return result
-
-
-
-        if isinstance(value, np.ndarray):
-
-            flat = value.reshape(-1).astype(
-                np.float32
-            )
-
-
-            old = self.observe_previous.get(
-                path
-            )
-
-
-            if old is None:
-
-                delta = 1.0
-
-            else:
-
-                delta = float(
-                    np.mean(
-                        np.abs(
-                            flat - old
-                        )
-                    )
-                )
-
-
-            self.observe_previous[path] = flat.copy()
-
-
-            return min(
-                1.0,
-                delta
-            )
-
-
-
-        if isinstance(value, (int, float)):
-
-            old = self.observe_previous.get(
-                path,
-                value
-            )
-
-
-            delta = abs(
-                float(value) -
-                float(old)
-            )
-
-
-            self.observe_previous[path] = value
-
-
-            return min(
-                1.0,
-                delta
-            )
-
-
-        return 0.0
-
-
-
-    # ---------------------------------------------------------
-    # budget controlled read
-    # ---------------------------------------------------------
-
-    def read(
-        self,
-        snapshot,
-        allocation
-    ):
-
-        result = {}
-
-
-        for key, value in snapshot.items():
-
-            budget = allocation.get(
-                key,
-                0
-            )
-
-
-            result[key] = self._read(
-                key,
-                value,
-                budget
-            )
-
-
-        return result
-        
-        
-        
-    def _read(
-        self,
-        path,
-        value,
-        budget
-    ):
-
-
-        #
-        # dictionary tree
-        #
-
-        if isinstance(value, dict):
-
-
-            result = {}
-
-
-            if isinstance(
-                budget,
-                dict
-            ):
-
-                for k, v in value.items():
-
-                    child_budget = budget.get(
-                        k,
-                        0
-                    )
-
-
-                    result[k] = self._read(
-                        f"{path}.{k}",
-                        v,
-                        child_budget
-                    )
-
-
-            else: 
-
-                count = max(
-                    1,
-                    len(value)
-                )
-
-
-                child_budget = (
-                    float(budget)
-                    /
-                    count
-                )
-
-
-                for k, v in value.items():
-
-                    result[k] = self._read(
-                        f"{path}.{k}",
-                        v,
-                        child_budget
-                    )
-
-
-            return result
-
-
-
-        #
-        # array leaf
-        #
-
-        if isinstance(
-            value,
-            np.ndarray
-        ):
-
-            return self._read_array(
-                path,
-                value,
-                budget
-            )
-
-
-
-        #
-        # scalar
-        #
-
-        if isinstance(
-            value,
-            (int,float)
-        ):
-
-            return value
-
-
-
-        import numpy as np
-
-
-class InternalDynamicsObserver:
-    """
-    Read only observer.
 
     Responsibility:
 
@@ -308,13 +14,13 @@ class InternalDynamicsObserver:
         activity estimation
             |
             v
-        budget read
+        budget controlled read
             |
             v
-        anonymous byte packet
+        same structure packet
 
 
-    Own state:
+    Own state only:
 
         observe_previous
         read_previous
@@ -329,7 +35,6 @@ class InternalDynamicsObserver:
         image
         meaning
         display
-
     """
 
 
@@ -357,11 +62,9 @@ class InternalDynamicsObserver:
 
         requests = {}
 
-
         if snapshot is None:
 
             return requests
-
 
 
         for key, value in snapshot.items():
@@ -373,7 +76,6 @@ class InternalDynamicsObserver:
 
 
         return requests
-
 
 
 
@@ -395,31 +97,17 @@ class InternalDynamicsObserver:
             dict
         ):
 
-            total = 0.0
+            result = {}
 
-            count = 0
+            for k,v in value.items():
 
-
-            for k, v in value.items():
-
-                total += self._activity(
+                result[k] = self._activity(
                     f"{path}.{k}",
                     v
                 )
 
-                count += 1
 
-
-
-            if count:
-
-                return min(
-                    1.0,
-                    total / count
-                )
-
-
-            return 0.0
+            return result
 
 
 
@@ -446,7 +134,6 @@ class InternalDynamicsObserver:
 
                 delta = 1.0
 
-
             else:
 
                 delta = float(
@@ -458,9 +145,7 @@ class InternalDynamicsObserver:
                 )
 
 
-
             self.observe_previous[path] = flat.copy()
-
 
 
             return min(
@@ -516,11 +201,10 @@ class InternalDynamicsObserver:
         allocation
     ):
 
-
         result = {}
 
 
-        for key, value in snapshot.items():
+        for key,value in snapshot.items():
 
             budget = allocation.get(
                 key,
@@ -540,7 +224,6 @@ class InternalDynamicsObserver:
 
 
 
-
     def _read(
         self,
         path,
@@ -550,7 +233,7 @@ class InternalDynamicsObserver:
 
 
         #
-        # tree
+        # preserve dictionary structure
         #
 
         if isinstance(
@@ -562,50 +245,40 @@ class InternalDynamicsObserver:
             result = {}
 
 
+            for k,v in value.items():
 
-            if isinstance(
-                budget,
-                dict
-            ):
+                child_budget = 0
 
 
-                for k,v in value.items():
+                if isinstance(
+                    budget,
+                    dict
+                ):
 
-                    result[k] = self._read(
-                        f"{path}.{k}",
-                        v,
-                        budget.get(
-                            k,
-                            0
-                        )
+                    child_budget = budget.get(
+                        k,
+                        0
+                    )
+
+                else:
+
+                    count = max(
+                        1,
+                        len(value)
+                    )
+
+                    child_budget = (
+                        float(budget)
+                        /
+                        count
                     )
 
 
-            else:
-
-
-                count = max(
-                    1,
-                    len(value)
+                result[k] = self._read(
+                    f"{path}.{k}",
+                    v,
+                    child_budget
                 )
-
-
-                child_budget = (
-                    float(budget)
-                    /
-                    count
-                )
-
-
-
-                for k,v in value.items():
-
-                    result[k] = self._read(
-                        f"{path}.{k}",
-                        v,
-                        child_budget
-                    )
-
 
 
             return result
@@ -614,14 +287,13 @@ class InternalDynamicsObserver:
 
 
         #
-        # array
+        # array leaf
         #
 
         if isinstance(
             value,
             np.ndarray
         ):
-
 
             return self._read_array(
                 path,
@@ -652,7 +324,7 @@ class InternalDynamicsObserver:
 
 
     #
-    # sparse array read
+    # sparse local cache
     #
 
     def _read_array(
@@ -699,6 +371,7 @@ class InternalDynamicsObserver:
         old = self.read_previous.get(
             path
         )
+
 
 
         if old is None:
@@ -757,7 +430,6 @@ class InternalDynamicsObserver:
                 size
             )
 
-
         else:
 
             index = np.argpartition(
@@ -783,203 +455,39 @@ class InternalDynamicsObserver:
 
 
     #
-    # anonymous byte packet
+    # same structure packet
     #
 
     def pack(
         self,
-        data
+        data,
+        source="internal",
+        timestamp=None
     ):
         """
-        Convert sampled internal state
-        into byte stream.
+        Preserve internal structure.
 
-        No semantic information.
+        No flatten.
+        No semantic interpretation.
+        No display conversion.
         """
-
-        array = self._find_array(
-            data
-        )
-
-
-        if array is None:
-
-            return None
-
 
 
         return {
 
-            "bytes":
-                array.astype(
-                    np.float32
-                ).tobytes(),
+            "type":
+                "field",
 
 
-            "shape":
-                array.shape,
+            "source":
+                source,
 
 
-            "dtype":
-                "float32"
+            "data":
+                data,
+
+
+            "timestamp":
+                timestamp
 
         }
-
-
-
-
-    def _find_array(
-        self,
-        value
-    ):
-
-
-        if isinstance(
-            value,
-            np.ndarray
-        ):
-
-            return value
-
-
-
-        if isinstance(
-            value,
-            dict
-        ):
-
-
-            for v in value.values():
-
-                result = self._find_array(
-                    v
-                )
-
-
-                if result is not None:
-
-                    return result
-
-
-
-        return None
-
-
-
-
-
-    # ---------------------------------------------------------
-    # local sparse focus read
-    # ---------------------------------------------------------
-
-    def _read_array(
-        self,
-        path,
-        array,
-        budget
-    ):
-
-        flat = array.reshape(-1).astype(
-            np.float32
-        )
-
-
-        size = flat.size
-
-
-
-        if path not in self.cache:
-
-            self.cache[path] = flat.copy()
-
-            self.age[path] = np.zeros(
-                size,
-                dtype=np.int32
-            )
-
-
-            self.read_previous[path] = flat.copy()
-
-
-            return self.cache[path].reshape(
-                array.shape
-            )
-
-
-
-        old = self.read_previous.get(
-            path
-        )
-
-
-        if old is None:
-
-            delta = np.ones(
-                size,
-                dtype=np.float32
-            )
-
-        else:
-
-            delta = np.abs(
-                flat - old
-            )
-
-
-
-        self.read_previous[path] = flat.copy()
-
-
-
-        self.age[path] += 1
-
-
-
-        score = (
-            delta +
-            self.age[path].astype(
-                np.float32
-            ) * 0.01
-        )
-
-
-
-        count = int(
-            budget
-        )
-
-
-        count = max(
-            1,
-            min(
-                size,
-                count
-            )
-        )
-
-
-
-        if count >= size:
-
-            index = np.arange(
-                size
-            )
-
-        else:
-
-            index = np.argpartition(
-                score,
-                -count
-            )[-count:]
-
-
-
-        self.cache[path][index] = flat[index]
-
-        self.age[path][index] = 0
-
-
-
-        return self.cache[path].reshape(
-            array.shape
-        )

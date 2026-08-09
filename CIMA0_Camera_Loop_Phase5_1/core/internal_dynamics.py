@@ -131,3 +131,31 @@ class InternalDynamics:
 
 
         return None
+        
+        
+    def output_display(
+        self,
+        name
+    ):
+        """
+        Read one organ display output.
+
+        Convert internal state into display field only.
+        """
+
+        organ = self.organs.get(
+            name
+        )
+
+        if organ is None:
+            return None
+
+
+        if hasattr(
+            organ,
+            "display_field"
+        ):
+            return organ.display_field()
+
+
+        return None

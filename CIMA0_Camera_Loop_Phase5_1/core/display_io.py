@@ -41,52 +41,32 @@ class DisplayIO:
 
         self.height = height
         self.width = width
-
-
-
+        #
+        # latest display state
+        #
+        
+        #self.current_field = None
+        #self.current_timestamp = None
+        
+    
+        
     def encode(
         self,
-        packet
+        data
     ):
 
 
-        if packet is None:
+        if data is None:
 
             return None
-
-
-
-        array = self._decode(
-            packet
-        )
-
-
-        if array is None:
-
-            return None
-
-
-
-        rgb = self._to_rgb(
-            array
-        )
-
-
-        if rgb is None:
-
-            return None
-
-
-
-        rgb = self._resize(
-            rgb
-        )
-
-
-
-        return self._to_uint8(
-            rgb
-        )
+            
+        #
+        # receive new display state
+        #
+                
+        return self._render(
+            data
+        )    
 
 
 
@@ -285,3 +265,46 @@ class DisplayIO:
         ).astype(
             np.uint8
         )
+        
+    def _render(
+        self,
+        data
+    ):
+
+        img = data
+
+
+        #
+        # numeric field
+        #
+
+        img = self._to_rgb(
+            img
+        )
+
+
+        if img is None:
+
+            return None
+
+
+
+        #
+        # resize to window
+        #
+
+        img = self._resize(
+            img
+        )
+
+
+        #
+        # uint8 framebuffer
+        #
+
+        img = self._to_uint8(
+            img
+        )
+
+
+        return img

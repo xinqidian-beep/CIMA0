@@ -445,30 +445,20 @@ class CLIPField:
             return None
 
 
-        field = self.field.copy()
+        
+        return {
+            "field":
+                self.field.copy(),
 
+            "age":
+                self.age,
 
-        field -= field.min()
-
-
-        m = field.max()
-
-
-        if m > 0:
-
-            field /= m
-
-
-        field = field * 2.0 - 1.0
-
-
-        return field.astype(
-            np.float32
-        )
-
-
-
-
+            "timestamp":
+                self.age
+        }
+        
+        
+        
     def snapshot(
         self
     ):
