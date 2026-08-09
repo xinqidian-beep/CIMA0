@@ -1,56 +1,80 @@
 import cv2
+import numpy as np
 import time
 
-
-from core.internal_dynamics import InternalDynamics
 from core.internal_dynamics_observer import InternalDynamicsObserver
-from core.compute_system import ComputeSystem
 from core.display_io import DisplayIO
 
 
-from core.camera_planet import CameraPlanet
 
-from archive.planet import Planet
-
-from core.clip_field import CLIPField
-
-
-CLIP_WEIGHT = r"C:\CIMA0\models\open_clip_pytorch_model.bin"
-
-
-
-class LocalClock:
+class FakeInternalDynamics:
     """
-    Independent module clock.
+    模拟 InternalDynamics 输出
+
+    只有内部状态。
+    不知道 display。
     """
 
-    def __init__(
-        self,
-        interval
-    ):
+    def __init__(self):
 
-        self.interval = interval
+        self.age = 0
 
-        self.last = time.perf_counter()
-
-
-
-    def due(
-        self
-    ):
-
-        now = time.perf_counter()
+        self.field = np.zeros(
+            (32,32,3),
+            dtype=np.float32
+        )
 
 
-        if now - self.last >= self.interval:
+    def step(self):
 
-            self.last = now
-
-            return True
+        self.age += 1
 
 
-        return False
+        #
+        # 每5秒移动一次
+        #
 
+        x = (self.age // 150) % 32
+
+
+        self.field *= 0
+
+
+        #
+        # 红色方块
+        #
+
+        self.field[5:10,x:x+5,0] = 1.0
+
+
+        #
+        # 绿色跟随残影
+        #
+
+        if x > 3:
+
+            self.field[5:10,x-3:x+2,1] = 0.5
+
+
+        #
+        # 蓝色远处状态
+        #
+
+        if x > 8:
+
+            self.field[5:10,x-8:x-3,2] = 0.3
+
+
+
+    def snapshot(self):
+
+        return {
+
+            "visual":
+
+                self.field.copy()
+
+        }
 
 
 
@@ -58,277 +82,97 @@ class LocalClock:
 def main():
 
 
-    print("=" * 60)
-    print("CIMA0 Phase5 Internal Clock Loop")
-    print("ESC : exit")
-    print("=" * 60)
-
-
-
-    #
-    # internal world
-    #
-
-    internal = InternalDynamics()
-
-
-
-    #
-    # organs
-    #
-
-    planet = Planet()
-
-
-    visual = CLIPField(
-        weight_path=CLIP_WEIGHT,
-        device="cpu"
+    print(
+        "CIMA0 packet stream test"
     )
 
 
+    dynamics = FakeInternalDynamics()
 
-    internal.register(
-        "planet",
-        planet
-    )
-
-
-    internal.register(
-        "visual",
-        visual
-    )
-
-
-
-    #
-    # external input
-    #
-
-    camera = cv2.VideoCapture(0)
-
-
-    camera_planet = CameraPlanet()
-
-
-
-    #
-    # observer
-    #
 
     observer = InternalDynamicsObserver()
 
 
-    compute = ComputeSystem(
-        capacity=100
+    display = DisplayIO(
+        height=320,
+        width=320
     )
-
-
-
-    #
-    # display
-    #
-
-    display = DisplayIO()
-
-
-
-    #
-    # clocks
-    #
-
-    camera_clock = LocalClock(
-        1 / 30
-    )
-
-
-    internal_clock = LocalClock(
-        0.01
-    )
-
-
-    observer_clock = LocalClock(
-        0.1
-    )
-
-
-    display_clock = LocalClock(
-        1 / 10
-    )
-
-
-
-    latest_snapshot = None
-
-
-
-    if not camera.isOpened():
-
-        print(
-            "camera open failed"
-        )
-
-        return
 
 
 
     while True:
 
 
-
-        #
-        # Camera -> IO boundary
-        #
-
-        if camera_clock.due():
-
-
-            ret, frame = camera.read()
-
-
-            if ret:
-
-
-                camera_planet.step(
-                    frame
-                )
-
-
-                packet = camera_planet.state()
-
-
-
-                if packet is not None:
-
-
-                    #
-                    # broadcast only
-                    #
-
-                    internal.receive(
-                        packet
-                    )
-
-
-
-
         #
         # internal evolution
         #
 
-        if internal_clock.due():
-            
-            
-            
-            request = {
+        dynamics.step()
 
-                "internal": 1.0
 
+
+        #
+        # snapshot
+        #
+
+        snapshot = dynamics.snapshot()
+
+
+
+        #
+        # observer read only
+        #
+
+        sampled = observer.read(
+            snapshot,
+            {
+                "visual":1024
             }
-
-
-            allocation = compute.allocate(
-                request
-            )
-
-
-            if allocation.get(
-                "internal",
-                0
-            ) > 0:    
-
-
-                internal.step()
-
+        )
 
 
 
         #
-        # observer
+        # same structure packet
         #
 
-        if observer_clock.due():
-
-
-            latest_snapshot = internal.snapshot()
-
-
-
-            request = observer.observe(
-                latest_snapshot
-            )
-
-
-            allocation = compute.allocate(
-                request
-            )
-
-
-            observer.read(
-                latest_snapshot,
-                allocation
-            )
-
+        packet = observer.pack(
+            sampled,
+            source="visual",
+            timestamp=dynamics.age
+        )
 
 
 
         #
-        # display
+        # display decode
         #
 
-        if display_clock.due():
+        frame = display.encode(
+            packet["visual"]
+        )
 
 
-            display_packet = internal.output_display(
-                "visual"
+
+        if frame is not None:
+
+            cv2.imshow(
+                "CIMA0",
+                frame
             )
 
 
-            if display_packet is not None:
 
-
-                frame_out = display.encode(
-                    display_packet
-                )
-
-
-                if frame_out is not None:
-
-
-                    cv2.imshow(
-                        "CIMA0",
-                        frame_out
-                    )
-            
-
-
-
-
-        #
-        # keyboard
-        #
-
-        key = cv2.waitKey(1) & 0xff
-
-
-        if key == 27:
-
-            print(
-                "CIMA0 stopped"
-            )
+        if cv2.waitKey(30)==27:
 
             break
 
 
 
-
-    camera.release()
-
     cv2.destroyAllWindows()
 
 
 
-
-
-if __name__ == "__main__":
+if __name__=="__main__":
 
     main()

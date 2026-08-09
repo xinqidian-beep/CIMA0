@@ -114,6 +114,10 @@ class DisplayIO:
                 "display decode error:",
                 e
             )
+            print(
+                "DisplayIO input shape:",
+                array.shape
+            )
 
             return None
 
