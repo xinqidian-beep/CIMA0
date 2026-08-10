@@ -923,3 +923,577 @@ allocation
 CloudField动力执行
 
 已建立
+************************************
+***************************************
+**************************************
+## CIMA0 Phase5_2 当前阶段总结（2026-08-10）
+
+### 一、目录架构重构完成
+
+原来：
+
+```
+core/
+    internal_dynamics.py
+        |
+        + Cell
+        + CloudField
+        + Dynamics
+        + Container
+```
+
+问题：
+
+* 文件越来越长
+* 分析和修改复杂度快速上升
+* organ 自治边界不清晰
+
+现在调整为：
+
+```
+core/
+
+├── internal_dynamics.py
+│       ↑
+│       四大模块之一
+│       只负责 organ 管理
+│
+└── internal_dynamics/
+        |
+        └── cloud/
+              |
+              ├── __init__.py
+              ├── cell.py
+              └── cloud_field.py
+```
+
+已经验证：
+
+```python
+from core.internal_dynamics.cloud import CloudField
+```
+
+成功。
+
+说明 Python 包结构正常。
+
+---
+
+# 二、架构职责重新明确
+
+## InternalDynamics
+
+现在定位：
+
+```
+InternalDynamics
+
+    organ container
+```
+
+负责：
+
+```
+register()
+
+receive()
+
+step()
+
+snapshot()
+
+output()
+```
+
+不负责：
+
+```
+camera
+planet
+clip
+image
+meaning
+
+Cloud规则
+Cell规则
+collision规则
+```
+
+---
+
+## CloudField
+
+独立成为 organ。
+
+负责：
+
+```
+Cell管理
+
+receive()
+
+collision()
+
+decay()
+
+propagation()
+
+request_compute()
+
+execute_compute()
+
+snapshot()
+```
+
+内部拥有：
+
+```
+Cell
+ |
+ + value
+ + age
+ + activity
+```
+
+---
+
+# 三、最小生命单元设计已经确定
+
+Cell：
+
+```
+value
+
+    None
+        空位
+
+    float
+        状态存在
+
+
+age
+
+    存在时间
+
+
+activity
+
+    状态变化量
+```
+
+重要原则：
+
+> value 不承担存在性。
+
+允许：
+
+```
+-1.0
+0.0
++0.8
+```
+
+同时允许：
+
+```
+None
+```
+
+这为后续：
+
+* 自动匹配
+* 空位竞争
+* 稀疏场
+* collision
+* emergence
+
+留下空间。
+
+---
+
+# 四、ComputeSystem 调度架构已经建立
+
+之前：
+
+CloudField：
+
+```
+if collision:
+    do collision
+
+if decay:
+    do decay
+```
+
+问题：
+
+CloudField 自己决定算力。
+
+现在：
+
+改变为：
+
+```
+CloudField
+
+request_compute()
+
+        |
+        v
+
+ComputeSystem
+
+allocate()
+
+        |
+        v
+
+CloudField
+
+execute_compute()
+```
+
+职责：
+
+CloudField：
+
+提出需求：
+
+```python
+{
+ "cloud":
+ {
+    "collision": x,
+    "decay": y
+ }
+}
+```
+
+ComputeSystem：
+
+根据资源：
+
+```
+capacity
+```
+
+分配：
+
+```python
+{
+ "cloud":
+ {
+    "collision": xx,
+    "decay": yy
+ }
+}
+```
+
+CloudField：
+
+只执行预算。
+
+---
+
+# 五、已经完成测试
+
+## 1. Cloud merge
+
+通过：
+
+```
+test_cloud_merge.py
+```
+
+验证：
+
+* 空位接收
+* collision merge
+* decay释放
+* 空位复用
+
+---
+
+## 2. Cloud dynamics
+
+通过：
+
+```
+test_cloud_dynamics_loop.py
+```
+
+观察：
+
+* 自然衰减
+* merge事件
+* 空位重新出现
+
+发现：
+
+需要继续区分：
+
+```
+观察者希望看到的现象
+
+vs
+
+系统自然产生的现象
+```
+
+这个原则保留。
+
+---
+
+## 3. ComputeSystem
+
+通过：
+
+```
+test_compute_allocation.py
+```
+
+验证：
+
+* 基础分配
+* 权重分配
+* 树形分配
+
+---
+
+## 4. Cloud Compute Bridge
+
+通过：
+
+```
+test_cloud_compute_bridge.py
+```
+
+验证：
+
+CloudField → ComputeSystem → CloudField
+
+链路成立。
+
+---
+
+## 六、当前发现的问题
+
+### 1. 单文件过大问题已经解决方向正确
+
+下一步继续拆。
+
+不要继续扩大：
+
+```
+internal_dynamics.py
+```
+
+---
+
+### 2. collision 当前还是简单全扫描
+
+现在：
+
+```
+active x active
+```
+
+未来需要演化：
+
+```
+request_compute()
+       |
+       |
+ComputeSystem决定
+       |
+       |
+collision(limit)
+```
+
+之后再考虑：
+
+* dirty flag
+* sparse sampling
+* focus
+* aging
+
+不要提前加入。
+
+---
+
+### 3. 环形邻居暂缓
+
+之前讨论：
+
+```
+一维环形邻居
+```
+
+发现风险：
+
+容易变成工程师指定内部规则。
+
+目前保持：
+
+```
+CloudField 自主规则
+```
+
+先观察自然演化。
+
+---
+
+# 后续计划（按优先级）
+
+## Phase5_2.1  完成 Cloud 模块独立化
+
+目标：
+
+```
+core/internal_dynamics/cloud/
+
+cell.py
+
+cloud_field.py
+```
+
+完成：
+
+* Cell移动
+* CloudField测试
+* snapshot稳定
+
+---
+
+## Phase5_2.2  完成 InternalDynamics瘦身
+
+目标：
+
+最终：
+
+```
+core/internal_dynamics.py
+
+<100行
+```
+
+只作为容器。
+
+---
+
+## Phase5_2.3  ComputeSystem正式接管
+
+完善：
+
+```
+request_compute()
+
+execute_compute()
+```
+
+让：
+
+```
+Cloud
+CLIP
+future organs
+```
+
+全部统一：
+
+```
+request
+    |
+ComputeSystem
+    |
+allocation
+```
+
+---
+
+## Phase5_2.4  CLIPField迁移为 organ
+
+目标：
+
+结构：
+
+```
+InternalDynamics
+
+    |
+    +-- CloudField
+
+    |
+    +-- CLIPField
+```
+
+保持：
+
+CLIP:
+
+```
+byte
+ ->
+latent vector
+```
+
+不参与：
+
+* 分类
+* 理解
+* 控制
+
+---
+
+## Phase5_2.5  再进入自主动力观察
+
+重点观察：
+
+不是人为要求：
+
+```
+出现merge
+出现结构
+出现稳定态
+```
+
+而是：
+
+记录：
+
+```
+输入
+
+↓
+
+内部状态
+
+↓
+
+资源分配
+
+↓
+
+动力变化
+
+↓
+
+snapshot
+```
+
+判断哪些是：
+
+* 内生结果
+* 外部设计
+
+---
+
+当前阶段评价：
+
+**Phase5_2 已经从“堆模块实验”进入“器官化内部动力系统”的阶段。**
+
+下一步最重要的是：
+
+> 保持模块自治，不增加复杂规则，先让 CloudField、ComputeSystem、InternalDynamics 三者边界稳定。
+
+后续继续一步步推进。
