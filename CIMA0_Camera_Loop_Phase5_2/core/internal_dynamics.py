@@ -1,51 +1,27 @@
 """
 CIMA0 Phase5_2
 
-Internal Dynamics
+Internal Dynamics Container
 
-Container only.
-
-Manages:
-
-    registered local organs
-
+Only manages local organs.
 
 Does NOT know:
 
-    camera
-    planet
-    clip
-    image
-    meaning
-
-
-Every organ:
-
-    receive(raw)
-
-    step()
-
-    snapshot()
-
+camera
+planet
+clip
+image
+meaning
 """
 
 
-from .internal_dynamics.cloud import CloudField
-
-
-
 class InternalDynamics:
-    """
-    Internal dynamics container.
-    """
-
 
     def __init__(self):
 
         self.organs = {}
 
         self.last_snapshot = {}
-
 
 
     def register(
@@ -62,59 +38,29 @@ class InternalDynamics:
         self,
         raw
     ):
-        """
-        External byte stream.
-
-        Broadcast only.
-
-        No interpretation.
-        """
-
 
         for organ in self.organs.values():
 
-            if hasattr(
-                organ,
-                "receive"
-            ):
-
-                organ.receive(
-                    raw
-                )
+            organ.receive(raw)
 
 
 
     def step(
         self
     ):
-        """
-        Local evolution.
-
-        Each organ owns rules.
-        """
-
 
         for organ in self.organs.values():
 
-            if hasattr(
-                organ,
-                "step"
-            ):
-
-                organ.step()
+            organ.step()
 
 
 
         self.last_snapshot = {
 
-
             name:
-
             organ.snapshot()
 
-
             for name, organ
-
             in self.organs.items()
 
         }
@@ -124,9 +70,6 @@ class InternalDynamics:
     def snapshot(
         self
     ):
-        """
-        Read only export.
-        """
 
         return self.last_snapshot.copy()
 
@@ -136,20 +79,11 @@ class InternalDynamics:
         self,
         name
     ):
-        """
-        Read organ output.
-        """
 
-
-        organ = self.organs.get(
-            name
-        )
-
+        organ = self.organs.get(name)
 
         if organ is None:
-
             return None
-
 
 
         if hasattr(
@@ -160,7 +94,6 @@ class InternalDynamics:
             return organ.read()
 
 
-
         return None
 
 
@@ -169,20 +102,11 @@ class InternalDynamics:
         self,
         name
     ):
-        """
-        Display output only.
-        """
 
-
-        organ = self.organs.get(
-            name
-        )
-
+        organ = self.organs.get(name)
 
         if organ is None:
-
             return None
-
 
 
         if hasattr(
@@ -193,16 +117,4 @@ class InternalDynamics:
             return organ.display_field()
 
 
-
         return None
-
-
-
-# compatibility export
-__all__ = [
-
-    "InternalDynamics",
-
-    "CloudField",
-
-]
