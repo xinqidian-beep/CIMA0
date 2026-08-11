@@ -51,84 +51,122 @@ class CloudField:
         self,
         raw
     ):
-        """
-        Raw packet injection.
-
-        No interpretation.
-
-        Byte structure enters cloud.
-        
-        """
 
         if raw is None:
-
             return
 
 
+        #
+        # packet decode
+        #
+        if isinstance(raw, dict):
 
-        if not isinstance(
-            raw,
-            dict
-        ):
-            return
+            try:
 
+                data = np.frombuffer(
+                    raw["bytes"],
+                    dtype=np.dtype(
+                        raw["dtype"]
+                    )
+                ).astype(
+                    np.float32
+                )
 
-        if "bytes" not in raw:
-            return
+            except Exception:
 
-        try:
+               return
 
-            data = np.frombuffer(
-                raw["bytes"],
-                dtype=np.dtype(raw["dtype"])
-            )
-            
-            data = data.astype(
+ 
+        elif isinstance(raw, np.ndarray):
+
+            data = raw.astype(
                 np.float32
             )
 
-
-        except Exception:
+        else:
 
             return
 
+
+
+        #
+        # invalid protection
+        #
+        data = data.reshape(
+            -1
+        )
 
 
         if data.size == 0:
-
             return
 
 
 
         #
-        # inject fragments
+        # normalize only numerical safety
         #
-    
-        for value in data:
+        data = np.nan_to_num(
+            data,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0
+        )
 
 
-            if abs(value) < 1e-6:
 
+        #
+        # IMPORTANT:
+        #
+        # 不再逐 byte 注入
+        #
+        # 保留空间片段
+        #
+
+        fragments = np.array_split(
+            data,
+            len(self.cells)
+        )
+
+
+
+        for fragment in fragments:
+
+
+            if fragment.size == 0:
                 continue
 
 
 
-            target = self._select_cell(
-                value
+            self._inject_fragment(
+                fragment
             )
+    # -------------------------------------------------  
+
+    def _inject_fragment(
+        self,
+        fragment 
+    ):
 
 
-            if target is None:
+        value = float(
+            np.mean(
+                fragment
+            )
+        )
 
-                continue
+
+        target = self._select_cell(
+            value
+        )
 
 
+        if target is not None:
 
             target.occupy(
                 value
-            )
-            
+            ) 
 
+    
     # -------------------------------------------------            
     def _select_cell(
         self,
