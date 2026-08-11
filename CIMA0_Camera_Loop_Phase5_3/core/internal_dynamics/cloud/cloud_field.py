@@ -5,20 +5,23 @@ from .cell import Cell
 
 class CloudField:
     """
-    Sparse internal cloud organ.
+    Sparse autonomous cloud field.
 
-    Owns:
+    Input:
 
-        collision()
-        decay()
-        propagation()
+        byte packet
+
+    Output:
+
+        internal cloud state
+
 
     Does NOT know:
 
-        scheduler
-        cpu
-        gpu
-        external meaning
+        camera
+        image
+        semantic
+        display
     """
 
 
@@ -40,9 +43,7 @@ class CloudField:
 
         self.last_allocation = {}
 
-        self.scan_cursor = 0
 
-        self.collision_cursor = 0
 
     # -------------------------------------------------
 
@@ -51,205 +52,394 @@ class CloudField:
         raw
     ):
         """
-        Inject external packet.
+        Raw packet injection.
+
+        No interpretation.
+
+        Byte structure enters cloud.
         
-        Accept:
-
-            {
-                bytes,
-                shape,
-                dtype
-            }
-
-        Convert:
-
-            image field
-                |
-                v
-            spatial samples
-                |
-                v
-            cells
-
-        No semantic interpretation.
         """
 
         if raw is None:
 
             return
-            
-        #
-        # packet decode
-        #
 
-        if isinstance(
+
+
+        if not isinstance(
             raw,
             dict
         ):
+            return
 
 
-            try:
-                
-                data = np.frombuffer(
-                    raw["bytes"],
-                    dtype=np.dtype(
-                        raw["dtype"]
-                    )
-                )
+        if "bytes" not in raw:
+            return
 
-                data = data.reshape(
-                    raw["shape"]
-                )
+        try:
 
-
-            except (
-                KeyError,
-                ValueError,
-                TypeError
-            ):
-                
-                raise RuntimeError(
-                    "CloudField.receive(): invalid packet"
-                )
-
-
-        elif isinstance(
-            raw,
-            np.ndarray
-        ):
-
-            data = raw
-
-
-        else:
-
-            raise TypeError(
-                "CloudField.receive(): unsupported input type"
+            data = np.frombuffer(
+                raw["bytes"],
+                dtype=np.dtype(raw["dtype"])
             )
             
-            
+            data = data.astype(
+                np.float32
+            )
+
+
+        except Exception:
+
+            return
+
+
+
+        if data.size == 0:
+
+            return
+
+
+
         #
-        # spatial sampling
+        # inject fragments
         #
-        # keep spatial distribution
-        #
-
-        values = self._spatial_sample(
-            data
-        )
+    
+        for value in data:
 
 
-
-        #
-        # inject cells
-        #
-
-        for value in values:
-
-            if abs(value) < 0.05:
+            if abs(value) < 1e-6:
 
                 continue
 
 
 
-        for cell in self.cells:
-
-            if cell.empty:
-
-                cell.occupy(
-                    value
-                )
-
-                break
-                
-    # -------------------------------------------------
-    
-    def _spatial_sample(
-        self,
-        data,
-        grid=8
-    ):
-        """
-        Uniform spatial sampling.
-
-        No recognition.
-
-        Only preserve spatial distribution.
-        """
-
-        if data.ndim == 3:
-
-            #
-            # BGR/RGB
-            # keep luminance only
-            #
-
-            data = np.mean(
-                data,
-                axis=2
+            target = self._select_cell(
+                value
             )
 
 
+            if target is None:
 
-        h,w = data.shape
-
-
-
-        values = []
+                continue
 
 
 
-        step_y = max(
-            1,
-            h // grid
-        )
+            target.occupy(
+                value
+            )
+            
 
-        step_x = max(
-            1,
-            w // grid
-        )
+    # -------------------------------------------------            
+    def _select_cell(
+        self,
+        value
+    ):
+        
+        if not np.isfinite(value):
 
-
-
-        for y in range(
-            0,
-            h,
-            step_y
-        ):
+            return None
 
 
-            for x in range(
-                0,
-                w,
-                step_x
-            ):
+        best = None
+
+        best_score = -1
 
 
-                block = data[
-                    y:y+step_y,
-                    x:x+step_x
-                ]
+
+        for cell in self.cells:
 
 
-                if block.size == 0:
+            #
+            # empty cell
+            #
+
+            if cell.empty:
+
+                score = 1.0
+
+
+            else:
+                
+                if not np.isfinite(
+                    cell.value
+                ):
 
                     continue
 
 
 
-                value = float(
-                    np.mean(block)
+                distance = abs(
+                    float(cell.value)
+                    -
+                    float(value)
+                )
+
+
+                similarity = 1.0 / (
+                    1.0 + distance
+                )
+
+
+                freshness = 1.0 / (
+                    1 + cell.age
+                )
+
+
+                
+                score = (
+                    similarity
+                    +
+                    freshness
+                    +
+                    cell.activity
                 )
 
 
 
-                values.append(
-                    value / 255.0
+            if score > best_score:
+
+                best_score = score
+
+                best = cell
+
+
+
+        return best    
+
+
+
+    # -------------------------------------------------
+
+    def _extract_fragments(
+        self,
+        packet
+    ):
+        """
+        Convert byte stream into anonymous fragments.
+
+        No semantic decoding.
+
+        No image resize.
+
+        """
+
+        try:
+
+            raw = np.frombuffer(
+
+                packet["bytes"],
+
+                dtype=np.uint8
+
+            )
+
+
+        except Exception:
+
+            return []
+
+
+
+        if raw.size == 0:
+
+            return []
+
+
+
+        fragments = []
+
+
+        #
+        # anonymous byte fragments
+        #
+        # only preserve stream structure
+        #
+
+        fragment_size = max(
+
+            32,
+
+            raw.size //
+            max(
+                1,
+                len(self.cells)
+            )
+
+        )
+
+
+
+        for i in range(
+            0,
+            raw.size,
+            fragment_size
+        ):
+
+
+            part = raw[
+
+                i:i+fragment_size
+
+            ]
+
+
+            if part.size == 0:
+
+                continue
+
+
+
+            value = float(
+
+                np.mean(
+                    part.astype(
+                        np.float32
+                    )
                 )
 
+            )
 
 
-        return values
+            fragments.append(
+
+                value
+
+            )
+
+
+
+        return fragments
+
+
+
+    # -------------------------------------------------
+
+    def _claim(
+        self,
+        incoming
+    ):
+        """
+        Cell competition.
+
+        No fixed mapping.
+
+        """
+
+        winner = None
+
+        best_score = -1e9
+
+
+
+        for cell in self.cells:
+
+
+            score = self._claim_score(
+
+                cell,
+
+                incoming
+
+            )
+
+
+            if score > best_score:
+
+                best_score = score
+
+                winner = cell
+
+
+
+        if winner is not None:
+
+            winner.occupy(
+
+                incoming
+
+            )
+
+
+
+    # -------------------------------------------------
+
+    def _claim_score(
+        self,
+        cell,
+        incoming
+    ):
+        """
+        Three-state competition.
+
+        value
+        age
+        activity
+
+        """
+
+        #
+        # empty cell
+        #
+
+        if cell.empty:
+
+            return 0.1
+
+
+
+        similarity = 1.0 - min(
+
+            1.0,
+
+            abs(
+
+                cell.value -
+                incoming
+
+            )
+            /
+            255.0
+
+        )
+
+
+
+        freshness = 1.0 / (
+
+            1.0 +
+            cell.age
+
+        )
+
+
+
+        activity = min(
+
+            1.0,
+
+            cell.activity
+
+            /
+            255.0
+
+        )
+
+
+
+        return (
+
+            similarity * 0.5
+
+            +
+
+            freshness * 0.3
+
+            +
+
+            activity * 0.2
+
+        )
+
 
 
     # -------------------------------------------------
@@ -257,13 +447,11 @@ class CloudField:
     def request_compute(
         self
     ):
-        """
-        Report computation demand.
-        """
 
-        collision_need = 0.0
+        collision_activity = 0.0
 
-        decay_need = 0.0
+        decay_activity = 0.0
+
 
 
         for cell in self.cells:
@@ -273,12 +461,14 @@ class CloudField:
                 continue
 
 
-            collision_need += abs(
+            collision_activity += abs(
+
                 cell.value
+
             )
 
 
-            decay_need += cell.activity
+            decay_activity += cell.activity
 
 
 
@@ -289,10 +479,13 @@ class CloudField:
             {
 
                 "collision":
-                    collision_need,
+
+                collision_activity,
+
 
                 "decay":
-                    decay_need
+
+                decay_activity
 
             }
 
@@ -306,41 +499,38 @@ class CloudField:
         self,
         allocation
     ):
-        """
-        Execute allocated budget.
 
-        ComputeSystem decides.
-        """
 
         cloud = allocation.get(
+
             "cloud",
+
             {}
-        )
 
-
-        collision_budget = int(
-            cloud.get(
-                "collision",
-                0
-            )
-        )
-
-
-        decay_budget = int(
-            cloud.get(
-                "decay",
-                0
-            )
         )
 
 
         self.collision(
-            collision_budget
+
+            int(
+                cloud.get(
+                    "collision",
+                    0
+                )
+            )
+
         )
 
 
         self.decay(
-            decay_budget
+
+            int(
+                cloud.get(
+                    "decay",
+                    0
+                )
+            )
+
         )
 
 
@@ -352,12 +542,16 @@ class CloudField:
         limit=1
     ):
 
+
         if limit <= 0:
 
             return
 
 
         self.merge_events.clear()
+
+
+        count = 0
 
 
         active = [
@@ -371,42 +565,19 @@ class CloudField:
         ]
 
 
-        size = len(active)
 
+        for i in range(
 
-        if size < 2:
+            len(active)
 
-            return
-
-
-        count = 0
-
-
-        start = (
-
-            self.collision_cursor
-
-            % size
-
-        )
-
-
-        for offset in range(size):
-
-
-            i = (
-
-                start + offset
-
-            ) % size
-
+        ):
 
 
             for j in range(
 
-                i + 1,
+                i+1,
 
-                size
+                len(active)
 
             ):
 
@@ -415,8 +586,6 @@ class CloudField:
 
                 b = active[j]
 
-
-                # 防御检查
 
                 if a.empty or b.empty:
 
@@ -427,19 +596,17 @@ class CloudField:
                 distance = abs(
 
                     a.value -
-
                     b.value
 
                 )
 
 
-                if distance < 0.05:
+                if distance < 5.0:
 
 
                     merged = (
 
                         a.value +
-
                         b.value
 
                     ) / 2.0
@@ -447,7 +614,9 @@ class CloudField:
 
 
                     a.occupy(
+
                         merged
+
                     )
 
 
@@ -458,12 +627,15 @@ class CloudField:
                     self.merge_events.append(
 
                         {
+
                             "value":
 
                             merged
+
                         }
 
                     )
+
 
 
                     count += 1
@@ -472,23 +644,7 @@ class CloudField:
 
                     if count >= limit:
 
-
-                        self.collision_cursor = (
-
-                            i + 1
-
-                        ) % size
-
-
                         return
-
-
-
-        self.collision_cursor = (
-
-            self.collision_cursor + 1
-
-        ) % size
 
 
 
@@ -498,38 +654,14 @@ class CloudField:
         self,
         limit=1,
         rate=0.95,
-        release_threshold=0.01
+        release_threshold=0.5
     ):
-        """
-        Natural decay.
-
-        Uses rotating scan.
-        """
-
-        if limit <= 0:
-
-            return
 
 
         count = 0
 
-        size = len(
-            self.cells
-        )
 
-
-        for offset in range(size):
-
-            index = (
-
-                self.scan_cursor +
-
-                offset
-
-            ) % size
-
-
-            cell = self.cells[index]
+        for cell in self.cells:
 
 
             if cell.empty:
@@ -541,7 +673,9 @@ class CloudField:
             old = cell.value
 
 
+
             cell.value *= rate
+
 
             cell.age += 1
 
@@ -549,15 +683,16 @@ class CloudField:
             cell.activity = abs(
 
                 cell.value -
-
                 old
 
             )
 
 
+
             if abs(
                 cell.value
             ) < release_threshold:
+
 
                 cell.release()
 
@@ -568,12 +703,6 @@ class CloudField:
 
             if count >= limit:
 
-                self.scan_cursor = (
-
-                    index + 1
-
-                ) % size
-
                 return
 
 
@@ -583,9 +712,6 @@ class CloudField:
     def propagation(
         self
     ):
-        """
-        Reserved local influence rule.
-        """
 
         pass
 
@@ -596,15 +722,10 @@ class CloudField:
     def step(
         self
     ):
-        """
-        Passive organ tick.
 
-        No compute execution here.
+        self.collision()
 
-        ComputeSystem drives:
-            collision()
-            decay()
-        """
+        self.decay()
 
         self.propagation()
 
@@ -618,6 +739,7 @@ class CloudField:
 
         return {
 
+
             "cells":
 
             [
@@ -625,23 +747,26 @@ class CloudField:
                 {
 
                     "value":
-                        cell.value,
+                    c.value,
+
 
                     "age":
-                        cell.age,
+                    c.age,
+
 
                     "activity":
-                        cell.activity
+                    c.activity
 
                 }
 
-                for cell in self.cells
+
+                for c in self.cells
 
             ],
 
 
             "merge_events":
 
-                self.merge_events.copy()
+            self.merge_events.copy()
 
         }

@@ -516,7 +516,7 @@ class InternalDynamicsObserver:
 
 
 
-        field = np.asarray(
+        array = np.asarray(
             values,
             dtype=np.float32
         )
@@ -533,15 +533,15 @@ class InternalDynamicsObserver:
 
 
             "bytes":
-                field.tobytes(),
+                array.tobytes(),
 
 
             "shape":
-                field.shape,
+                array.shape,
 
 
             "dtype":
-                str(field.dtype)
+                str(array.dtype)
 
         }
 
@@ -566,91 +566,31 @@ class InternalDynamicsObserver:
             if "value" in value:
 
 
-                cell_value = value.get(
-                    "value"
-                )
+                v = value["value"]
 
+                if v is not None:
 
-                if cell_value is None:
-
-                    return
-
-
-                result.append(
-                    float(cell_value)
-                )
-
+                    result.append(
+                        float(v)
+                    )
 
                 return
 
 
-
-            #
-            # normal tree
-            #
-            for v in value.values():
+            for child in value.values():
 
                 self._collect_values(
-                    v,
+                    child,
                     result
                 )
 
 
-            return
 
+        elif isinstance(value,list):
 
-
-
-        if isinstance(
-            value,
-            list
-        ):
-
-
-            for v in value:
+            for child in value:
 
                 self._collect_values(
-                    v,
+                    child,
                     result
                 )
-
-
-            return
-
-
-
-
-        if isinstance(
-            value,
-            np.ndarray
-        ):
-
-
-            flat = value.reshape(
-                -1
-            ).astype(
-                np.float32
-            )
-
-
-            for x in flat:
-
-                result.append(
-                    float(x)
-                )
-
-
-            return
-
-
-
-
-        if isinstance(
-            value,
-            (int,float)
-        ):
-
-
-            result.append(
-                float(value)
-            )
