@@ -52,6 +52,24 @@ class CloudField:
     ):
         """
         Inject external packet.
+        
+        Accept:
+
+            {
+                bytes,
+                shape,
+                dtype
+            }
+
+        Convert:
+
+            image field
+                |
+                v
+            spatial samples
+                |
+                v
+            cells
 
         No semantic interpretation.
         """
@@ -108,15 +126,29 @@ class CloudField:
             raise TypeError(
                 "CloudField.receive(): unsupported input type"
             )
+            
+            
+        #
+        # spatial sampling
+        #
+        # keep spatial distribution
+        #
 
-        value = float(
-            np.mean(data)
+        values = self._spatial_sample(
+            data
         )
 
-        
-        if abs(value) < 0.05:
 
-            return
+
+        #
+        # inject cells
+        #
+
+        for value in values:
+
+            if abs(value) < 0.05:
+
+                continue
 
 
 
@@ -128,8 +160,96 @@ class CloudField:
                     value
                 )
 
-                return
+                break
+                
+    # -------------------------------------------------
+    
+    def _spatial_sample(
+        self,
+        data,
+        grid=8
+    ):
+        """
+        Uniform spatial sampling.
 
+        No recognition.
+
+        Only preserve spatial distribution.
+        """
+
+        if data.ndim == 3:
+
+            #
+            # BGR/RGB
+            # keep luminance only
+            #
+
+            data = np.mean(
+                data,
+                axis=2
+            )
+
+
+
+        h,w = data.shape
+
+
+
+        values = []
+
+
+
+        step_y = max(
+            1,
+            h // grid
+        )
+
+        step_x = max(
+            1,
+            w // grid
+        )
+
+
+
+        for y in range(
+            0,
+            h,
+            step_y
+        ):
+
+
+            for x in range(
+                0,
+                w,
+                step_x
+            ):
+
+
+                block = data[
+                    y:y+step_y,
+                    x:x+step_x
+                ]
+
+
+                if block.size == 0:
+
+                    continue
+
+
+
+                value = float(
+                    np.mean(block)
+                )
+
+
+
+                values.append(
+                    value / 255.0
+                )
+
+
+
+        return values
 
 
     # -------------------------------------------------

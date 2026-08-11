@@ -91,8 +91,24 @@ def main():
 
 
     while True:
+        
+        key = cv2.waitKey(1) & 0xff
+
+        if key == 27:
+            break
 
 
+        ret, frame = cap.read()
+
+
+        if not ret:
+
+            print(
+                "camera frame failed"
+            )
+
+            continue
+        
 
         #
         # camera packet
