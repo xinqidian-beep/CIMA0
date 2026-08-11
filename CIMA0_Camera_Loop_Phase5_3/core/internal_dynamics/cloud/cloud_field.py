@@ -42,7 +42,7 @@ class CloudField:
 
         self.scan_cursor = 0
 
-
+        self.collision_cursor = 0
 
     # -------------------------------------------------
 
@@ -189,9 +189,6 @@ class CloudField:
         self,
         limit=1
     ):
-        """
-        Local merge event.
-        """
 
         if limit <= 0:
 
@@ -212,30 +209,57 @@ class CloudField:
         ]
 
 
+        size = len(active)
+
+
+        if size < 2:
+
+            return
+
+
         count = 0
 
 
-        start = self.scan_cursor
+        start = (
 
-        size = len(active)
+            self.collision_cursor
+
+            % size
+
+        )
 
 
         for offset in range(size):
 
+
             i = (
+
                 start + offset
+
             ) % size
 
 
+
             for j in range(
+
                 i + 1,
+
                 size
+
             ):
 
 
                 a = active[i]
 
                 b = active[j]
+
+
+                # 防御检查
+
+                if a.empty or b.empty:
+
+                    continue
+
 
 
                 distance = abs(
@@ -259,6 +283,7 @@ class CloudField:
                     ) / 2.0
 
 
+
                     a.occupy(
                         merged
                     )
@@ -267,14 +292,13 @@ class CloudField:
                     b.release()
 
 
+
                     self.merge_events.append(
 
                         {
-
                             "value":
 
                             merged
-
                         }
 
                     )
@@ -283,29 +307,26 @@ class CloudField:
                     count += 1
 
 
+
                     if count >= limit:
 
-                        self.scan_cursor = (
+
+                        self.collision_cursor = (
 
                             i + 1
 
-                        ) % max(
-                            size,
-                            1
-                        )
+                        ) % size
+
 
                         return
 
 
 
-        self.scan_cursor = (
+        self.collision_cursor = (
 
-            self.scan_cursor + 1
+            self.collision_cursor + 1
 
-        ) % max(
-            size,
-            1
-        )
+        ) % size
 
 
 
