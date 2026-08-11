@@ -1,39 +1,63 @@
 import cv2
 
+
 from core.camera_planet import CameraPlanet
 from core.internal_dynamics import InternalDynamics
+from core.internal_dynamics_observer import InternalDynamicsObserver
 from core.display_io import DisplayIO
 
-from archive.planet import Planet
+from core.compute_system import ComputeSystem
+
+from core.internal_dynamics.cloud.cloud_field import CloudField
 
 
 
 def main():
 
+
     print("=" * 60)
-    print("CIMA0 Planet internal packet test")
+    print("CIMA0 Phase5_3 Internal Dynamics Loop")
     print("=" * 60)
 
 
 
     #
-    # internal world
+    # dynamics container
     #
 
     dynamics = InternalDynamics()
 
 
+
     #
-    # planet organ
+    # cloud organ
     #
 
-    planet = Planet()
+    cloud = CloudField(
+        capacity=32
+    )
 
 
     dynamics.register(
-        "planet",
-        planet
+        "cloud",
+        cloud
     )
+
+
+
+    #
+    # compute
+    #
+
+    compute = ComputeSystem()
+
+
+
+    #
+    # observer
+    #
+
+    observer = InternalDynamicsObserver()
 
 
 
@@ -71,7 +95,7 @@ def main():
 
 
         #
-        # camera
+        # camera packet
         #
 
         ret, frame = cap.read()
@@ -82,10 +106,6 @@ def main():
             continue
 
 
-
-        #
-        # CameraPlanet
-        #
 
         packet = camera_planet.step(
             frame
@@ -98,25 +118,8 @@ def main():
 
 
 
-        print(
-            "\n[CAMERA]"
-        )
-
-        print(
-            packet.keys()
-        )
-
-
-        print(
-            packet["shape"],
-            packet["dtype"],
-            len(packet["bytes"])
-        )
-
-
-
         #
-        # enter internal world
+        # input
         #
 
         dynamics.receive(
@@ -126,7 +129,35 @@ def main():
 
 
         #
-        # evolve
+        # compute request
+        #
+
+        request = dynamics.request_compute()
+
+
+
+        #
+        # allocation
+        #
+
+        allocation = compute.allocate(
+            request
+        )
+
+
+
+        #
+        # execute budget
+        #
+
+        dynamics.execute_compute(
+            allocation
+        )
+
+
+
+        #
+        # local evolution
         #
 
         dynamics.step()
@@ -141,109 +172,65 @@ def main():
 
 
 
-        print(
-            "[SNAPSHOT]"
+        #
+        # observer activity
+        #
+
+        request = observer.observe(
+            snapshot                       
         )
+        
+        
+        
+        #
+        # compute allocation
+        #
 
-
-        print(
-            snapshot.keys()
+        allocation = compute.allocate(
+            request
         )
+        
+        #
+        # sparse read
+        #
 
 
-
-        planet_state = snapshot.get(
-            "planet"
-        )
-
-
-        if planet_state is None:
-
-            print(
-                "planet missing"
-            )
-
-            continue
-
-
-
-        print(
-            "[PLANET STATE]"
-        )
-
-
-        print(
-            type(planet_state)
+        read_state = observer.read(
+            snapshot,
+            allocation
         )
 
 
 
         #
-        # packet check
+        # internal state -> IO byte packet
         #
 
-        if isinstance(
-            planet_state,
-            dict
-        ):
-
-
-            print(
-                planet_state.keys()
-            )
-
-
-            shape = planet_state.get(
-                "shape"
-            )
-
-
-            dtype = planet_state.get(
-                "dtype"
-            )
-
-
-            data = planet_state.get(
-                "bytes"
-            )
-
-
-            print(
-                shape,
-                dtype,
-                len(data) if data else None
-            )
-
-
-
+        display_packet = observer.encode_field(
+            read_state,
+            source="internal"
+        )
+        
+        print(
+            "[DISPLAY PACKET]",
+            None if display_packet is None
+            else display_packet.keys()
+        )
+        
         #
-        # display
+        # display only receives field packet
         #
 
         frame_out = display.encode(
-            planet_state
+            display_packet
         )
-
-
+        
         if frame_out is not None:
-
 
             cv2.imshow(
                 "CIMA0",
                 frame_out
             )
-
-
-
-        if cv2.waitKey(1) & 0xff == 27:
-
-            break
-
-
-
-    cap.release()
-
-    cv2.destroyAllWindows()
 
 
 

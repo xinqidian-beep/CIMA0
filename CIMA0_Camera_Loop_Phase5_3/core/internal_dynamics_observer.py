@@ -3,6 +3,8 @@ import numpy as np
 
 class InternalDynamicsObserver:
     """
+    CIMA0 Phase5_3
+
     Read only observer.
 
 
@@ -17,7 +19,10 @@ class InternalDynamicsObserver:
         budget controlled read
             |
             v
-        same structure packet
+        internal packet
+            |
+            v
+        field byte packet for IO
 
 
     Own state only:
@@ -62,9 +67,11 @@ class InternalDynamicsObserver:
 
         requests = {}
 
+
         if snapshot is None:
 
             return requests
+
 
 
         for key, value in snapshot.items():
@@ -76,6 +83,7 @@ class InternalDynamicsObserver:
 
 
         return requests
+
 
 
 
@@ -99,10 +107,32 @@ class InternalDynamicsObserver:
 
             result = {}
 
+
             for k,v in value.items():
 
                 result[k] = self._activity(
                     f"{path}.{k}",
+                    v
+                )
+
+
+            return result
+
+
+
+
+        if isinstance(
+            value,
+            list
+        ):
+
+            result = {}
+
+
+            for i,v in enumerate(value):
+
+                result[str(i)] = self._activity(
+                    f"{path}.{i}",
                     v
                 )
 
@@ -139,7 +169,7 @@ class InternalDynamicsObserver:
                 delta = float(
                     np.mean(
                         np.abs(
-                            flat - old
+                            flat-old
                         )
                     )
                 )
@@ -190,7 +220,6 @@ class InternalDynamicsObserver:
 
 
 
-
     #
     # budget read
     #
@@ -202,6 +231,12 @@ class InternalDynamicsObserver:
     ):
 
         result = {}
+
+
+        if snapshot is None:
+
+            return result
+
 
 
         for key,value in snapshot.items():
@@ -232,15 +267,10 @@ class InternalDynamicsObserver:
     ):
 
 
-        #
-        # preserve dictionary structure
-        #
-
         if isinstance(
             value,
             dict
         ):
-
 
             result = {}
 
@@ -260,19 +290,6 @@ class InternalDynamicsObserver:
                         0
                     )
 
-                else:
-
-                    count = max(
-                        1,
-                        len(value)
-                    )
-
-                    child_budget = (
-                        float(budget)
-                        /
-                        count
-                    )
-
 
                 result[k] = self._read(
                     f"{path}.{k}",
@@ -286,9 +303,31 @@ class InternalDynamicsObserver:
 
 
 
-        #
-        # array leaf
-        #
+        if isinstance(
+            value,
+            list
+        ):
+
+            result = []
+
+
+            for i,v in enumerate(value):
+
+                result.append(
+
+                    self._read(
+                        f"{path}.{i}",
+                        v,
+                        budget
+                    )
+
+                )
+
+
+            return result
+
+
+
 
         if isinstance(
             value,
@@ -304,28 +343,10 @@ class InternalDynamicsObserver:
 
 
 
-        #
-        # scalar
-        #
-
-        if isinstance(
-            value,
-            (int,float)
-        ):
-
-            return value
-
-
-
         return value
 
 
 
-
-
-    #
-    # sparse local cache
-    #
 
     def _read_array(
         self,
@@ -351,9 +372,7 @@ class InternalDynamicsObserver:
 
             self.cache[path] = flat.copy()
 
-
             self.read_previous[path] = flat.copy()
-
 
             self.age[path] = np.zeros(
                 size,
@@ -367,30 +386,15 @@ class InternalDynamicsObserver:
 
 
 
+        old = self.read_previous[path]
 
-        old = self.read_previous.get(
-            path
+
+        delta = np.abs(
+            flat-old
         )
 
 
-
-        if old is None:
-
-            delta = np.ones(
-                size,
-                dtype=np.float32
-            )
-
-        else:
-
-            delta = np.abs(
-                flat - old
-            )
-
-
-
         self.read_previous[path] = flat.copy()
-
 
 
         self.age[path] += 1
@@ -398,44 +402,31 @@ class InternalDynamicsObserver:
 
 
         score = (
+
             delta
+
             +
-            self.age[path].astype(
-                np.float32
-            )
-            *
-            0.01
+
+            self.age[path] * 0.01
+
         )
 
-
-
-        count = int(
-            budget
-        )
 
 
         count = max(
             1,
             min(
                 size,
-                count
+                int(budget)
             )
         )
 
 
 
-        if count >= size:
-
-            index = np.arange(
-                size
-            )
-
-        else:
-
-            index = np.argpartition(
-                score,
-                -count
-            )[-count:]
+        index = np.argpartition(
+            score,
+            -count
+        )[-count:]
 
 
 
@@ -452,162 +443,214 @@ class InternalDynamicsObserver:
 
 
 
-
-
     #
-    # same structure packet
+    # internal packet
     #
 
-        
     def pack(
         self,
-        data,
-        source="internal",
-        timestamp=None
+        data
     ):
-        
+
         if data is None:
+
             return None
-        """
-        Internal state tree
-
-            |
-            v
-
-        anonymous byte packet
 
 
-        Output only:
-
-        {
-            bytes,
-            shape,
-            dtype
-        }
-
-
-        No knowledge of structure.
-        """
-        #
-        # preserve tree
-        #
-        
         if isinstance(
             data,
             dict
         ):
-            
-            result = {}
-
-            for key,value in data.items():
-
-                result[key] = self.pack(
-                    value,
-                    source=f"{source}.{key}",
-                    timestamp=timestamp
-                )
-
-            return result
-            
-        #
-        # ndarray leaf
-        #
-
-        if isinstance(
-            data,
-            np.ndarray
-        ):
-
-            array = data.astype(
-                np.float32
-            )
-
 
             return {
 
+                k:
+                self.pack(v)
 
-                "type":
-                    "field",
-
-
-                "source":
-                    source,
-
-                "bytes":
-                    array.tobytes(),
-
-                "shape":
-                    array.shape,
-
-                "dtype":
-                    str(array.dtype),
-
-                "timestamp":
-                    timestamp
-
-            }
-            
-        #
-        # scalar
-        #
-
-        if isinstance(
-            data,
-            (int,float)
-        ):
-
-            return {
-
-                "type":
-                    "scalar",
-
-                "source":
-                    source,
-
-                "value":
-                    data,
-
-                "timestamp":
-                    timestamp
+                for k,v in data.items()
 
             }
 
 
+        if isinstance(
+            data,
+            list
+        ):
 
-        return None
-        
-        
-    def _collect_arrays(
+            return [
+
+                self.pack(v)
+
+                for v in data
+
+            ]
+
+
+        return data
+
+
+
+    #
+    # convert internal state to IO byte packet
+    #
+
+    def encode_field(
+        self,
+        data,
+        source="internal"
+    ):
+
+
+        values = []
+
+
+        self._collect_values(
+            data,
+            values
+        )
+
+
+        if len(values) == 0:
+
+            return None
+
+
+
+        field = np.asarray(
+            values,
+            dtype=np.float32
+        )
+
+
+        return {
+
+            "type":
+                "field",
+
+
+            "source":
+                source,
+
+
+            "bytes":
+                field.tobytes(),
+
+
+            "shape":
+                field.shape,
+
+
+            "dtype":
+                str(field.dtype)
+
+        }
+
+
+
+
+    def _collect_values(
         self,
         value,
         result
     ):
 
-
-        if isinstance(
-            value,
-            np.ndarray
-        ):
-
-            result.append(
-                value
-            )
-
-            return
-
-
-
         if isinstance(
             value,
             dict
         ):
 
+
+            #
+            # Cell state
+            #
+            if "value" in value:
+
+
+                cell_value = value.get(
+                    "value"
+                )
+
+
+                if cell_value is None:
+
+                    return
+
+
+                result.append(
+                    float(cell_value)
+                )
+
+
+                return
+
+
+
+            #
+            # normal tree
+            #
             for v in value.values():
 
-                self._collect_arrays(
+                self._collect_values(
                     v,
                     result
                 )
 
 
             return
+
+
+
+
+        if isinstance(
+            value,
+            list
+        ):
+
+
+            for v in value:
+
+                self._collect_values(
+                    v,
+                    result
+                )
+
+
+            return
+
+
+
+
+        if isinstance(
+            value,
+            np.ndarray
+        ):
+
+
+            flat = value.reshape(
+                -1
+            ).astype(
+                np.float32
+            )
+
+
+            for x in flat:
+
+                result.append(
+                    float(x)
+                )
+
+
+            return
+
+
+
+
+        if isinstance(
+            value,
+            (int,float)
+        ):
+
+
+            result.append(
+                float(value)
+            )
