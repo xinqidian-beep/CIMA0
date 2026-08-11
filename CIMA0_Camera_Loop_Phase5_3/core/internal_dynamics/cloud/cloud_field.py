@@ -59,19 +59,61 @@ class CloudField:
         if raw is None:
 
             return
+            
+        #
+        # packet decode
+        #
+
+        if isinstance(
+            raw,
+            dict
+        ):
 
 
-        try:
+            try:
+                
+                data = np.frombuffer(
+                    raw["bytes"],
+                    dtype=np.dtype(
+                        raw["dtype"]
+                    )
+                )
 
-            value = float(
-                np.mean(raw)
+                data = data.reshape(
+                    raw["shape"]
+                )
+
+
+            except (
+                KeyError,
+                ValueError,
+                TypeError
+            ):
+                
+                raise RuntimeError(
+                    "CloudField.receive(): invalid packet"
+                )
+
+
+        elif isinstance(
+            raw,
+            np.ndarray
+        ):
+
+            data = raw
+
+
+        else:
+
+            raise TypeError(
+                "CloudField.receive(): unsupported input type"
             )
 
-        except Exception:
+        value = float(
+            np.mean(data)
+        )
 
-            return
-
-
+        
         if abs(value) < 0.05:
 
             return

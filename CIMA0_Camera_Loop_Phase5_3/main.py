@@ -231,6 +231,13 @@ def main():
                 "CIMA0",
                 frame_out
             )
+            
+        key = cv2.waitKey(1) & 0xff
+
+
+        if key == 27:
+
+            break
 
 
 
