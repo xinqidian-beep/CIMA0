@@ -1,5 +1,5 @@
 """
-CIMA0 Phase5_2
+CIMA0 Phase5_3
 
 Internal Dynamics Container
 
@@ -10,18 +10,20 @@ Does NOT know:
 camera
 planet
 clip
-image
+cloud details
 meaning
 """
 
 
 class InternalDynamics:
 
+
     def __init__(self):
 
         self.organs = {}
 
         self.last_snapshot = {}
+
 
 
     def register(
@@ -41,7 +43,66 @@ class InternalDynamics:
 
         for organ in self.organs.values():
 
-            organ.receive(raw)
+            if hasattr(
+                organ,
+                "receive"
+            ):
+
+                organ.receive(
+                    raw
+                )
+
+
+
+    def request_compute(
+        self
+    ):
+        """
+        Collect compute requests
+        from all organs.
+        """
+
+        requests = {}
+
+
+        for name, organ in self.organs.items():
+
+            if hasattr(
+                organ,
+                "request_compute"
+            ):
+
+                requests[name] = (
+
+                    organ.request_compute()
+
+                )
+
+
+        return requests
+
+
+
+    def execute_compute(
+        self,
+        allocation
+    ):
+        """
+        Dispatch compute budget.
+        """
+
+        for name, organ in self.organs.items():
+
+            if hasattr(
+                organ,
+                "execute_compute"
+            ):
+
+                organ.execute_compute(
+
+                    allocation
+
+                )
 
 
 
@@ -51,17 +112,30 @@ class InternalDynamics:
 
         for organ in self.organs.values():
 
-            organ.step()
+            if hasattr(
+                organ,
+                "step"
+            ):
+
+                organ.step()
 
 
 
         self.last_snapshot = {
 
+
             name:
+
             organ.snapshot()
 
             for name, organ
+
             in self.organs.items()
+
+            if hasattr(
+                organ,
+                "snapshot"
+            )
 
         }
 
@@ -80,9 +154,13 @@ class InternalDynamics:
         name
     ):
 
-        organ = self.organs.get(name)
+        organ = self.organs.get(
+            name
+        )
+
 
         if organ is None:
+
             return None
 
 
@@ -103,9 +181,13 @@ class InternalDynamics:
         name
     ):
 
-        organ = self.organs.get(name)
+        organ = self.organs.get(
+            name
+        )
+
 
         if organ is None:
+
             return None
 
 
