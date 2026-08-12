@@ -1,13 +1,10 @@
 class ComputeSystem:
 
-
     def __init__(
         self,
         capacity=100
     ):
-
         self.capacity = capacity
-
 
 
     def allocate(
@@ -19,19 +16,14 @@ class ComputeSystem:
             requests
         )
 
-
         if total <= 0:
-
             return {}
-
-
 
         return self._allocate_tree(
             requests,
             self.capacity,
             total
         )
-
 
 
     def _sum_activity(
@@ -55,14 +47,12 @@ class ComputeSystem:
             return total
 
 
-
         if isinstance(
             value,
-            (int,float)
+            (int, float)
         ):
 
             return float(value)
-
 
 
         return 0.0
@@ -83,7 +73,6 @@ class ComputeSystem:
 
             result = {}
 
-
             for key, value in node.items():
 
                 result[key] = self._allocate_tree(
@@ -92,14 +81,12 @@ class ComputeSystem:
                     total
                 )
 
-
             return result
-
 
 
         if isinstance(
             node,
-            (int,float)
+            (int, float)
         ):
 
             return (
@@ -107,7 +94,6 @@ class ComputeSystem:
                 float(node) /
                 total
             )
-
 
 
         return 0.0

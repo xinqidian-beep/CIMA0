@@ -5,6 +5,7 @@ class CameraIO:
     """
     Pure camera acquisition port.
 
+
     Output:
 
         {
@@ -12,6 +13,7 @@ class CameraIO:
             shape,
             dtype
         }
+
 
     No:
 
@@ -21,24 +23,27 @@ class CameraIO:
         interpretation
     """
 
+
+
     def __init__(
         self,
         index=0
     ):
 
-        self.cap = cv2.VideoCapture(index)
+        self.cap = cv2.VideoCapture(
+            index
+        )
 
-        self.previous_state = None
         self.current_state = None
 
 
 
-    def step(self):
+    def step(
+        self
+    ):
 
         packet = self._read()
 
-
-        self.previous_state = self.current_state
 
         self.current_state = packet
 
@@ -47,8 +52,9 @@ class CameraIO:
 
 
 
-
-    def _read(self):
+    def _read(
+        self
+    ):
 
         ok, frame = self.cap.read()
 
@@ -76,7 +82,8 @@ class CameraIO:
 
 
 
-
-    def state(self):
+    def state(
+        self
+    ):
 
         return self.current_state

@@ -1,30 +1,39 @@
 import numpy as np
 
+from core.compute_system import Sampler
+
 
 class CameraObserver:
     """
-    Dynamic BGR byte observer.
+    Dynamic BGR field observer.
+
 
     Input:
-        BGR byte stream
+
+        CameraPlanet packet
+
+        {
+            bytes,
+            shape,
+            dtype
+        }
+
 
     Output:
-        complete BGR byte stream
+
+        complete BGR field packet
 
 
-    Rule:
+    Responsibility:
 
-        delta
-          +
-        age
-          +
-        compute budget
+        maintain visual field
+        calculate local change
+        maintain refresh age
 
-        ->
-        select update positions
 
-        ->
-        keep complete field
+    Sampling:
+
+        delegated to ComputeSystem.Sampler
 
 
     No:
@@ -32,7 +41,8 @@ class CameraObserver:
         image understanding
         semantic extraction
         feature generation
-        packet generation
+        sampling rule
+        compute allocation
     """
 
 
@@ -43,34 +53,50 @@ class CameraObserver:
 
         self.pixel_size = pixel_size
 
+
+        # previous input frame
+
         self.previous = None
 
-        # current maintained field
+
+        # maintained complete field
+
         self.field = None
 
+
         # refresh age
+
         self.age = None
+
+
+        # universal sampler
+
+        self.sampler = Sampler()
 
 
 
     def observe(
         self,
         packet,
-        compute_state=None
+        budget=None
     ):
 
         if packet is None:
+
             return None
+
 
 
         raw = np.frombuffer(
             packet["bytes"],
             dtype=np.uint8
         )
-        
-        
+
+
         shape = packet["shape"]
+
         dtype = packet["dtype"]
+
 
 
         #
@@ -102,9 +128,12 @@ class CameraObserver:
 
         if self.previous is None:
 
+
             self.previous = pixels.copy()
 
+
             self.field = pixels.copy()
+
 
             self.age = np.zeros(
                 count,
@@ -112,25 +141,15 @@ class CameraObserver:
             )
 
 
-            return {
-
-                "bytes":
-                    self.field.reshape(
-                        -1
-                    ).tobytes(),
-
-                "shape":
-                    shape,
-
-                "dtype":
-                    dtype
-
-            }
+            return self._packet(
+                shape,
+                dtype
+            )
 
 
 
         #
-        # delta
+        # local change
         #
 
         delta = np.mean(
@@ -148,7 +167,7 @@ class CameraObserver:
 
 
         #
-        # age update
+        # age evolution
         #
 
         self.age += 1
@@ -156,88 +175,25 @@ class CameraObserver:
 
 
         #
-        # compute resource
+        # sampling decision
         #
 
-        available = 0.1
+        if budget is None:
+
+            budget = count
 
 
-        if isinstance(
-            compute_state,
-            dict
-        ):
 
-            available = compute_state.get(
-                "available",
-                0.1
-            )
-
-
-        available = float(
-            np.clip(
-                available,
-                0.01,
-                1.0
-            )
+        selected = self.sampler.select(
+            delta,
+            self.age,
+            budget=budget
         )
 
 
 
         #
-        # dynamic precision budget
-        #
-
-        budget = int(
-            count *
-            available
-        )
-
-
-        budget = max(
-            1,
-            min(
-                count,
-                budget
-            )
-        )
-
-
-
-        #
-        # local raise score
-        #
-
-        score = (
-            delta
-            +
-            self.age.astype(
-                np.float32
-            ) * 0.02
-        )
-
-
-
-        #
-        # choose update positions
-        #
-
-        if budget >= count:
-
-            selected = np.arange(
-                count
-            )
-
-        else:
-
-            selected = np.argpartition(
-                score,
-                -budget
-            )[-budget:]
-
-
-
-        #
-        # focus precision update
+        # update selected positions
         #
 
         self.field[
@@ -249,7 +205,7 @@ class CameraObserver:
 
 
         #
-        # refreshed areas reset age
+        # reset refreshed age
         #
 
         self.age[
@@ -258,9 +214,18 @@ class CameraObserver:
 
 
 
-        #
-        # output full BGR field
-        #
+        return self._packet(
+            shape,
+            dtype
+        )
+
+
+
+    def _packet(
+        self,
+        shape,
+        dtype
+    ):
 
         return {
 
@@ -269,8 +234,10 @@ class CameraObserver:
                     -1
                 ).tobytes(),
 
+
             "shape":
                 shape,
+
 
             "dtype":
                 dtype
@@ -286,18 +253,23 @@ class CameraObserver:
         if self.field is None:
 
             return {
+
                 "active": False
+
             }
+
 
 
         return {
 
             "active": True,
 
+
             "pixels":
                 int(
                     self.field.shape[0]
                 ),
+
 
             "mean":
                 float(
@@ -305,6 +277,7 @@ class CameraObserver:
                         self.field
                     )
                 ),
+
 
             "std":
                 float(

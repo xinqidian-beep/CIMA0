@@ -1,5 +1,5 @@
 import numpy as np
-
+from core.compute_system import Sampler
 
 class InternalDynamicsObserver:
     """
@@ -53,6 +53,8 @@ class InternalDynamicsObserver:
         self.cache = {}
 
         self.age = {}
+        
+        self.sampler = Sampler()
 
 
 
@@ -399,20 +401,7 @@ class InternalDynamicsObserver:
 
         self.age[path] += 1
 
-
-
-        score = (
-
-            delta
-
-            +
-
-            self.age[path] * 0.01
-
-        )
-
-
-
+        
         count = max(
             1,
             min(
@@ -423,10 +412,11 @@ class InternalDynamicsObserver:
 
 
 
-        index = np.argpartition(
-            score,
-            -count
-        )[-count:]
+        index = self.sampler.select(
+            delta,
+            self.age[path],
+            budget=count
+        )
 
 
 
