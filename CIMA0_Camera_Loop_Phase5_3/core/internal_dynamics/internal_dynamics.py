@@ -1,38 +1,39 @@
 """
 CIMA0 Phase5_3
 
-Internal Dynamics Container
+Internal Dynamics Interface
 
-Only manages local organs.
+Role:
+
+    Connect external system and Planet dynamics.
 
 Does NOT know:
 
-camera
-planet
-clip
-cloud details
-meaning
+    camera
+    cloud
+    clip
+    observer meaning
+    display
+
+Only manages:
+
+    receive external disturbance
+    advance local dynamics
+    expose current state
 """
 
 
 class InternalDynamics:
 
 
-    def __init__(self):
-
-        self.organs = {}
-
-        self.last_snapshot = {}
-
-
-
-    def register(
+    def __init__(
         self,
-        name,
-        organ
+        planet
     ):
 
-        self.organs[name] = organ
+        self.planet = planet
+
+        self.last_snapshot = None
 
 
 
@@ -40,74 +41,20 @@ class InternalDynamics:
         self,
         raw
     ):
-
-        for organ in self.organs.values():
-
-            if hasattr(
-                organ,
-                "receive"
-            ):
-
-                organ.receive(
-                    raw
-                )
-
-
-
-    def request_compute(
-        self
-    ):
         """
-        Collect compute requests
-        from all organs.
+        Forward external disturbance.
+
+        InternalDynamics does not interpret data.
+        Planet decides whether and how to use it.
         """
 
-        requests = {}
+        if hasattr(
+            self.planet,
+            "receive"
+        ):
 
-
-        for name, organ in self.organs.items():
-
-            if hasattr(
-                organ,
-                "request_compute"
-            ):
-
-                requests[name] = (
-
-                    organ.request_compute()
-
-                )
-
-
-        return requests
-
-
-
-    def execute_compute(
-        self,
-        allocation
-    ):
-        """
-        Dispatch compute budget.
-        """
-
-        for name, organ in self.organs.items():
-
-            if hasattr(
-                organ,
-                "execute_compute"
-            ):
-                continue
-                
-            organ_allocation = allocation.get(
-                name,
-                {}
-            )    
-
-            organ.execute_compute(
-
-                organ_allocation
-
+            self.planet.receive(
+                raw
             )
 
 
@@ -115,94 +62,56 @@ class InternalDynamics:
     def step(
         self
     ):
+        """
+        Advance the only internal dynamics.
 
-        for organ in self.organs.values():
+        The evolution rule belongs to Planet.
+        """
 
-            if hasattr(
-                organ,
-                "step"
-            ):
+        if hasattr(
+            self.planet,
+            "step"
+        ):
 
-                organ.step()
-
-
-
-        self.last_snapshot = {
+            self.planet.step()
 
 
-            name:
+        if hasattr(
+            self.planet,
+            "snapshot"
+        ):
 
-            organ.snapshot()
+            self.last_snapshot = {
 
-            for name, organ
+                "planet":
+                    self.planet.snapshot()
 
-            in self.organs.items()
+            }
 
-            if hasattr(
-                organ,
-                "snapshot"
-            )
+        else:
 
-        }
+            self.last_snapshot = {}
 
 
 
     def snapshot(
         self
     ):
+        """
+        Return current Planet state.
+        """
+
+        if self.last_snapshot is None:
+
+            if hasattr(
+                self.planet,
+                "snapshot"
+            ):
+
+                return self.planet.snapshot()
+
+
+            return None
+
 
         return self.last_snapshot.copy()
-
-
-
-    def output(
-        self,
-        name
-    ):
-
-        organ = self.organs.get(
-            name
-        )
-
-
-        if organ is None:
-
-            return None
-
-
-        if hasattr(
-            organ,
-            "read"
-        ):
-
-            return organ.read()
-
-
-        return None
-
-
-
-    def output_display(
-        self,
-        name
-    ):
-
-        organ = self.organs.get(
-            name
-        )
-
-
-        if organ is None:
-
-            return None
-
-
-        if hasattr(
-            organ,
-            "display_field"
-        ):
-
-            return organ.display_field()
-
-
-        return None

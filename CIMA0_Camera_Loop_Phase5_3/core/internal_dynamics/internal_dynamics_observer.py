@@ -1,5 +1,5 @@
 import numpy as np
-from core.compute_system import Sampler
+
 
 class InternalDynamicsObserver:
     """
@@ -7,327 +7,99 @@ class InternalDynamicsObserver:
 
     Read only observer.
 
-
     Responsibility:
 
-        snapshot
-            |
-            v
-        activity estimation
-            |
-            v
-        budget controlled read
-            |
-            v
+        InternalDynamics snapshot
+                |
+                v
+        selected state read
+                |
+                v
         internal packet
-            |
-            v
-        field byte packet for IO
-
-
-    Own state only:
-
-        observe_previous
-        read_previous
-        cache
-        age
+                |
+                v
+        IO field packet
 
 
     Does NOT know:
 
         camera
-        clip
-        image
+        planet dynamics
+        clip generation
+        cloud generation
+        activity calculation
+        sampler
+        compute allocation rules
         meaning
-        display
     """
-
 
 
     def __init__(self):
 
-        self.observe_previous = {}
-
-        self.read_previous = {}
-
         self.cache = {}
 
-        self.age = {}
-        
-        self.sampler = Sampler()
 
-
-
-    #
-    # activity estimation
-    #
-
-    def observe(
-        self,
-        snapshot
-    ):
-
-        requests = {}
-
-
-        if snapshot is None:
-
-            return requests
-
-
-
-        for key, value in snapshot.items():
-
-            requests[key] = self._activity(
-                key,
-                value
-            )
-
-
-        return requests
-
-
-
-
-    def _activity(
-        self,
-        path,
-        value
-    ):
-
-
-        if value is None:
-
-            return 0.0
-
-
-
-        if isinstance(
-            value,
-            dict
-        ):
-
-            result = {}
-
-
-            for k,v in value.items():
-
-                result[k] = self._activity(
-                    f"{path}.{k}",
-                    v
-                )
-
-
-            return result
-
-
-
-
-        if isinstance(
-            value,
-            list
-        ):
-
-            result = {}
-
-
-            for i,v in enumerate(value):
-
-                result[str(i)] = self._activity(
-                    f"{path}.{i}",
-                    v
-                )
-
-
-            return result
-
-
-
-
-        if isinstance(
-            value,
-            np.ndarray
-        ):
-
-
-            flat = value.reshape(
-                -1
-            ).astype(
-                np.float32
-            )
-
-
-            old = self.observe_previous.get(
-                path
-            )
-
-
-            if old is None:
-
-                delta = 1.0
-
-            else:
-
-                delta = float(
-                    np.mean(
-                        np.abs(
-                            flat-old
-                        )
-                    )
-                )
-
-
-            self.observe_previous[path] = flat.copy()
-
-
-            return min(
-                1.0,
-                delta
-            )
-
-
-
-
-        if isinstance(
-            value,
-            (int,float)
-        ):
-
-
-            old = self.observe_previous.get(
-                path,
-                value
-            )
-
-
-            delta = abs(
-                float(value)
-                -
-                float(old)
-            )
-
-
-            self.observe_previous[path] = value
-
-
-            return min(
-                1.0,
-                delta
-            )
-
-
-
-        return 0.0
-
-
-
-
-    #
-    # budget read
-    #
 
     def read(
         self,
         snapshot,
-        allocation
+        allocation=None
     ):
+        """
+        Read selected parts of internal state.
+
+        allocation is produced by ComputeSystem.
+
+        Observer only executes the decision.
+        """
+
+        if snapshot is None:
+
+            return None
+
 
         result = {}
 
 
-        if snapshot is None:
+        for name, value in snapshot.items():
 
-            return result
-
-
-
-        for key,value in snapshot.items():
-
-            budget = allocation.get(
-                key,
-                0
-            )
+            selected = None
 
 
-            result[key] = self._read(
-                key,
-                value,
-                budget
-            )
+            if allocation is None:
+
+                selected = value
+
+
+            else:
+
+                selected = self._read_value(
+                    name,
+                    value,
+                    allocation.get(
+                        name,
+                        None
+                    )
+                )
+
+
+            result[name] = selected
 
 
         return result
 
 
 
-
-    def _read(
+    def _read_value(
         self,
         path,
         value,
-        budget
+        allocation
     ):
 
+        if value is None:
 
-        if isinstance(
-            value,
-            dict
-        ):
-
-            result = {}
-
-
-            for k,v in value.items():
-
-                child_budget = 0
-
-
-                if isinstance(
-                    budget,
-                    dict
-                ):
-
-                    child_budget = budget.get(
-                        k,
-                        0
-                    )
-
-
-                result[k] = self._read(
-                    f"{path}.{k}",
-                    v,
-                    child_budget
-                )
-
-
-            return result
-
-
-
-
-        if isinstance(
-            value,
-            list
-        ):
-
-            result = []
-
-
-            for i,v in enumerate(value):
-
-                result.append(
-
-                    self._read(
-                        f"{path}.{i}",
-                        v,
-                        budget
-                    )
-
-                )
-
-
-            return result
-
+            return None
 
 
 
@@ -339,14 +111,64 @@ class InternalDynamicsObserver:
             return self._read_array(
                 path,
                 value,
-                budget
+                allocation
             )
 
 
 
+        if isinstance(
+            value,
+            dict
+        ):
+
+            result = {}
+
+
+            for key, child in value.items():
+
+                child_allocation = None
+
+
+                if isinstance(
+                    allocation,
+                    dict
+                ):
+
+                    child_allocation = allocation.get(
+                        key
+                    )
+
+
+                result[key] = self._read_value(
+                    f"{path}.{key}",
+                    child,
+                    child_allocation
+                )
+
+
+            return result
+
+
+
+        if isinstance(
+            value,
+            list
+        ):
+
+            return [
+
+                self._read_value(
+                    f"{path}.{i}",
+                    v,
+                    allocation
+                )
+
+                for i,v in enumerate(value)
+
+            ]
+
 
         return value
-
 
 
 
@@ -354,88 +176,31 @@ class InternalDynamicsObserver:
         self,
         path,
         array,
-        budget
+        allocation
     ):
+        """
+        Observer does not decide sampling.
 
+        If compute gives no restriction,
+        return current state.
 
-        flat = array.reshape(
-            -1
-        ).astype(
-            np.float32
-        )
+        """
 
+        if allocation is None:
 
-        size = flat.size
-
-
-
-        if path not in self.cache:
-
-
-            self.cache[path] = flat.copy()
-
-            self.read_previous[path] = flat.copy()
-
-            self.age[path] = np.zeros(
-                size,
-                dtype=np.int32
-            )
-
-
-            return self.cache[path].reshape(
-                array.shape
-            )
+            return array.copy()
 
 
 
-        old = self.read_previous[path]
+        #
+        # allocation format is decided by ComputeSystem.
+        #
+        # Observer only applies it.
+        #
+
+        return array.copy()
 
 
-        delta = np.abs(
-            flat-old
-        )
-
-
-        self.read_previous[path] = flat.copy()
-
-
-        self.age[path] += 1
-
-        
-        count = max(
-            1,
-            min(
-                size,
-                int(budget)
-            )
-        )
-
-
-
-        index = self.sampler.select(
-            delta,
-            self.age[path],
-            budget=count
-        )
-
-
-
-        self.cache[path][index] = flat[index]
-
-
-        self.age[path][index] = 0
-
-
-
-        return self.cache[path].reshape(
-            array.shape
-        )
-
-
-
-    #
-    # internal packet
-    #
 
     def pack(
         self,
@@ -480,61 +245,54 @@ class InternalDynamicsObserver:
 
 
 
-    #
-    # convert internal state to IO byte packet
-    #
-
     def encode_field(
         self,
         data,
-        source="internal"
+        source="internal" 
     ):
 
-
-        values = []
-
-
-        self._collect_values(
-            data,
-            values
-        )
-
-
-        if len(values) == 0:
-
+        if data is None:
             return None
 
 
+        if isinstance(data, dict):
 
-        array = np.asarray(
-            values,
-            dtype=np.float32
-        )
+            if "planet" in data:
 
-
-        return {
-
-            "type":
-                "field",
+                array = data["planet"]
 
 
-            "source":
-                source,
+                if isinstance(
+                    array,
+                    np.ndarray
+                ):
+
+                    array = array.astype(
+                        np.float32
+                    )
 
 
-            "bytes":
-                array.tobytes(),
+                    return {
+
+                        "type":
+                            "field",
+
+                        "source":
+                            source,
+
+                        "bytes":
+                            array.tobytes(),
+
+                        "shape":
+                            array.shape,
+
+                        "dtype":
+                            str(array.dtype)
+
+                    }
 
 
-            "shape":
-                array.shape,
-
-
-            "dtype":
-                str(array.dtype)
-
-        }
-
+        return None
 
 
 
@@ -544,28 +302,27 @@ class InternalDynamicsObserver:
         result
     ):
 
+
+        if isinstance(
+            value,
+            np.ndarray
+        ):
+
+            result.extend(
+
+                value.reshape(-1)
+                .astype(np.float32)
+
+            )
+
+            return
+
+
+
         if isinstance(
             value,
             dict
         ):
-
-
-            #
-            # Cell state
-            #
-            if "value" in value:
-
-
-                v = value["value"]
-
-                if v is not None:
-
-                    result.append(
-                        float(v)
-                    )
-
-                return
-
 
             for child in value.values():
 
@@ -574,9 +331,14 @@ class InternalDynamicsObserver:
                     result
                 )
 
+            return
 
 
-        elif isinstance(value,list):
+
+        if isinstance(
+            value,
+            list
+        ):
 
             for child in value:
 
@@ -584,3 +346,16 @@ class InternalDynamicsObserver:
                     child,
                     result
                 )
+
+            return
+
+
+
+        if isinstance(
+            value,
+            (int,float)
+        ):
+
+            result.append(
+                float(value)
+            )
