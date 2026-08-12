@@ -97,12 +97,18 @@ class InternalDynamics:
                 organ,
                 "execute_compute"
             ):
+                continue
+                
+            organ_allocation = allocation.get(
+                name,
+                {}
+            )    
 
-                organ.execute_compute(
+            organ.execute_compute(
 
-                    allocation
+                organ_allocation
 
-                )
+            )
 
 
 

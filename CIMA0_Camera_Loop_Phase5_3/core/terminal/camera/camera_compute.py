@@ -1,7 +1,7 @@
 import time
 
 
-class CameraComputeSystem:
+class CameraCompute:
     """
     Camera computation system.
 
