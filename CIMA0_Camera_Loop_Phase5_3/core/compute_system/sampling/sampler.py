@@ -1,10 +1,52 @@
 import numpy as np
 
-from .raise_score import raise_score
+
+
+def _raise_score(
+    delta,
+    age,
+    activity
+):
+
+    return (
+        delta
+        +
+        age * 0.01
+        +
+        activity * 0.1
+    )
 
 
 
 class Sampler:
+    """
+    Universal sampling rule.
+
+    Input:
+
+        delta
+        age
+        activity
+        budget
+
+    Output:
+
+        selected indices
+
+
+    Knows:
+
+        selection only
+
+
+    Does NOT know:
+
+        camera
+        cloud
+        clip
+        planet
+    """
+
 
 
     def __init__(
@@ -66,7 +108,7 @@ class Sampler:
 
 
 
-        score = raise_score(
+        score = _raise_score(
             delta,
             age,
             activity

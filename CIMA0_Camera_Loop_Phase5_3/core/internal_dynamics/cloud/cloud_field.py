@@ -146,24 +146,13 @@ class CloudField:
         self,
         fragment 
     ):
-
-
-        value = float(
-            np.mean(
-                fragment
-            )
-        )
-
-
         target = self._select_cell(
-            value
+            fragment
         )
-
-
         if target is not None:
 
             target.occupy(
-                value
+                fragment
             ) 
 
     

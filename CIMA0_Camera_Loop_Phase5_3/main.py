@@ -1,14 +1,17 @@
 import cv2
 
 
-from core.camera_planet import CameraPlanet
+from core.terminal.camera import (
+    CameraPlanet,
+    CameraObserver
+)
 from core.internal_dynamics import InternalDynamics
-from core.internal_dynamics_observer import InternalDynamicsObserver
+from core.internal_dynamics import InternalDynamicsObserver
 from core.display_io import DisplayIO
 
 from core.compute_system import ComputeSystem
 
-from core.internal_dynamics.cloud.cloud_field import CloudField
+from core.internal_dynamics.cloud import CloudField
 
 
 
@@ -87,11 +90,12 @@ def main():
 
 
     camera_planet = CameraPlanet()
+    camera_observer = CameraObserver()
 
 
 
     while True:
-        
+
         key = cv2.waitKey(1) & 0xff
 
         if key == 27:
@@ -100,160 +104,49 @@ def main():
 
         ret, frame = cap.read()
 
-
         if not ret:
-
-            print(
-                "camera frame failed"
-            )
-
-            continue
-        
-
-        #
-        # camera packet
-        #
-
-        ret, frame = cap.read()
-
-
-        if not ret:
-
             continue
 
 
+        packet = camera_planet.step(frame)
 
-        packet = camera_planet.step(
-            frame
+
+        #
+        # visual path
+        #
+
+        camera_display_packet = camera_observer.observe(
+            packet,
+            budget=5000
         )
 
-
-        if packet is None:
-
-            continue
-
-
-
-        #
-        # input
-        #
-
-        dynamics.receive(
-            packet
-        )
-
-
-
-        #
-        # compute request
-        #
-
-        request = dynamics.request_compute()
-
-
-
-        #
-        # allocation
-        #
-
-        allocation = compute.allocate(
-            request
-        )
-
-
-
-        #
-        # execute budget
-        #
-
-        dynamics.execute_compute(
-            allocation
-        )
-
-
-
-        #
-        # local evolution
-        #
-
-        dynamics.step()
-
-
-
-        #
-        # snapshot
-        #
-
-        snapshot = dynamics.snapshot()
-
-
-
-        #
-        # observer activity
-        #
-
-        request = observer.observe(
-            snapshot                       
-        )
-        
-        
-        
-        #
-        # compute allocation
-        #
-
-        allocation = compute.allocate(
-            request
-        )
-        
-        #
-        # sparse read
-        #
-
-
-        read_state = observer.read(
-            snapshot,
-            allocation
-        )
-
-
-
-        #
-        # internal state -> IO byte packet
-        #
-
-        display_packet = observer.encode_field(
-            read_state,
-            source="internal"
-        )
-        
-        print(
-            "[DISPLAY PACKET]",
-            None if display_packet is None
-            else display_packet.keys()
-        )
-        
-        #
-        # display only receives field packet
-        #
 
         frame_out = display.encode(
-            display_packet
+            camera_display_packet
         )
-        
+
+
         if frame_out is not None:
 
             cv2.imshow(
                 "CIMA0",
                 frame_out
             )
-            
-        key = cv2.waitKey(1) & 0xff
 
 
-        if key == 27:
+        #
+        # internal path
+        #
 
-            break
+        dynamics.receive(packet)
+
+        request = dynamics.request_compute()
+
+        allocation = compute.allocate(request)
+
+        dynamics.execute_compute(allocation)
+
+        dynamics.step()
 
 
 
