@@ -1,80 +1,42 @@
+
 import cv2
 
+from archive.planet import Planet
 
-from core.terminal.camera import (
-    CameraPlanet,
-    CameraObserver
-)
 from core.internal_dynamics import InternalDynamics
 from core.internal_dynamics import InternalDynamicsObserver
+
 from core.display_io import DisplayIO
 
-from core.compute_system import ComputeSystem
+from archive.planet import Planet
 
-from core.internal_dynamics.cloud import CloudField
-
-
+from core.terminal.camera import CameraPlanet
 
 def main():
-
 
     print("=" * 60)
     print("CIMA0 Phase5_3 Internal Dynamics Loop")
     print("=" * 60)
 
 
-
-    #
-    # dynamics container
-    #
-
-    dynamics = InternalDynamics()
-
-
-
-    #
-    # cloud organ
-    #
-
-    cloud = CloudField(
-        capacity=32
+    planet = Planet(
+        size=128
     )
 
 
-    dynamics.register(
-        "cloud",
-        cloud
+    dynamics = InternalDynamics(
+        planet
     )
 
-
-
-    #
-    # compute
-    #
-
-    compute = ComputeSystem()
-
-
-
-    #
-    # observer
-    #
 
     observer = InternalDynamicsObserver()
 
 
-
-    #
-    # display
-    #
-
     display = DisplayIO()
 
 
+    camera_planet = CameraPlanet()
 
-    #
-    # camera
-    #
 
     cap = cv2.VideoCapture(0)
 
@@ -89,17 +51,14 @@ def main():
 
 
 
-    camera_planet = CameraPlanet()
-    camera_observer = CameraObserver()
-
-
-
     while True:
+
 
         key = cv2.waitKey(1) & 0xff
 
         if key == 27:
             break
+
 
 
         ret, frame = cap.read()
@@ -108,21 +67,47 @@ def main():
             continue
 
 
-        packet = camera_planet.step(frame)
+
+        packet = camera_planet.step(
+            frame
+        )
+
 
 
         #
-        # visual path
+        # external disturbance
         #
+        dynamics.receive(
+            packet
+        )
 
-        camera_display_packet = camera_observer.observe(
-            packet,
-            budget=307200
+
+        #
+        # only dynamics evolution
+        #
+        dynamics.step()
+
+
+
+        #
+        # observation
+        #
+        snapshot = dynamics.snapshot()
+        
+        
+        read_state = observer.read(
+            snapshot
+        )
+
+
+        display_packet = observer.encode_field(
+            read_state,
+            source="internal"
         )
 
 
         frame_out = display.encode(
-            camera_display_packet
+            display_packet
         )
 
 
@@ -132,24 +117,7 @@ def main():
                 "CIMA0",
                 frame_out
             )
-
-
-        #
-        # internal path
-        #
-
-        dynamics.receive(packet)
-
-        request = dynamics.request_compute()
-
-        allocation = compute.allocate(request)
-
-        dynamics.execute_compute(allocation)
-
-        dynamics.step()
-
-
-
+            
 if __name__ == "__main__":
 
-    main()
+    main()            

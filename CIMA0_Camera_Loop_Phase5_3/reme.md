@@ -11,7 +11,6 @@ terminal/
 
 compute_system/
         compute_system.py
-        allocation.py
         sampling/
             sampler.py
 
@@ -31,3 +30,56 @@ Sampler：决定选择规则
 ComputeSystem：提供预算
 
 DisplayIO：只显示
+****************************
+
+三者关系：
+
+main.py
+    |
+    | 调度
+    |
+    v
+
+InternalDynamics
+    |
+    | 转发
+    |
+    v
+
+Planet
+    |
+    | 演化
+    |
+    v
+
+State
+***************************
+最终闭环应该是：
+Planet
+  |
+  | state
+  v
+
+snapshot
+
+
+  |
+  v
+
+ComputeSystem
+
+  |
+  | activity
+  | sampling
+  | 
+  v
+
+
+Observer
+
+  |
+  | read selected state
+  v
+
+
+IO
