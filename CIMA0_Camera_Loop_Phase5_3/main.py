@@ -117,7 +117,7 @@ def main():
 
         camera_display_packet = camera_observer.observe(
             packet,
-            budget=5000
+            budget=307200
         )
 
 

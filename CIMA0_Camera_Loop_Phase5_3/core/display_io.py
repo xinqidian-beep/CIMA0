@@ -86,42 +86,10 @@ class DisplayIO:
         self,
         packet
     ):
+        if packet is None:
+
+            return None
         
-        print("\n[DISPLAY INPUT]")
-
-        print(
-            type(packet)
-        )
-
-
-        if isinstance(packet, dict):
-
-            print(
-                packet.keys()
-            )
-
-            if "shape" in packet:
-
-                print(
-                    "shape:",
-                    packet["shape"]
-                )
-
-            if "dtype" in packet:
-
-                print(
-                    "dtype:",
-                    packet["dtype"]
-                )
-
-            if "bytes" in packet:
-
-                print(
-                    "bytes:",
-                    len(packet["bytes"])
-                )
-
-
         try:
 
             raw = np.frombuffer(
@@ -143,12 +111,6 @@ class DisplayIO:
 
 
         except Exception as e:
-
-            print(
-                "display decode error:",
-                e
-            )
-            
 
             return None
 
