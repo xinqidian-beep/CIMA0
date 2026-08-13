@@ -1,48 +1,34 @@
 import numpy as np
 
 
-
 class InternalDynamics:
     """
-    CIMA0 Internal Dynamics Interface.
+    CIMA0 Phase5_3
 
+    Bridge between external disturbance
+    and Planet dynamics.
 
     Responsibility:
 
-
-        external disturbance
-
-                |
-
-                v
-
+        packet
+          |
+          v
+        decode
+          |
+          v
         disturbance field
-
-
-                |
-
-                v
-
-        Planet evolution
-
-
-
-    Knows:
-
-        packet conversion
-        disturbance forwarding
-        evolution clock
-
+          |
+          v
+        collision into Planet
 
     Does NOT know:
 
         camera meaning
         color meaning
-        cloud meaning
         display
-        observer
+        sampling
+        compute budget
     """
-
 
 
     def __init__(
@@ -58,70 +44,65 @@ class InternalDynamics:
 
     def receive(
         self,
-        raw
+        packet
     ):
         """
         Receive external disturbance.
 
-
-        Only:
-
-            bytes
-            reshape
-            type conversion
-
-
-        No semantic interpretation.
+        Only injects disturbance.
+        Does not replace Planet state.
         """
 
-
         disturbance = self._prepare_disturbance(
-            raw
+            packet
         )
 
 
         if disturbance is None:
+            return
 
+
+
+        field = disturbance["field"]
+
+
+        if not hasattr(
+            self.planet,
+            "state"
+        ):
+            return
+
+
+
+        state = self.planet.state
+
+
+
+        #
+        # project disturbance
+        # into Planet state space
+        #
+        field = self._project(
+            field,
+            state.shape
+        )
+
+
+        if field is None:
             return
 
 
 
         #
-        # forward disturbance
+        # small collision
         #
-
-        if hasattr(
-            self.planet,
-            "receive"
-        ):
-
-            self.planet.receive(
-                disturbance
-            )
+        collision_strength = 0.01
 
 
-
-        #
-        # fallback:
-        #
-        # some pure Planet rules
-        # only expose state
-        #
-
-        elif hasattr(
-            self.planet,
-            "state"
-        ):
-
-            field = disturbance["field"]
-
-
-            state = self.planet.state
-
-
-            if state.shape == field.shape:
-
-                self.planet.state += field
+        self.planet.state += (
+            field *
+            collision_strength
+        )
 
 
 
@@ -130,52 +111,26 @@ class InternalDynamics:
         packet
     ):
         """
-        Universal byte unpacking.
+        Byte packet -> disturbance field
 
+        Keep original structure.
 
-        Input:
-
-            media packet
-
-
-        Output:
-
-            disturbance packet
-
-
-        No:
-
-            camera logic
-
-            feature extraction
-
-            semantic conversion
+        No semantic reduction.
         """
-
-
-        if packet is None:
-
-            return None
-
 
 
         if not isinstance(
             packet,
             dict
         ):
-
             return None
 
 
 
         required = (
-
             "bytes",
-
             "shape",
-
             "dtype"
-
         )
 
 
@@ -183,7 +138,6 @@ class InternalDynamics:
             key in packet
             for key in required
         ):
-
             return None
 
 
@@ -191,56 +145,19 @@ class InternalDynamics:
         try:
 
             data = np.frombuffer(
-
                 packet["bytes"],
-
                 dtype=np.dtype(
                     packet["dtype"]
                 )
-
             )
 
 
             data = data.reshape(
-
                 packet["shape"]
-
             )
 
 
         except Exception:
-
-
-            return None
-
-
-
-        #
-        # external field projection
-        #
-        # media -> disturbance
-        #
-
-        if data.ndim == 3:
-
-
-            #
-            # collapse channels
-            #
-            # not semantic
-            #
-            # just create scalar disturbance field
-            #
-
-            data = data.astype(
-                np.float32
-            ).mean(
-                axis=2
-            )
-
-
-        elif data.ndim != 2:
-
 
             return None
 
@@ -251,66 +168,135 @@ class InternalDynamics:
         )
 
 
-        #
-        # normalize disturbance magnitude
-        #
 
+        #
+        # keep channel structure
+        #
+        if data.ndim not in (
+            2,
+            3
+        ):
+            return None
+
+
+
+        #
+        # normalize only
+        #
         if data.max() > 1.0:
 
             data = (
-
                 data / 255.0
-
                 -
-
                 0.5
-
             )
 
 
 
         return {
 
-
-            "field":
-
-                data,
-
-
-            "shape":
-
-                data.shape,
-
-
-            "dtype":
-
-                "float32",
-
-
-
             "type":
-
                 "disturbance",
 
+            "field":
+                data,
 
+            "shape":
+                data.shape,
+
+            "dtype":
+                "float32",
 
             "source":
-
                 packet.get(
                     "source",
                     "external"
                 ),
 
-
-
-            "origin":
-
+            "format":
                 packet.get(
                     "format",
                     "unknown"
                 )
 
         }
+
+
+
+    def _project(
+        self,
+        field,
+        target_shape
+    ):
+        """
+        Spatial projection only.
+
+        No meaning.
+        No feature extraction.
+        """
+
+
+        #
+        # Planet current state:
+        #
+        # (H,W)
+        #
+
+        if field.ndim == 3:
+
+            #
+            # collapse only for collision projection
+            #
+            # original packet is not changed
+            #
+            field = field.mean(
+                axis=2
+            )
+
+
+
+        if field.shape == target_shape:
+
+            return field
+
+
+
+        if len(target_shape) != 2:
+
+            return None
+
+
+
+        h,w = target_shape
+
+
+        sh,sw = field.shape[:2]
+
+
+        ys = np.linspace(
+            0,
+            sh-1,
+            h
+        ).astype(
+            np.int32
+        )
+
+
+        xs = np.linspace(
+            0,
+            sw-1,
+            w
+        ).astype(
+            np.int32
+        )
+
+
+        return field[
+            np.ix_(
+                ys,
+                xs
+            )
+        ]
 
 
 
@@ -327,41 +313,21 @@ class InternalDynamics:
 
 
 
-        self.last_snapshot = {
-
-
-            "planet":
-
-                self._snapshot_planet()
-
-        }
-
-
-
-    def _snapshot_planet(
-        self
-    ):
-
-
         if hasattr(
             self.planet,
             "snapshot"
         ):
 
-            return self.planet.snapshot()
+            self.last_snapshot = {
 
+                "planet":
+                    self.planet.snapshot()
 
+            }
 
-        if hasattr(
-            self.planet,
-            "state"
-        ):
+        else:
 
-            return self.planet.state.copy()
-
-
-
-        return None
+            self.last_snapshot = {}
 
 
 
@@ -369,16 +335,23 @@ class InternalDynamics:
         self
     ):
 
-
         if self.last_snapshot is None:
 
-            return {
+            if hasattr(
+                self.planet,
+                "snapshot"
+            ):
 
-                "planet":
+                return {
 
-                    self._snapshot_planet()
+                    "planet":
+                        self.planet.snapshot()
 
-            }
+                }
+
+
+            return None
+
 
 
         return self.last_snapshot.copy()

@@ -1,15 +1,38 @@
 import numpy as np
 
 
-
 class DisplayIO:
     """
+    CIMA0 Phase5_3
+
     Pure display port.
 
 
     Input:
 
-        field/media packet
+        packet
+
+        media:
+
+        {
+            type: "media",
+            format: "BGR",
+            bytes,
+            shape,
+            dtype
+        }
+
+
+        field:
+
+        {
+            type: "field",
+            representation,
+            bytes,
+            shape,
+            dtype
+        }
+
 
 
     Output:
@@ -20,19 +43,15 @@ class DisplayIO:
 
     Knows:
 
-        packet format
+        packet structure
 
 
     Does NOT know:
 
         camera meaning
-
         planet meaning
-
-        feature meaning
-
+        field meaning
         semantic meaning
-
     """
 
 
@@ -54,7 +73,6 @@ class DisplayIO:
         packet
     ):
 
-
         if packet is None:
 
             return None
@@ -72,34 +90,38 @@ class DisplayIO:
 
 
 
-        fmt = packet.get(
-            "format",
-            "field"
+        packet_type = packet.get(
+            "type"
         )
 
 
 
         #
-        # media stream
+        # external media stream
         #
+        if packet_type == "media":
 
-        if fmt == "BGR":
-
-            image = self._bgr_to_rgb(
-                data
+            image = self._media_to_rgb(
+                data,
+                packet
             )
 
 
 
         #
-        # internal numeric field
+        # internal field
         #
-
-        else:
+        elif packet_type == "field":
 
             image = self._field_to_rgb(
                 data
             )
+
+
+
+        else:
+
+            return None
 
 
 
@@ -120,6 +142,10 @@ class DisplayIO:
 
 
 
+    #
+    # byte packet decode
+    #
+
     def _decode(
         self,
         packet
@@ -127,7 +153,6 @@ class DisplayIO:
 
 
         try:
-
 
             raw = np.frombuffer(
 
@@ -149,7 +174,6 @@ class DisplayIO:
 
         except Exception:
 
-
             return None
 
 
@@ -158,43 +182,55 @@ class DisplayIO:
 
 
 
-    def _bgr_to_rgb(
+    #
+    # media stream decoder
+    #
+
+    def _media_to_rgb(
         self,
-        data
+        data,
+        packet
     ):
 
 
-        if data.ndim != 2:
+        fmt = packet.get(
+            "format"
+        )
+
+
+        if fmt != "BGR":
 
             return None
 
 
 
-        if data.shape[1] != 3:
+        #
+        # preserve original media structure
+        #
+
+        if data.ndim != 3:
+
+            return None
+
+
+
+        if data.shape[2] != 3:
 
             return None
 
 
 
         #
-        # restore pixel structure
-
-        #
-        # if original shape information exists,
-        # prefer it
+        # BGR -> RGB
         #
 
-        return data.reshape(
-
-            -1,
-
-            1,
-
-            3
-
-        )[:, :, ::-1]
+        return data[:, :, ::-1]
 
 
+
+    #
+    # internal field visualization
+    #
 
     def _field_to_rgb(
         self,
@@ -204,7 +240,15 @@ class DisplayIO:
 
         if data.ndim == 2:
 
+
+            #
+            # scalar field
+            #
+            # visualization only
+            #
+
             img = data[:, :, None]
+
 
             img = np.repeat(
 
@@ -217,12 +261,18 @@ class DisplayIO:
             )
 
 
+
         elif data.ndim == 3:
 
+
+            #
+            # already vector field
+            #
 
             if data.shape[2] == 3:
 
                 img = data
+
 
 
             else:
@@ -238,10 +288,20 @@ class DisplayIO:
                 )
 
 
+
         else:
 
             return None
 
+
+
+        #
+        # normalize framebuffer
+        #
+
+        img = img.astype(
+            np.float32
+        )
 
 
         minimum = img.min()
@@ -263,6 +323,7 @@ class DisplayIO:
 
             )
 
+
         else:
 
 
@@ -274,13 +335,25 @@ class DisplayIO:
 
         return (
 
-            img * 255
+            img * 255.0
+
+        ).clip(
+
+            0,
+
+            255
 
         ).astype(
+
             np.uint8
+
         )
 
 
+
+    #
+    # display size adapter
+    #
 
     def _resize(
         self,
@@ -296,7 +369,7 @@ class DisplayIO:
 
             0,
 
-            h-1,
+            h - 1,
 
             self.height
 
@@ -309,13 +382,14 @@ class DisplayIO:
 
             0,
 
-            w-1,
+            w - 1,
 
             self.width
 
         ).astype(
             np.int32
         )
+
 
 
         return img[
