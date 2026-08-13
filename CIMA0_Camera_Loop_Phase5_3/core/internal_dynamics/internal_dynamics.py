@@ -39,19 +39,13 @@ class InternalDynamics:
         self.planet = planet
 
         self.last_snapshot = None
-
-
+        
+        self.last_projection = None
 
     def receive(
         self,
         packet
     ):
-        """
-        Receive external disturbance.
-
-        Only injects disturbance.
-        Does not replace Planet state.
-        """
 
         disturbance = self._prepare_disturbance(
             packet
@@ -60,6 +54,28 @@ class InternalDynamics:
 
         if disturbance is None:
             return
+
+
+
+        #
+        # keep external structure
+        #
+
+        self.structure_trace = {
+
+            "external":
+            {
+                "format":
+                    disturbance["format"],
+
+                "shape":
+                    disturbance["shape"],
+
+                "dtype":
+                    disturbance["dtype"]
+            }
+
+        }
 
 
 
@@ -78,31 +94,45 @@ class InternalDynamics:
 
 
 
-        #
-        # project disturbance
-        # into Planet state space
-        #
-        field = self._project(
+        projected = self._project(
             field,
             state.shape
         )
 
 
-        if field is None:
+        if projected is None:
             return
 
 
 
         #
-        # small collision
+        # record internal structure
         #
+
+        self.structure_trace["internal"] = {
+
+            "format":
+                "field",
+
+            "shape":
+                projected.shape,
+
+            "dtype":
+                "float32"
+
+        }
+
+
+
         collision_strength = 0.01
 
 
         self.planet.state += (
-            field *
+            projected *
             collision_strength
         )
+
+    
 
 
 
@@ -231,78 +261,218 @@ class InternalDynamics:
         """
         Spatial projection only.
 
-        No meaning.
-        No feature extraction.
+        Responsibility:
+
+            resize external disturbance
+            into internal state space
+
+
+        Does NOT:
+
+            semantic reduction
+            feature extraction
+            hidden channel loss
+
+
+        Return:
+
+            projected field
+
+        Side effect:
+
+            save projection structure
         """
 
 
-        #
-        # Planet current state:
-        #
-        # (H,W)
-        #
 
-        if field.ndim == 3:
-
-            #
-            # collapse only for collision projection
-            #
-            # original packet is not changed
-            #
-            field = field.mean(
-                axis=2
-            )
-
-
-
-        if field.shape == target_shape:
-
-            return field
-
-
-
-        if len(target_shape) != 2:
+        if field is None:
 
             return None
 
 
 
-        h,w = target_shape
+        original_shape = field.shape
 
 
-        sh,sw = field.shape[:2]
+
+        #
+        # record original structure
+        #
+
+        projection_info = {
+
+            "source":
+            {
+                "shape":
+                    original_shape,
+
+                "ndim":
+                    field.ndim,
+
+                "channels":
+                    None
+            },
 
 
-        ys = np.linspace(
-            0,
-            sh-1,
-            h
-        ).astype(
-            np.int32
-        )
+            "target":
+            {
+                "shape":
+                    target_shape
+            }
+
+        }
 
 
-        xs = np.linspace(
-            0,
-            sw-1,
-            w
-        ).astype(
-            np.int32
-        )
+
+        #
+        # preserve channel information
+        #
+
+        if field.ndim == 3:
 
 
-        return field[
-            np.ix_(
-                ys,
-                xs
+            projection_info["source"]["channels"] = field.shape[2]
+
+
+            #
+            # Planet currently uses 2D state
+            #
+            # Therefore collision needs a scalar projection.
+            #
+            # This is a structural projection,
+            # not semantic interpretation.
+            #
+
+            field = np.mean(
+                field,
+                axis=2
             )
-        ]
+
+
+            projection_info["channel_mapping"] = {
+
+                "type":
+                    "collapse",
+
+
+                "input_channels":
+                    original_shape[2],
+
+
+                "output_channels":
+                    1,
+
+
+                "empty_slots":
+                    {
+
+                        "B":
+                            None,
+
+                        "G":
+                            None,
+
+                        "R":
+                            None
+
+                    }
+
+            }
 
 
 
+        elif field.ndim == 2:
+
+
+            projection_info["channel_mapping"] = {
+
+                "type":
+                    "identity",
+
+                "channels":
+                    1
+ 
+            }
+
+
+        else:
+
+            return None
+
+
+
+        #
+        # spatial projection
+        #
+
+        if field.shape != target_shape:
+
+
+            if len(target_shape) != 2:
+
+                return None
+
+
+
+            h,w = target_shape
+
+
+            sh,sw = field.shape[:2]
+
+
+            ys = np.linspace(
+                0,
+                sh - 1,
+                h
+            ).astype(
+                np.int32
+            )
+
+
+            xs = np.linspace(
+                0,
+                sw - 1,
+                w
+            ).astype(
+                np.int32
+            )
+
+
+            field = field[
+                np.ix_(
+                    ys,
+                    xs
+                )
+            ]
+
+
+
+        #
+        # keep trace
+        #
+
+        self.last_projection = projection_info
+
+
+
+        return field.astype(
+            np.float32
+        )
+        
+        
     def step(
         self
     ):
+        """
+        Internal evolution tick.
+
+        Planet owns its own dynamics.
+        InternalDynamics only schedules and snapshots.
+
+        No semantic processing.
+        """
+
+
 
         if hasattr(
             self.planet,
@@ -313,45 +483,127 @@ class InternalDynamics:
 
 
 
+        self.last_snapshot = {}
+
+
+
         if hasattr(
             self.planet,
             "snapshot"
         ):
 
-            self.last_snapshot = {
-
-                "planet":
-                    self.planet.snapshot()
-
-            }
-
-        else:
-
-            self.last_snapshot = {}
+            self.last_snapshot["planet"] = (
+                self.planet.snapshot()
+            )
 
 
 
+        #
+        # keep disturbance projection structure
+        #
+
+        if (
+            hasattr(
+                self,
+                "last_projection"
+            )
+            and
+            self.last_projection is not None
+        ):
+
+            self.last_snapshot["projection"] = (
+                self.last_projection.copy()
+            )
+
+
+
+        #
+        # keep external/internal structure trace
+        #
+
+        if (
+            hasattr(
+                self,
+                "structure_trace"
+            )
+            and
+            self.structure_trace is not None
+        ):
+
+            self.last_snapshot["structure"] = (
+                self.structure_trace.copy()
+            )
+        
+        
+    
     def snapshot(
         self
     ):
+        """
+        Internal dynamics snapshot.
 
-        if self.last_snapshot is None:
+        Contains:
 
-            if hasattr(
-                self.planet,
-                "snapshot"
-            ):
+            internal state
 
-                return {
+            structure trace
 
-                    "planet":
-                        self.planet.snapshot()
+            projection information
 
-                }
-
-
-            return None
+        No semantic interpretation.
+        """
 
 
 
-        return self.last_snapshot.copy()
+        if self.last_snapshot is not None:
+
+            return self.last_snapshot.copy()
+
+
+
+        snapshot = {}
+
+
+
+        if hasattr(
+            self.planet,
+            "snapshot"
+        ):
+
+            snapshot["planet"] = (
+                self.planet.snapshot()
+            )
+
+
+
+        #
+        # external -> internal structure
+        #
+
+        if hasattr(
+            self,
+            "last_projection"
+        ):
+
+            snapshot["projection"] = (
+                self.last_projection
+            )
+
+
+
+        #
+        # input structure
+        #
+
+        if hasattr(
+            self,
+            "structure_trace"
+        ):
+
+            snapshot["structure"] = (
+                self.structure_trace
+            )
+
+
+
+        return snapshot
