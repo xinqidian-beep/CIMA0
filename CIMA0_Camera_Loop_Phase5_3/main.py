@@ -1,7 +1,7 @@
 import cv2
 
 
-from core.internal_dynamics.planet import Planet
+from archive.planet import Planet
 from core.internal_dynamics.internal_dynamics import InternalDynamics
 from core.internal_dynamics.internal_dynamics_observer import InternalDynamicsObserver
 
