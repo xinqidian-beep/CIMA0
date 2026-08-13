@@ -7,7 +7,7 @@ from core.internal_dynamics.internal_dynamics_observer import InternalDynamicsOb
 
 from core.terminal.camera import CameraPlanet
 
-from core.display.display_io import DisplayIO
+from core.display_io import DisplayIO
 
 
 
