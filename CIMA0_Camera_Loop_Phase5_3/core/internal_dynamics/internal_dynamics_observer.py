@@ -1,52 +1,56 @@
 import numpy as np
 
 
-
 class InternalDynamicsObserver:
     """
-    Internal dynamics observer.
+    CIMA0 Phase5_3
 
+    Read-only observer.
 
     Input:
 
-        Planet snapshot
+        InternalDynamics snapshot
+
+            |
+            v
+
+        Planet state field
 
 
     Output:
 
-        observation field
+        observation packet
 
-        compute request
+            |
+            v
+
+        ComputeSystem
 
 
     Responsibility:
 
-        observe state
+        - read state
+        - calculate delta
+        - maintain age
+        - calculate activity
+        - request computation
 
-        calculate temporal change
 
-        raise hand
+    Does NOT:
 
-
-    No:
-
-        dynamics
-
-        compute allocation
-
-        sampling execution
-
-        display
-
+        - modify Planet
+        - understand camera
+        - understand color
+        - sample itself
+        - allocate compute
     """
-
 
 
     def __init__(
         self,
-        w_delta=0.5,
-        w_age=0.3,
-        w_activity=0.2
+        w_delta=1.0,
+        w_age=0.2,
+        w_activity=1.0
     ):
 
         self.previous = None
@@ -55,9 +59,8 @@ class InternalDynamicsObserver:
 
 
         #
-        # self adaptive observation weights
+        # adaptive weights
         #
-
         self.w_delta = w_delta
 
         self.w_age = w_age
@@ -71,7 +74,6 @@ class InternalDynamicsObserver:
         snapshot
     ):
 
-
         state = self._extract_state(
             snapshot
         )
@@ -83,11 +85,12 @@ class InternalDynamicsObserver:
 
 
 
+        #
+        # first observation
+        #
         if self.previous is None:
 
-
             self.previous = state.copy()
-
 
             self.age = np.zeros_like(
                 state,
@@ -103,13 +106,9 @@ class InternalDynamicsObserver:
 
         else:
 
-
             delta = np.abs(
-
                 state -
-
                 self.previous
-
             )
 
 
@@ -126,112 +125,33 @@ class InternalDynamicsObserver:
 
 
 
-        activity = delta + 1e-6
-
-
-
-        observation = {
-
-
-            "state":
-
-                state.copy(),
-
-
-
-            "delta":
-
-                delta.copy(),
-
-
-
-            "age":
-
-                self.age.copy(),
-
-
-
-            "activity":
-
-                activity.copy(),
-
-
-
-            "type":
-
-                "planet_observation",
-
-
-
-            "source":
-
-                "internal_dynamics"
-
-        }
+        #
+        # activity field
+        #
+        activity = (
+            delta +
+            1e-6
+        )
 
 
 
         #
         # automatic hand raising
         #
+        request_score = (
 
-        observation["request"] = self.raise_hand(
-            observation
-        )
-
-
-        return observation
-
-
-
-    def raise_hand(
-        self,
-        observation
-    ):
-        """
-        Generate compute request.
-
-        Only report demand.
-        Does not allocate.
-        """
-
-
-        delta = observation["delta"]
-
-        age = observation["age"]
-
-        activity = observation["activity"]
-
-
-
-        #
-        # normalize age
-        #
-
-        age_norm = (
-
-            age /
-
-            max(
-                np.max(age),
-                1.0
-            )
-
-        )
-
-
-
-        score = (
-
-            self.w_delta * delta
+            self.w_delta *
+            delta
 
             +
 
-            self.w_age * age_norm
+            self.w_age *
+            self.age
 
             +
 
-            self.w_activity * activity
+            self.w_activity *
+            activity
 
         )
 
@@ -239,34 +159,131 @@ class InternalDynamicsObserver:
 
         return {
 
-
-            "type":
-
-                "compute_request",
-
-
-
-            "source":
-
-                "internal_dynamics_observer",
-
-
-
-            "score":
-
-                score.astype(
-                    np.float32
+            "state":
+                self._field_packet(
+                    state,
+                    "planet_state"
                 ),
 
 
+            "delta":
+                self._field_packet(
+                    delta,
+                    "planet_delta"
+                ),
 
-            "shape":
 
-                score.shape
+            "age":
+                self._field_packet(
+                    self.age,
+                    "planet_age"
+                ),
+
+
+            "activity":
+                self._field_packet(
+                    activity,
+                    "planet_activity"
+                ),
+
+
+            #
+            # send to ComputeSystem
+            #
+            "compute_request":
+                {
+
+                    "type":
+                        "field_request",
+
+
+                    "source":
+                        "planet",
+
+
+                    "shape":
+                        state.shape,
+
+
+                    "score":
+                        request_score
+
+                }
 
         }
 
+    def encode_field(
+        self,
+        data,
+        source="internal"
+    ):
+        """
+        Encode observation field into packet.
 
+        Only:
+
+            ndarray
+            ->
+            bytes packet
+
+
+        No:
+
+            color
+            semantic
+            visualization
+        """
+
+        if data is None:
+
+            return None
+
+
+        if "state" not in data:
+
+            return None
+
+
+        array = data["state"]
+
+
+        if not isinstance(
+            array,
+            np.ndarray
+        ):
+
+            return None
+
+
+
+        return {
+
+            "type":
+                "field",
+
+
+            "source":
+                source,
+
+
+            "representation":
+                "internal_state",
+
+
+            "bytes":
+                array.astype(
+                    np.float32
+                ).tobytes(),
+
+
+            "shape":
+                array.shape,
+
+
+            "dtype":
+                "float32"
+
+        }
 
     def _extract_state(
         self,
@@ -296,28 +313,27 @@ class InternalDynamicsObserver:
         #
         # PlanetField style
         #
-
         if isinstance(
             planet,
             dict
         ):
 
+            if "field" not in planet:
 
-            state = planet.get(
-                "field"
-            )
+                return None
+
+
+            state = planet["field"]
 
 
 
         #
-        # legacy
+        # direct ndarray
         #
-
         elif isinstance(
             planet,
             np.ndarray
         ):
-
 
             state = planet
 
@@ -345,40 +361,13 @@ class InternalDynamicsObserver:
 
 
 
-    def encode_field(
+    def _field_packet(
         self,
-        data,
-        source="internal"
+        array,
+        source
     ):
 
-
-        if data is None:
-
-            return None
-
-
-
-        if "state" not in data:
-
-            return None
-
-
-
-        array = data["state"]
-        
-        if not isinstance(
-            array,
-            np.ndarray
-        ):
-
-            return None
-
         return {
-        
-            #
-            # packet identity
-            #
-
 
             "type":
                 "field",
@@ -388,31 +377,9 @@ class InternalDynamicsObserver:
                 source,
 
 
-
-            #
-            # field identity
-            #
-
-            "field_type":
-                "planet_state",
-
-
             "representation":
-                "scalar_field",
+                "internal_dynamic_field",
 
-
-            "channels":
-                1,
-
-
-            "color_space":
-                None,
-
-
-
-            #
-            # raw data
-            #
 
             "bytes":
                 array.astype(
