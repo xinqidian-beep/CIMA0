@@ -5,6 +5,7 @@ class CameraPlanet:
     """
     Camera physical boundary.
 
+
     Input:
 
         ndarray BGR frame
@@ -12,21 +13,33 @@ class CameraPlanet:
 
     Output:
 
-        byte packet
+        media packet
 
         {
             bytes,
             shape,
-            dtype
+            dtype,
+
+            format,
+            channels,
+            source
         }
+
+
+    Responsibility:
+
+        preserve camera stream identity
 
 
     No:
 
         resize
         sampling
+        compression
         semantic
         feature
+        interpretation
+
     """
 
 
@@ -34,6 +47,7 @@ class CameraPlanet:
     def __init__(self):
 
         self.previous_state = None
+
         self.current_state = None
 
 
@@ -43,39 +57,93 @@ class CameraPlanet:
         frame
     ):
 
-
         if frame is None:
 
             return None
 
 
 
+        #
+        # keep previous packet
+        #
+
         self.previous_state = (
             self.current_state
         )
 
 
+
+        #
+        # preserve original ndarray
+        #
+
+        if not isinstance(
+            frame,
+            np.ndarray
+        ):
+
+            return None
+
+
+
         packet = {
+
+
+            #
+            # raw media bytes
+            #
 
             "bytes":
                 frame.tobytes(),
 
 
+
+            #
+            # original tensor structure
+            #
+
             "shape":
                 frame.shape,
 
 
+
+            #
+            # original numeric type
+            #
+
             "dtype":
-                str(frame.dtype)
+                str(
+                    frame.dtype
+                ),
+
+
+
+            #
+            # identity information
+            #
+
+            "format":
+                "image",
+
+
+
+            "channels":
+                "BGR",
+
+
+
+            "source":
+                "camera"
+
 
         }
+
 
 
         self.current_state = packet
 
 
         return packet
-
 
 
 

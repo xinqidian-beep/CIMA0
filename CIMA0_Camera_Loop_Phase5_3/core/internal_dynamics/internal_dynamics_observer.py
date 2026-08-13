@@ -1,55 +1,75 @@
 import numpy as np
 
 
+
 class InternalDynamicsObserver:
     """
-    CIMA0 Phase5_3
+    Internal dynamics observer.
 
-    Read only observer.
+
+    Input:
+
+        Planet snapshot
+
+
+    Output:
+
+        observation field
+
+        compute request
+
 
     Responsibility:
 
-        InternalDynamics snapshot
-                |
-                v
-        calculate observation values
-                |
-                v
-        sampling information
-                |
-                v
-        ComputeSystem / Sampler
+        observe state
+
+        calculate temporal change
+
+        raise hand
 
 
-    Does NOT know:
+    No:
 
-        camera
-        planet dynamics
-        cloud meaning
-        sampler rule
+        dynamics
+
         compute allocation
-        interpretation
+
+        sampling execution
+
+        display
+
     """
 
 
-    def __init__(self):
+
+    def __init__(
+        self,
+        w_delta=0.5,
+        w_age=0.3,
+        w_activity=0.2
+    ):
 
         self.previous = None
 
         self.age = None
 
 
+        #
+        # self adaptive observation weights
+        #
+
+        self.w_delta = w_delta
+
+        self.w_age = w_age
+
+        self.w_activity = w_activity
+
+
 
     def read(
         self,
-        snapshot,
-        allocation=None
+        snapshot
     ):
-
-        if snapshot is None:
-
-            return None
-
 
 
         state = self._extract_state(
@@ -63,13 +83,11 @@ class InternalDynamicsObserver:
 
 
 
-        #
-        # first observation
-        #
-
         if self.previous is None:
 
+
             self.previous = state.copy()
+
 
             self.age = np.zeros_like(
                 state,
@@ -87,8 +105,11 @@ class InternalDynamicsObserver:
 
 
             delta = np.abs(
+
                 state -
+
                 self.previous
+
             )
 
 
@@ -98,11 +119,6 @@ class InternalDynamicsObserver:
             self.age += 1
 
 
-
-            #
-            # active area refresh
-            #
-
             active = delta > 0
 
 
@@ -110,43 +126,143 @@ class InternalDynamicsObserver:
 
 
 
+        activity = delta + 1e-6
+
+
+
+        observation = {
+
+
+            "state":
+
+                state.copy(),
+
+
+
+            "delta":
+
+                delta.copy(),
+
+
+
+            "age":
+
+                self.age.copy(),
+
+
+
+            "activity":
+
+                activity.copy(),
+
+
+
+            "type":
+
+                "planet_observation",
+
+
+
+            "source":
+
+                "internal_dynamics"
+
+        }
+
+
+
         #
-        # local activity
+        # automatic hand raising
         #
 
-        activity = (
-            delta
+        observation["request"] = self.raise_hand(
+            observation
+        )
+
+
+        return observation
+
+
+
+    def raise_hand(
+        self,
+        observation
+    ):
+        """
+        Generate compute request.
+
+        Only report demand.
+        Does not allocate.
+        """
+
+
+        delta = observation["delta"]
+
+        age = observation["age"]
+
+        activity = observation["activity"]
+
+
+
+        #
+        # normalize age
+        #
+
+        age_norm = (
+
+            age /
+
+            max(
+                np.max(age),
+                1.0
+            )
+
+        )
+
+
+
+        score = (
+
+            self.w_delta * delta
+
             +
-            1e-6
+
+            self.w_age * age_norm
+
+            +
+
+            self.w_activity * activity
+
         )
 
 
 
         return {
 
-            "state":
-                self._sample(
-                    state,
-                    allocation
+
+            "type":
+
+                "compute_request",
+
+
+
+            "source":
+
+                "internal_dynamics_observer",
+
+
+
+            "score":
+
+                score.astype(
+                    np.float32
                 ),
 
-            "delta":
-                self._sample(
-                    delta,
-                    allocation
-                ),
 
-            "age":
-                self._sample(
-                    self.age,
-                    allocation
-                ),
 
-            "activity":
-                self._sample(
-                    activity,
-                    allocation
-                )
+            "shape":
+
+                score.shape
 
         }
 
@@ -157,45 +273,54 @@ class InternalDynamicsObserver:
         snapshot
     ):
 
+
         if not isinstance(
             snapshot,
             dict
         ):
 
             return None
-            
-        planet = snapshot.get(
-            "planet"
-        )    
 
 
-        if planet is None:
+
+        if "planet" not in snapshot:
 
             return None
-            
+
+
+
+        planet = snapshot["planet"]
+
+
+
         #
-        # new PlanetField snapshot
+        # PlanetField style
         #
 
-        if  isinstance(
+        if isinstance(
             planet,
             dict
         ):
+
 
             state = planet.get(
                 "field"
             )
 
 
+
         #
-        # old compatibility
+        # legacy
         #
+
         elif isinstance(
             planet,
             np.ndarray
         ):
 
+
             state = planet
+
 
 
         else:
@@ -208,35 +333,15 @@ class InternalDynamicsObserver:
             state,
             np.ndarray
         ):
+
             return None
 
-        return state
-
-        
-    def _sample(
-        self,
-        array,
-        allocation
-    ):
-        """
-        Observer only applies allocation.
-
-        Sampling decision belongs to Sampler.
-        """
-
-        if allocation is None:
-
-            return array.copy()
 
 
-        #
-        # placeholder:
-        #
-        # ComputeSystem will later
-        # provide selected indices.
-        #
-
-        return array.copy()
+        return state.astype(
+            np.float32,
+            copy=False
+        )
 
 
 
@@ -245,6 +350,7 @@ class InternalDynamicsObserver:
         data,
         source="internal"
     ):
+
 
         if data is None:
 
@@ -259,24 +365,64 @@ class InternalDynamicsObserver:
 
 
         array = data["state"]
+        
+        if not isinstance(
+            array,
+            np.ndarray
+        ):
 
-
+            return None
 
         return {
+        
+            #
+            # packet identity
+            #
+
 
             "type":
                 "field",
 
+
             "source":
                 source,
+
+
+
+            #
+            # field identity
+            #
+
+            "field_type":
+                "planet_state",
+
+
+            "representation":
+                "scalar_field",
+
+
+            "channels":
+                1,
+
+
+            "color_space":
+                None,
+
+
+
+            #
+            # raw data
+            #
 
             "bytes":
                 array.astype(
                     np.float32
                 ).tobytes(),
 
+
             "shape":
                 array.shape,
+
 
             "dtype":
                 "float32"
