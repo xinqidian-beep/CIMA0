@@ -3,53 +3,42 @@ import numpy as np
 
 class InternalDynamicsObserver:
     """
-    CIMA0 Phase5_3
-
-    Read-only observer.
+    Read only internal dynamics observer.
 
     Input:
 
-        InternalDynamics snapshot
-
-            |
-            v
-
-        Planet state field
-
+        snapshot packet
 
     Output:
 
         observation packet
 
-            |
-            v
-
-        ComputeSystem
-
+        {
+            state,
+            delta,
+            age,
+            activity,
+            compute_request
+        }
 
     Responsibility:
 
-        - read state
-        - calculate delta
-        - maintain age
-        - calculate activity
-        - request computation
+        observe change
+        calculate activity
+        raise computation request
 
+    No:
 
-    Does NOT:
-
-        - modify Planet
-        - understand camera
-        - understand color
-        - sample itself
-        - allocate compute
+        modify dynamics
+        control planet
+        decode semantics
     """
 
 
     def __init__(
         self,
         w_delta=1.0,
-        w_age=0.2,
+        w_age=0.1,
         w_activity=1.0
     ):
 
@@ -57,10 +46,13 @@ class InternalDynamicsObserver:
 
         self.age = None
 
+        self.last_observation = None
+
 
         #
         # adaptive weights
         #
+
         self.w_delta = w_delta
 
         self.w_age = w_age
@@ -74,6 +66,7 @@ class InternalDynamicsObserver:
         snapshot
     ):
 
+
         state = self._extract_state(
             snapshot
         )
@@ -85,12 +78,21 @@ class InternalDynamicsObserver:
 
 
 
+        state = state.astype(
+            np.float32
+        )
+
+
+
         #
         # first observation
         #
+
         if self.previous is None:
 
+
             self.previous = state.copy()
+
 
             self.age = np.zeros_like(
                 state,
@@ -106,6 +108,7 @@ class InternalDynamicsObserver:
 
         else:
 
+
             delta = np.abs(
                 state -
                 self.previous
@@ -115,7 +118,7 @@ class InternalDynamicsObserver:
             self.previous = state.copy()
 
 
-            self.age += 1
+            self.age += 1.0
 
 
             active = delta > 0
@@ -126,8 +129,9 @@ class InternalDynamicsObserver:
 
 
         #
-        # activity field
+        # activity
         #
+
         activity = (
             delta +
             1e-6
@@ -138,7 +142,8 @@ class InternalDynamicsObserver:
         #
         # automatic hand raising
         #
-        request_score = (
+
+        score = (
 
             self.w_delta *
             delta
@@ -157,13 +162,15 @@ class InternalDynamicsObserver:
 
 
 
-        return {
+        result = {
+
 
             "state":
                 self._field_packet(
                     state,
                     "planet_state"
                 ),
+
 
 
             "delta":
@@ -173,11 +180,13 @@ class InternalDynamicsObserver:
                 ),
 
 
+
             "age":
                 self._field_packet(
                     self.age,
                     "planet_age"
                 ),
+
 
 
             "activity":
@@ -187,52 +196,44 @@ class InternalDynamicsObserver:
                 ),
 
 
-            #
-            # send to ComputeSystem
-            #
+
             "compute_request":
-                {
+            {
 
-                    "type":
-                        "field_request",
-
-
-                    "source":
-                        "planet",
+                "type":
+                    "field_request",
 
 
-                    "shape":
-                        state.shape,
+                "source":
+                    "planet",
 
 
-                    "score":
-                        request_score
+                "shape":
+                    state.shape,
 
-                }
+
+                "score":
+                    score
+
+            }
 
         }
+
+
+
+        self.last_observation = result
+
+
+        return result
+
+
 
     def encode_field(
         self,
         data,
         source="internal"
     ):
-        """
-        Encode observation field into packet.
 
-        Only:
-
-            ndarray
-            ->
-            bytes packet
-
-
-        No:
-
-            color
-            semantic
-            visualization
-        """
 
         if data is None:
 
@@ -244,21 +245,16 @@ class InternalDynamicsObserver:
             return None
 
 
-        array = data["state"]
-
-
-        if not isinstance(
-            array,
-            np.ndarray
-        ):
-
-            return None
-
+        packet = data["state"]
 
 
         return {
 
             "type":
+                "field",
+
+
+            "format":
                 "field",
 
 
@@ -271,114 +267,70 @@ class InternalDynamicsObserver:
 
 
             "bytes":
-                array.astype(
-                    np.float32
-                ).tobytes(),
+                packet["bytes"],
 
 
             "shape":
-                array.shape,
+                packet["shape"],
 
 
             "dtype":
-                "float32"
+                packet["dtype"],
+                
+            #
+            # same-structure information
+            #
+
+            "structure":
+                data.get(
+                    "structure"
+                ),
+
+
+            "projection":
+                data.get(
+                    "projection"
+                )    
+                
+                
 
         }
 
-    def _extract_state(
-        self,
-        snapshot
+
+
+    def snapshot(
+        self
     ):
 
-
-        if not isinstance(
-            snapshot,
-            dict
-        ):
+        if self.last_observation is None:
 
             return None
 
 
-
-        if "planet" not in snapshot:
-
-            return None
-
-
-
-        planet = snapshot["planet"]
-
-
-
-        #
-        # PlanetField style
-        #
-        if isinstance(
-            planet,
-            dict
-        ):
-
-            if "field" not in planet:
-
-                return None
-
-
-            state = planet["field"]
-
-
-
-        #
-        # direct ndarray
-        #
-        elif isinstance(
-            planet,
-            np.ndarray
-        ):
-
-            state = planet
-
-
-
-        else:
-
-            return None
-
-
-
-        if not isinstance(
-            state,
-            np.ndarray
-        ):
-
-            return None
-
-
-
-        return state.astype(
-            np.float32,
-            copy=False
-        )
+        return self.last_observation.copy()
 
 
 
     def _field_packet(
         self,
         array,
-        source
+        name
     ):
 
+
         return {
+
 
             "type":
                 "field",
 
 
-            "source":
-                source,
+            "format":
+                "field",
 
 
-            "representation":
-                "internal_dynamic_field",
+            "name":
+                name,
 
 
             "bytes":
@@ -395,3 +347,105 @@ class InternalDynamicsObserver:
                 "float32"
 
         }
+
+
+
+    def _extract_state(
+        self,
+        snapshot
+    ):
+
+
+        if snapshot is None:
+
+            return None
+
+
+
+        if not isinstance(
+            snapshot,
+            dict
+        ):
+
+            return None
+
+
+
+        #
+        # InternalDynamics snapshot
+        #
+        # {
+        #     "planet": ...
+        # }
+        #
+
+        planet = snapshot.get(
+            "planet"
+        )
+
+
+        if planet is None:
+
+            return None
+
+
+
+        if isinstance(
+            planet,
+            dict
+        ):
+
+            state = planet.get(
+                "state"
+            )
+
+
+            if isinstance(
+                state,
+                np.ndarray
+            ):
+
+                return state
+
+            #
+            # optional packet state
+            #
+
+            if isinstance(
+                state,
+                dict
+            ):
+
+                try:
+
+                    raw = np.frombuffer(
+                        state["bytes"],
+                        dtype=np.dtype(
+                            state["dtype"]
+                        )
+                    )
+
+
+                    return raw.reshape(
+                        state["shape"]
+                    )
+
+
+                except Exception:
+
+                    pass
+
+        #
+        # direct ndarray
+        #
+
+        if isinstance(
+            planet,
+            np.ndarray
+        ):
+
+            return planet
+
+
+
+        return None
