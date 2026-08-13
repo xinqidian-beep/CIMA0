@@ -615,3 +615,904 @@ Clip
 这样不会再次出现 CloudField 那种“替代 Planet 又替代 Observer”的结构混乱。
 
 辛苦了，这一轮其实完成的是一次架构清理，比增加代码更重要。
+*******************************************
+对，这一步必须先冻结问题清单，否则在修改过程中容易再次混淆层级。
+
+我根据刚才整个追踪过程，把问题分为 **架构问题、接口问题、实现问题** 三类。
+
+---
+
+# CIMA0 Phase5_3 当前问题列表
+
+## A. Sampler维度与职责问题（最开始发现）
+
+### 问题 A1：Sampler 接收了错误层级的数据
+
+当前：
+
+```text
+CameraObserver
+      |
+      v
+Sampler
+      |
+      v
+pixel delta / age / activity
+```
+
+问题：
+
+Sampler实际上在选择：
+
+> 摄像头像素变化
+
+而不是：
+
+> InternalDynamics产生的内部状态
+
+违反：
+
+```text
+Sampler只负责选择机制
+不负责理解数据来源
+```
+
+---
+
+### 问题 A2：2D Planet维度被错误带入Sampler
+
+发现：
+
+```python
+len(delta)
+```
+
+问题：
+
+如果输入：
+
+```python
+delta.shape=(128,128)
+```
+
+那么：
+
+```python
+len(delta)=128
+```
+
+不是：
+
+```python
+16384
+```
+
+但是：
+
+这个不是最终解决方案。
+
+错误方向：
+
+```python
+delta.ravel()
+```
+
+因为会再次让Sampler成为：
+
+```text
+Planet空间采样器
+```
+
+正确方向：
+
+Sampler最终应该接收：
+
+```text
+CloudField内部状态集合
+```
+
+而不是Planet网格。
+
+---
+
+# B. CloudField定位错误（刚才发现）
+
+## 问题 B1：CloudField曾经被实现成空间缓存
+
+当前危险方向：
+
+```text
+Camera/Planet
+      |
+      v
+CloudField
+      |
+      v
+Cell(x,y,value)
+```
+
+这会导致：
+
+CloudField = Planet副本
+
+错误。
+
+---
+
+正确：
+
+```text
+Planet动力演化
+
+       |
+       v
+
+CloudField
+
+       |
+       v
+
+吸引子区域
+特殊状态结构
+```
+
+CloudField不是：
+
+* 像素存储
+* 空间压缩
+* 网格复制
+
+---
+
+## 问题 B2：Cell概念漂移
+
+错误理解：
+
+```text
+Cell = Planet格子
+```
+
+导致：
+
+```python
+position=(x,y)
+```
+
+这种设计。
+
+需要重新确认：
+
+如果保留Cell名称：
+
+它应该表示：
+
+```text
+InternalDynamics内部状态单元
+```
+
+不是空间单元。
+
+---
+
+# C. Planet层混淆问题（刚才发现）
+
+## 问题 C1：CameraPlanet 和动力Planet混淆
+
+存在两个不同概念：
+
+---
+
+### CameraPlanet
+
+位置：
+
+```text
+core/terminal/camera/camera_planet.py
+```
+
+职责：
+
+```text
+camera ndarray
+        |
+        v
+byte packet
+```
+
+输出：
+
+```python
+{
+ bytes,
+ shape,
+ dtype
+}
+```
+
+它是：
+
+外部输入边界。
+
+---
+
+### Planet
+
+职责：
+
+```text
+动力源头
+```
+
+拥有：
+
+* state
+* receive()
+* step()
+* snapshot()
+
+InternalDynamics已经假设它存在：
+
+```python
+InternalDynamics(planet)
+```
+
+---
+
+当前问题：
+
+Phase5_3运行目录中：
+
+Planet实现在哪里？
+
+需要确认。
+
+---
+
+# D. InternalDynamics问题（已确认不是问题）
+
+检查结果：
+
+`core/internal_dynamics/__init__.py`
+
+设计正确。
+
+它：
+
+负责：
+
+```text
+receive external disturbance
+advance local dynamics
+expose current state
+```
+
+不负责：
+
+* camera
+* cloud
+* observer
+* display
+
+所以：
+
+**InternalDynamics无需重写。**
+
+---
+
+# E. CameraObserver越权问题
+
+当前：
+
+CameraObserver内部：
+
+```python
+from core.compute_system import Sampler
+```
+
+并：
+
+```python
+self.sampler.select()
+```
+
+问题：
+
+Observer同时承担：
+
+1. 视觉场维护
+2. delta计算
+3. age维护
+4. 采样决策
+
+其中第4项越界。
+
+应该：
+
+CameraObserver：
+
+负责：
+
+```text
+camera field observation
+```
+
+不负责：
+
+```text
+internal selection
+```
+
+---
+
+# F. 当前缺少验证的问题
+
+需要检查：
+
+## F1：main.py真实链路
+
+确认：
+
+现在是否：
+
+```text
+Camera
+→ CameraPlanet
+→ CameraObserver
+→ ?
+```
+
+还是：
+
+```text
+Camera
+→ CameraPlanet
+→ InternalDynamics
+→ Planet
+```
+
+---
+
+## F2：Planet实例来源
+
+确认：
+
+哪里：
+
+```python
+InternalDynamics(
+    planet=?
+)
+```
+
+如果没有当前Planet：
+
+说明Phase5_3缺少动力入口。
+
+---
+
+## F3：CloudField挂载位置
+
+确认：
+
+CloudField应该在哪里：
+
+候选：
+
+```text
+Planet内部
+```
+
+而不是：
+
+```text
+InternalDynamics平级
+```
+
+需要看现有代码。
+
+---
+
+# 当前修改优先级
+
+不要同时改。
+
+顺序：
+
+## 第一步
+
+确认：
+
+```text
+main.py
++
+Planet实例
+```
+
+因为这是根。
+
+---
+
+## 第二步
+
+确认：
+
+```text
+Planet
++
+CloudField关系
+```
+
+恢复：
+
+```text
+Planet动力
+      ↓
+CloudField内部结构
+```
+
+---
+
+## 第三步
+
+拆掉：
+
+```text
+CameraObserver → Sampler
+```
+
+---
+
+## 第四步
+
+重新定义：
+
+```text
+Sampler输入
+```
+
+变成：
+
+```text
+CloudField状态
+```
+
+---
+
+## 第五步
+
+最后处理：
+
+权重自适应：
+
+```python
+w_delta
+w_age
+w_activity
+```
+
+因为这是高级演化机制，必须建立在正确对象上。
+
+---
+
+当前结论：
+
+**已确认一个大问题：Sampler入口错。**
+
+**已确认一个概念问题：CloudField被拉回了空间层。**
+
+**已确认一个命名问题：CameraPlanet ≠ Planet。**
+
+**InternalDynamics暂时保持不动。**
+
+下一步从 `main.py` 和 Planet实例开始查，不再猜。
+
+
+*************************************
+这个问题也加入清单，而且它实际上属于 **Sampler 的二阶段设计问题**，不是当前第一阶段链路修复问题。
+
+先记录，不丢。
+
+---
+
+# G. Sampler 自适应权重演化问题
+
+## G1. 当前固定评分模型
+
+当前：
+
+```python
+score =
+    delta * w_delta
+    +
+    age * w_age
+    +
+    activity * w_activity
+```
+
+初始：
+
+```python
+w_delta = 1.0
+w_age = 0.01
+w_activity = 0.1
+```
+
+含义：
+
+当前阶段：
+
+```
+变化优先
++
+少量考虑年龄
++
+一定考虑活跃度
+```
+
+这是一个静态选择规则。
+
+---
+
+# G2. 当前问题
+
+如果永远固定：
+
+```python
+w_delta=1.0
+w_age=0.01
+w_activity=0.1
+```
+
+那么：
+
+Sampler永远按照人工设定偏好选择。
+
+它没有形成：
+
+```text
+选择
+ ↓
+结果
+ ↓
+反馈
+ ↓
+规则变化
+```
+
+闭环。
+
+---
+
+# G3. 目标设计：权重成为内部可演化状态
+
+不是：
+
+```python
+w += random
+```
+
+也不是：
+
+```python
+三个权重同时增加
+```
+
+而是：
+
+权重之间形成耦合。
+
+你提出：
+
+```python
+w_delta  += reward * gradient
+
+w_age    += reward * gradient
+
+w_activity += reward * gradient
+```
+
+进一步明确为：
+
+---
+
+## 方案1：交叉影响
+
+### delta权重受age影响
+
+含义：
+
+> 长期存在的结构，如果仍然产生变化，提升对变化的关注。
+
+形式：
+
+```python
+w_delta += η * reward * age
+```
+
+---
+
+### age权重受activity影响
+
+含义：
+
+> 长期活跃结构值得保持。
+
+形式：
+
+```python
+w_age += η * reward * activity
+```
+
+---
+
+### activity权重受delta影响
+
+含义：
+
+> 新变化刺激活跃评价。
+
+形式：
+
+```python
+w_activity += η * reward * delta
+```
+
+形成：
+
+```
+        age
+         |
+         v
+
+delta ---> activity
+  ^          |
+  |          |
+  +----------+
+
+```
+
+---
+
+# G4. 更完整的闭环形式
+
+也可以三个同时受其他两个影响：
+
+例如：
+
+```python
+dw_delta =
+    reward *
+    (
+      a1*age
+      +
+      a2*activity
+    )
+
+
+dw_age =
+    reward *
+    (
+      b1*delta
+      +
+      b2*activity
+    )
+
+
+dw_activity =
+    reward *
+    (
+      c1*delta
+      +
+      c2*age
+    )
+```
+
+这样：
+
+没有一个评价维度独立存在。
+
+---
+
+# G5. 必须加入稳定约束
+
+否则：
+
+```python
+w_delta
+w_age
+w_activity
+```
+
+会无限增长。
+
+需要：
+
+## 归一化
+
+例如：
+
+```python
+weights /= sum(weights)
+```
+
+保持：
+
+```text
+w_delta+w_age+w_activity=1
+```
+
+或者限制：
+
+```python
+min_weight
+max_weight
+```
+
+---
+
+# G6. 与 CIMA0 总体设计的关系
+
+这个不是普通机器学习权重。
+
+它更接近：
+
+内部动力规则的一部分。
+
+链路：
+
+```
+CloudField产生状态
+
+        ↓
+
+Sampler选择
+
+        ↓
+
+reward反馈
+
+        ↓
+
+Sampler规则改变
+
+        ↓
+
+新的选择行为
+
+```
+
+也就是说：
+
+Sampler自身形成一个小型动力系统。
+
+---
+
+# 更新后的总问题列表增加：
+
+## G. Sampler自适应演化
+
+状态：
+
+⬜ 固定权重评分
+
+目标：
+
+⬜ 权重作为内部状态
+
+⬜ reward驱动梯度变化
+
+⬜ delta/age/activity三者形成耦合闭环
+
+⬜ 权重稳定化
+
+---
+
+## 当前解决顺序不变：
+
+### 第一阶段（先恢复结构）
+
+1. ✅ InternalDynamics确认正确（已完成）
+2. ⬜ main.py真实链路确认
+3. ⬜ Planet实例确认
+4. ⬜ CameraObserver与Sampler解绑
+5. ⬜ CloudField恢复为内部结构生成层
+
+### 第二阶段（动力稳定后）
+
+6. ⬜ Sampler输入改为CloudField状态
+7. ⬜ Sampler选择内部状态
+8. ⬜ reward机制
+
+### 第三阶段（演化）
+
+9. ⬜ 权重自适应闭环
+10. ⬜ w_delta / w_age / w_activity动力演化
+
+现在问题清单完整了。后面按编号一个一个解决，不再同时改多个层。
+
+*************************************************时间轴：
+
+t0:
++----------------------+
+|        Planet        |
+|                      |
+|   +------------+     |
+|   | CloudField |     |
+|   |  局部区域  |     |
+|   +------------+     |
+|                      |
++----------------------+
+
+
+t1:
++----------------------+
+|        Planet        |
+|                      |
+|   +-------------+    |
+|   | CloudField  |    |
+|   |  演化后的区块 |   |
+|   +-------------+    |
+|                      |
++----------------------+
+
+
+t2:
++----------------------+
+|        Planet        |
+|                      |
+|    +----------+      |
+|    | Cloud    |      |
+|    | Field    |      |
+|    +----------+      |
+|                      |
++----------------------+
+
+********************************************
+                 External disturbance
+                         |
+                         v
+
+
++------------------------------------------------+
+|                    Planet                       |
+|             (完整内部动力空间)                  |
+|                                                |
+|    +----------------+                          |
+|    |                |                          |
+|    |  CloudField    |  <--- 局部慢变量结构      |
+|    |                |                          |
+|    +----------------+                          |
+|                                                |
+|        快变量持续演化                           |
+|        慢变量共同演化                           |
++------------------------------------------------+
+
+
+                         |
+                         v
+
+                  Observer sampling
+
+                         |
+                         v
+
+          吸引子 / 盆地 / 特殊状态解释
+		  **********************************
+		  
+archive.Planet = 火种
+不可复制
+不可优化
+不可修改
+只能运行和观察
+
+Planet = 内生动力核心
+
+CloudField = Planet空间中的慢变量局部结构
+
+Observer = 局部采样后的解释者
+
+Sampler = 通用计算资源调度
+
+Camera = 外部字节流，不直接控制Planet		  
+***************************************
+
