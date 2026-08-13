@@ -1,84 +1,168 @@
-import cv2
+import numpy as np
+
 
 
 class CameraIO:
     """
-    Pure camera acquisition port.
+    CIMA0 Camera IO.
+
+
+    Input:
+
+        CameraObserver field
 
 
     Output:
 
-        {
-            bytes,
-            shape,
-            dtype
-        }
+        BGR media packet
+
+
+
+    Responsibility:
+
+
+        preserve media stream identity
+
+        bytes packaging
+
 
 
     No:
 
+
+        sampling
+
+        compute
+
         image processing
-        resize
-        color conversion
-        interpretation
+
+        semantic interpretation
+
     """
 
 
 
-    def __init__(
+    def __init__(self):
+
+        self.last_packet = None
+
+
+
+    def encode(
         self,
-        index=0
+        observation
     ):
 
-        self.cap = cv2.VideoCapture(
-            index
-        )
 
-        self.current_state = None
-
-
-
-    def step(
-        self
-    ):
-
-        packet = self._read()
-
-
-        self.current_state = packet
-
-
-        return packet
-
-
-
-    def _read(
-        self
-    ):
-
-        ok, frame = self.cap.read()
-
-
-        if not ok:
+        if observation is None:
 
             return None
 
 
 
-        return {
+        if "field" not in observation:
+
+            return None
+
+
+
+        field = observation["field"]
+
+
+
+        if not isinstance(
+            field,
+            np.ndarray
+        ):
+
+            return None
+
+
+
+        #
+        # CameraObserver internal form:
+
+        #
+        # (pixels,3)
+
+        #
+
+        if field.ndim != 2:
+
+            return None
+
+
+
+        if field.shape[1] != 3:
+
+            return None
+
+
+
+        packet = {
+
 
             "bytes":
-                frame.tobytes(),
+
+                field.astype(
+                    np.uint8
+                ).tobytes(),
+
 
 
             "shape":
-                frame.shape,
+
+                field.shape,
+
 
 
             "dtype":
-                str(frame.dtype)
+
+                "uint8",
+
+
+
+            #
+            # media identity
+            #
+
+            "type":
+
+                "media",
+
+
+
+            "format":
+
+                "BGR",
+
+
+
+            "channels":
+
+                3,
+
+
+
+            "color_space":
+
+                "BGR",
+
+
+
+            "source":
+
+                "camera_io"
 
         }
+
+
+
+        self.last_packet = packet
+
+
+
+        return packet
 
 
 
@@ -86,4 +170,4 @@ class CameraIO:
         self
     ):
 
-        return self.current_state
+        return self.last_packet

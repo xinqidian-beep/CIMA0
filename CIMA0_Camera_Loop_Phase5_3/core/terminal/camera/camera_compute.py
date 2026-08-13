@@ -1,94 +1,197 @@
-import time
+import numpy as np
+
+from core.compute_system.sampling.sampler import Sampler
+
 
 
 class CameraCompute:
     """
-    Camera computation system.
+    CIMA0 Camera Compute Organ.
+
 
     Responsibility:
 
-        manage own computation state
-        provide available computation capability
+
+        CameraObserver request
 
 
-    No:
+                |
 
-        image understanding
-        sampling
-        semantic judgment
-        camera control
+
+                v
+
+
+        execute sampling
+
+
+
+    Knows:
+
+
+        sampling execution
+
+
+
+    Does NOT know:
+
+
+        camera meaning
+
+        image semantics
+
+        field update
+
+        display
+
     """
 
 
-    def __init__(self):
 
-        self.available = 1.0
-
-        self.last_time = time.time()
-
-        self.process_time = 0.0
-
-
-    def step(
+    def __init__(
         self
     ):
-        """
-        Update own computation state.
 
-        No external decision.
-        """
-
-        now = time.time()
-
-        self.process_time = now - self.last_time
-
-        self.last_time = now
-
-
-        #
-        # Current simple capability estimation
-        #
-        # Later can be replaced by real hardware statistics.
-        #
-
-        if self.process_time <= 0:
-
-            self.available = 1.0
-
-        else:
-
-            load = min(
-                1.0,
-                self.process_time / 0.05
-            )
-
-            self.available = 1.0 - load
+        self.sampler = Sampler()
 
 
 
-        return self.state()
-
-
-
-    def state(
-        self
+    def execute(
+        self,
+        request,
+        allocation
     ):
         """
-        Provide computation state.
+        Execute compute request.
 
-        Used by other modules.
+
+        request:
+
+            {
+                type,
+                score,
+                shape
+            }
+
+
+        allocation:
+
+            {
+                budget
+            }
+
         """
+
+
+
+        if request is None:
+
+            return None
+
+
+
+        if allocation is None:
+
+            return None
+
+
+
+        if "score" not in request:
+
+            return None
+
+
+
+        score = request["score"]
+
+
+
+        budget = allocation.get(
+            "budget",
+            0
+        )
+
+
+
+        selected = self.sampler.select(
+            score,
+            budget
+        )
+
+
 
         return {
 
-            "available":
-                float(
-                    self.available
-                ),
 
-            "process_time":
-                float(
-                    self.process_time
+            "type":
+
+                "sample_result",
+
+
+
+            "source":
+
+                "camera_compute",
+
+
+
+            "indices":
+
+                selected,
+
+
+
+            "count":
+
+                int(
+                    selected.size
                 )
 
         }
+
+
+
+    def step(
+        self,
+        requests,
+        allocations
+    ):
+        """
+        Batch execution.
+
+        Supports multiple fields.
+        """
+
+
+        results = []
+
+
+        for request in requests:
+
+
+            source = request.get(
+                "source"
+            )
+
+
+            allocation = allocations.get(
+                source
+            )
+
+
+            result = self.execute(
+
+                request,
+
+                allocation
+
+            )
+
+
+            if result is not None:
+
+                results.append(
+                    result
+                )
+
+
+        return results

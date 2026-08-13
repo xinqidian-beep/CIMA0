@@ -1,99 +1,254 @@
+import numpy as np
+
+
+
 class ComputeSystem:
+    """
+    CIMA0 Compute Allocation System.
+
+
+    Responsibility:
+
+
+        receive compute requests
+
+
+                |
+
+
+                v
+
+
+        allocate compute budget
+
+
+
+    Knows:
+
+        request strength
+
+        available capacity
+
+
+
+    Does NOT know:
+
+        camera
+
+        planet
+
+        cloud
+
+        sampling meaning
+
+        field semantics
+
+    """
+
+
 
     def __init__(
         self,
-        capacity=100
+        capacity=1024
     ):
+
         self.capacity = capacity
 
 
-    def allocate(
-        self,
-        requests
-    ):
+        self.requests = []
 
-        total = self._sum_activity(
-            requests
+
+
+    def submit(
+        self,
+        request
+    ):
+        """
+        Receive hand raising request.
+        """
+
+        if request is None:
+
+            return
+
+
+
+        if not isinstance(
+            request,
+            dict
+        ):
+
+            return
+
+
+
+        if request.get(
+            "type"
+        ) != "compute_request":
+
+            return
+
+
+
+        if "score" not in request:
+
+            return
+
+
+
+        self.requests.append(
+            request
         )
 
-        if total <= 0:
+
+
+    def allocate(
+        self
+    ):
+        """
+        Allocate compute budget.
+
+        No field interpretation.
+        """
+
+        if len(
+            self.requests
+        ) == 0:
+
             return {}
 
-        return self._allocate_tree(
-            requests,
-            self.capacity,
-            total
-        )
 
 
-    def _sum_activity(
-        self,
-        value
-    ):
+        #
+        # calculate total demand
+        #
 
-        if isinstance(
-            value,
-            dict
-        ):
+        demands = []
 
-            total = 0.0
 
-            for v in value.values():
+        for request in self.requests:
 
-                total += self._sum_activity(
-                    v
+
+            score = request["score"]
+
+
+            demand = float(
+
+                np.sum(
+                    np.abs(score)
                 )
 
-            return total
-
-
-        if isinstance(
-            value,
-            (int, float)
-        ):
-
-            return float(value)
-
-
-        return 0.0
-
-
-
-    def _allocate_tree(
-        self,
-        node,
-        capacity,
-        total
-    ):
-
-        if isinstance(
-            node,
-            dict
-        ):
-
-            result = {}
-
-            for key, value in node.items():
-
-                result[key] = self._allocate_tree(
-                    value,
-                    capacity,
-                    total
-                )
-
-            return result
-
-
-        if isinstance(
-            node,
-            (int, float)
-        ):
-
-            return (
-                capacity *
-                float(node) /
-                total
             )
 
 
-        return 0.0
+            demands.append(
+                demand
+            )
+
+
+
+        total = sum(
+            demands
+        )
+
+
+
+        allocations = {}
+
+
+
+        #
+        # proportional allocation
+        #
+
+        for request, demand in zip(
+            self.requests,
+            demands
+        ):
+
+
+            source = request.get(
+                "source",
+                "unknown"
+            )
+
+
+            if total <= 0:
+
+
+                budget = 0
+
+
+
+            else:
+
+
+                budget = int(
+
+                    self.capacity
+
+                    *
+
+                    demand
+
+                    /
+
+                    total
+
+                )
+
+
+
+            allocations[source] = {
+
+
+                "budget":
+
+                    budget,
+
+
+
+                "shape":
+
+                    request.get(
+                        "shape"
+                    )
+
+            }
+
+
+
+        #
+        # clear current cycle
+        #
+
+        self.requests.clear()
+
+
+
+        return allocations
+
+
+
+    def step(
+        self,
+        requests
+    ):
+        """
+        Convenience interface.
+
+        requests:
+
+            iterable of requests
+
+        """
+
+
+        for request in requests:
+
+            self.submit(
+                request
+            )
+
+
+        return self.allocate()

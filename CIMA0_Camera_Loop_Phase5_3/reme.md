@@ -1525,3 +1525,474 @@ Camera = 外部字节流，不直接控制Planet
 | 外部扰动影响内部趋势         | ❌  |
 | 同构映射               | ❌  |
 **************************************
+你这个检查顺序是正确的。现在不要先看 `Planet.receive()`，应该从**同构链路**逐层审核。
+
+目标链：
+
+```text
+Camera byte stream
+        |
+        v
+同构封装(packet)
+        |
+        v
+InternalDynamics
+        |
+        v
+动力扰动(field)
+        |
+        v
+Planet响应
+
+同时：
+
+Planet snapshot
+        |
+        v
+Observer采样
+        |
+        v
+保持同构信息
+        |
+        v
+Display还原媒体流
+```
+
+逐项看当前代码状态。
+
+---
+
+# 1. Camera 字节流进入后，有没有同构转换成云？
+
+目前：
+
+CameraPlanet 输出：
+
+```python
+{
+    "bytes",
+    "shape",
+    "dtype"
+}
+```
+
+这个是正确的。
+
+它保留：
+
+* 原始数据
+* 原始形状
+* 数据类型
+
+也就是：
+
+```text
+同构信息:
+shape
+dtype
+byte ordering
+```
+
+没有丢。
+
+---
+
+但是进入 `InternalDynamics` 后：
+
+当前 `_prepare_disturbance()` / `_to_internal()` 做：
+
+```python
+if data.ndim == 3:
+
+    data = data.mean(axis=2)
+```
+
+这里发生了第一次信息损失。
+
+例如：
+
+输入：
+
+```
+240×320×3 BGR
+```
+
+变成：
+
+```
+240×320
+```
+
+也就是：
+
+```
+B
+G
+R
+三个维度
+        ↓
+灰度
+```
+
+这不是同构转换。
+
+这是**投影**。
+
+所以回答：
+
+> camera字节流进入后有没有同构转换成云？
+
+目前：
+
+**部分有。**
+
+保留：
+
+```
+空间结构
+dtype
+数值流
+```
+
+丢失：
+
+```
+颜色通道结构
+```
+
+---
+
+# 2. InternalDynamicsObserver 有没有自动举手申请算力？
+
+看当前代码：
+
+```python
+def read(
+    self,
+    snapshot,
+    allocation=None
+):
+```
+
+这里有：
+
+```python
+allocation
+```
+
+参数。
+
+但是：
+
+```python
+if allocation is None:
+    return array.copy()
+```
+
+而：
+
+```python
+_sample()
+```
+
+里面：
+
+```python
+return array.copy()
+```
+
+目前实际行为：
+
+```text
+Observer
+
+读取
+计算delta
+计算activity
+
+但是
+
+没有产生request
+没有申请compute
+没有举手
+```
+
+所以：
+
+当前没有实现：
+
+```
+自动举手原则
+```
+
+它只是：
+
+```
+被动观察器
+```
+
+---
+
+# 3. 采样输出有没有保留同构信息？
+
+看：
+
+```python
+encode_field()
+```
+
+现在：
+
+```python
+return {
+
+"type":"field",
+
+"bytes":
+array.astype(np.float32).tobytes(),
+
+"shape":
+array.shape,
+
+"dtype":
+"float32"
+
+}
+```
+
+这一部分很好。
+
+它保留：
+
+```
+bytes
+shape
+dtype
+```
+
+所以：
+
+Observer → Display
+
+这条：
+
+```
+同构恢复
+```
+
+是成立的。
+
+---
+
+# 4. 终端有没有还原成彩色媒体流？
+
+这里是目前另一个问题。
+
+DisplayIO：
+
+```python
+if array.ndim == 2:
+
+    return np.repeat(
+        array[:,:,None],
+        3,
+        axis=2
+    )
+```
+
+这不是恢复彩色。
+
+这是：
+
+```
+灰度复制三通道
+```
+
+例如：
+
+```
+100
+100
+100
+```
+
+变：
+
+```
+B=100
+G=100
+R=100
+```
+
+所以显示：
+
+黑白灰地形。
+
+这符合现在看到的窗口。
+
+不是摄像头彩色。
+
+---
+
+# 当前完整链路判断
+
+## 输入侧
+
+```
+Camera
+ |
+ |
+packet(bytes,shape,dtype)
+ |
+ |
+InternalDynamics
+```
+
+✅ 通
+
+---
+
+## 同构云化
+
+```
+BGR 240×320×3
+
+↓
+
+gray 240×320
+```
+
+❌ 不是完全同构
+
+发生降维。
+
+---
+
+## 动力扰动
+
+```
+disturbance
+ |
+ v
+Planet.receive()
+```
+
+目前：
+
+❌ 丢失（之前已经确认）
+
+---
+
+## Observer
+
+```
+snapshot
+ |
+delta/activity
+```
+
+✅ 工作
+
+但是：
+
+❌ 没有自动举手机制
+
+---
+
+## 输出
+
+```
+field
+ |
+bytes+shape+dtype
+ |
+Display
+```
+
+✅ 同构封包
+
+但是：
+
+❌ 只能恢复数值场
+
+不能恢复原始彩色摄像头流。
+
+---
+
+所以现在有三个独立问题：
+
+| 位置                      | 状态   |
+| ----------------------- | ---- |
+| Camera→InternalDynamics | 通    |
+| BGR同构保持                 | 丢失颜色 |
+| Observer自动申请算力          | 未实现  |
+| Observer输出同构            | 正确   |
+| Display彩色恢复             | 不存在  |
+| 扰动进入Planet              | 丢失   |
+
+---
+
+最关键的一点：
+
+现在窗口显示的“地形”不是摄像头。
+
+它是：
+
+```
+archive.Planet 自演化状态
+```
+
+经过：
+
+```
+snapshot
+→ observer
+→ field packet
+→ Display
+```
+
+形成的可视化。
+
+所以它证明的是：
+
+**内部动力表达链通。**
+
+但还没有证明：
+
+**外部摄像头扰动链通。**
+
+下一步应该不是改 Display，而是先做一个最小验证：
+
+固定一帧 camera：
+
+```
+黑图
+白图
+红图
+```
+
+分别输入。
+
+观察：
+
+```python
+delta_state =
+abs(
+    state_after -
+    state_before
+).mean()
+```
+
+如果三个输入产生不同 delta：
+
+说明：
+
+```
+camera → disturbance → Planet
+```
+
+成立。
+
+如果一样：
+
+说明仍然卡在扰动入口。

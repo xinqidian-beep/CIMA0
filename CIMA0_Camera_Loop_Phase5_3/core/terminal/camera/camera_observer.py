@@ -1,11 +1,10 @@
 import numpy as np
 
-from core.compute_system import Sampler
 
 
 class CameraObserver:
     """
-    Dynamic BGR field observer.
+    CIMA0 Camera Observer.
 
 
     Input:
@@ -15,110 +14,83 @@ class CameraObserver:
         {
             bytes,
             shape,
-            dtype
+            dtype,
+            format,
+            channels
         }
+
 
 
     Output:
 
-        complete BGR field packet
+        camera field observation
+
 
 
     Responsibility:
 
-        maintain visual field
-        calculate local change
-        maintain refresh age
 
+        maintain BGR field
 
-    Sampling:
+        calculate change
 
-        delegated to ComputeSystem.Sampler
+        raise compute request
+
 
 
     No:
 
-        image understanding
-        semantic extraction
-        feature generation
-        sampling rule
+
+        sampling execution
+
         compute allocation
+
+        semantic extraction
+
+        image understanding
+
     """
+
 
 
     def __init__(
         self,
-        pixel_size=3
+        w_delta=0.5,
+        w_age=0.3,
+        w_activity=0.2
     ):
 
-        self.pixel_size = pixel_size
-
-
-        # previous input frame
 
         self.previous = None
 
-
-        # maintained complete field
-
         self.field = None
-
-
-        # refresh age
 
         self.age = None
 
 
-        # universal sampler
 
-        self.sampler = Sampler()
+        self.w_delta = w_delta
+
+        self.w_age = w_age
+
+        self.w_activity = w_activity
 
 
 
     def observe(
         self,
-        packet,
-        budget=None
+        packet
     ):
 
-        if packet is None:
+
+        pixels = self._decode(
+            packet
+        )
+
+
+        if pixels is None:
 
             return None
-
-
-
-        raw = np.frombuffer(
-            packet["bytes"],
-            dtype=np.uint8
-        )
-
-
-        shape = packet["shape"]
-
-        dtype = packet["dtype"]
-
-
-
-        #
-        # keep BGR alignment
-        #
-
-        usable = (
-            raw.size //
-            self.pixel_size
-        ) * self.pixel_size
-
-
-        raw = raw[:usable]
-
-
-        pixels = raw.reshape(
-            -1,
-            self.pixel_size
-        )
-
-
-        count = pixels.shape[0]
 
 
 
@@ -131,159 +103,345 @@ class CameraObserver:
 
             self.previous = pixels.copy()
 
-
             self.field = pixels.copy()
 
 
             self.age = np.zeros(
-                count,
-                dtype=np.int32
+
+                pixels.shape[0],
+
+                dtype=np.float32
+
             )
 
 
-            return self._packet(
-                shape,
-                dtype
+            delta = np.zeros(
+
+                pixels.shape[0],
+
+                dtype=np.float32
+
             )
 
 
 
-        #
-        # local change
-        #
-
-        delta = np.mean(
-            np.abs(
-                pixels.astype(np.int16)
-                -
-                self.previous.astype(np.int16)
-            ),
-            axis=1
-        )
+        else:
 
 
-        self.previous = pixels.copy()
+            delta = np.mean(
 
+                np.abs(
 
+                    pixels.astype(
+                        np.int16
+                    )
 
-        #
-        # age evolution
-        #
+                    -
 
-        self.age += 1
+                    self.previous.astype(
+                        np.int16
+                    )
 
+                ),
 
+                axis=1
 
-        #
-        # sampling decision
-        #
-
-        if budget is None:
-
-            budget = count
+            )
 
 
 
-        selected = self.sampler.select(
-            delta,
-            self.age,
-            budget=budget
-        )
+            self.previous = pixels.copy()
 
 
 
-        #
-        # update selected positions
-        #
-
-        self.field[
-            selected
-        ] = pixels[
-            selected
-        ]
+            self.age += 1
 
 
 
-        #
-        # reset refreshed age
-        #
+            active = delta > 0
 
-        self.age[
-            selected
-        ] = 0
+
+            self.age[active] = 0
 
 
 
-        return self._packet(
-            shape,
-            dtype
-        )
+            #
+            # maintain complete field
+            #
+            # no sampling here
+            #
+
+        activity = delta + 1e-6
 
 
 
-    def _packet(
-        self,
-        shape,
-        dtype
-    ):
-
-        return {
-
-            "bytes":
-                self.field.reshape(
-                    -1
-                ).tobytes(),
+        observation = {
 
 
-            "shape":
-                shape,
+            "field":
+
+                self.field.copy(),
 
 
-            "dtype":
-                dtype
+
+            "delta":
+
+                delta.copy(),
+
+
+
+            "age":
+
+                self.age.copy(),
+
+
+
+            "activity":
+
+                activity.copy(),
+
+
+
+            "type":
+
+                "camera_observation",
+
+
+
+            "source":
+
+                "camera"
 
         }
 
 
 
-    def snapshot(
-        self
+        observation["request"] = self.raise_hand(
+
+            observation
+
+        )
+
+
+
+        return observation
+
+
+
+    def raise_hand(
+        self,
+        observation
     ):
+        """
+        Automatic attention request.
 
-        if self.field is None:
+        Only report demand.
+        """
 
-            return {
 
-                "active": False
 
-            }
+        delta = observation["delta"]
+
+        age = observation["age"]
+
+        activity = observation["activity"]
+
+
+
+        age_norm = (
+
+            age /
+
+            max(
+                np.max(age),
+                1.0
+            )
+
+        )
+
+
+
+        score = (
+
+            self.w_delta * delta
+
+            +
+
+            self.w_age * age_norm
+
+            +
+
+            self.w_activity * activity
+
+        )
 
 
 
         return {
 
-            "active": True,
+
+            "type":
+
+                "compute_request",
 
 
-            "pixels":
-                int(
-                    self.field.shape[0]
+
+            "source":
+
+                "camera",
+
+
+
+            "score":
+
+                score.astype(
+                    np.float32
                 ),
 
 
-            "mean":
-                float(
-                    np.mean(
-                        self.field
-                    )
-                ),
+
+            "shape":
+
+                score.shape
+
+        }
 
 
-            "std":
-                float(
-                    np.std(
-                        self.field
-                    )
+
+    def _decode(
+        self,
+        packet
+    ):
+
+
+        if packet is None:
+
+            return None
+
+
+
+        try:
+
+
+            raw = np.frombuffer(
+
+                packet["bytes"],
+
+                dtype=np.dtype(
+                    packet["dtype"]
                 )
+
+            )
+
+
+            frame = raw.reshape(
+
+                packet["shape"]
+
+            )
+
+
+        except Exception:
+
+
+            return None
+
+
+
+        #
+        # preserve BGR structure
+        #
+
+        if frame.ndim != 3:
+
+            return None
+
+
+
+        if frame.shape[2] != 3:
+
+            return None
+
+
+
+        #
+        # pixel field
+
+        #
+
+        return frame.reshape(
+
+            -1,
+
+            3
+
+        )
+
+
+
+    def encode_field(
+        self,
+        observation
+    ):
+
+
+        if observation is None:
+
+            return None
+
+
+
+        field = observation["field"]
+
+
+
+        return {
+
+
+            "bytes":
+
+                field.astype(
+                    np.uint8
+                ).tobytes(),
+
+
+
+            "shape":
+
+                field.shape,
+
+
+
+            "dtype":
+
+                "uint8",
+
+
+
+            #
+            # preserve media identity
+            #
+
+            "type":
+
+                "field",
+
+
+
+            "format":
+
+                "BGR",
+
+
+
+            "channels":
+
+                3,
+
+
+
+            "source":
+
+                "camera_observer"
 
         }

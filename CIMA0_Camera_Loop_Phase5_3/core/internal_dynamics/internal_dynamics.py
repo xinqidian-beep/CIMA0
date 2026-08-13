@@ -1,38 +1,48 @@
-"""
-CIMA0 Phase5_3
-
-Internal Dynamics Interface
-
-Role:
-
-    Transport boundary between external packets
-    and Planet dynamics.
-
-Responsible:
-
-    - decode byte payload
-    - preserve structural identity
-    - forward disturbance
-
-Does NOT know:
-
-    camera
-    image
-    color
-    cloud
-    clip
-    display
-    feature meaning
-
-The internal field keeps its own physics.
-"""
-
-
 import numpy as np
 
 
 
 class InternalDynamics:
+    """
+    CIMA0 Internal Dynamics Interface.
+
+
+    Responsibility:
+
+
+        external disturbance
+
+                |
+
+                v
+
+        disturbance field
+
+
+                |
+
+                v
+
+        Planet evolution
+
+
+
+    Knows:
+
+        packet conversion
+        disturbance forwarding
+        evolution clock
+
+
+    Does NOT know:
+
+        camera meaning
+        color meaning
+        cloud meaning
+        display
+        observer
+    """
+
 
 
     def __init__(
@@ -44,50 +54,41 @@ class InternalDynamics:
 
         self.last_snapshot = None
 
-        #
-        # preserve external identity
-        #
-        self.last_metadata = None
-
 
 
     def receive(
         self,
-        packet
+        raw
     ):
         """
-        Receive external disturbance packet.
+        Receive external disturbance.
 
-        Only transport conversion.
 
-        No interpretation.
+        Only:
+
+            bytes
+            reshape
+            type conversion
+
+
+        No semantic interpretation.
         """
 
 
-        disturbance_packet = self._prepare_disturbance(
-            packet
+        disturbance = self._prepare_disturbance(
+            raw
         )
 
 
-        if disturbance_packet is None:
+        if disturbance is None:
 
             return
 
 
 
-        field = disturbance_packet["field"]
-
-
         #
-        # preserve identity side-channel
+        # forward disturbance
         #
-        self.last_metadata = (
-            disturbance_packet.get(
-                "metadata"
-            )
-        )
-
-
 
         if hasattr(
             self.planet,
@@ -95,8 +96,32 @@ class InternalDynamics:
         ):
 
             self.planet.receive(
-                field
+                disturbance
             )
+
+
+
+        #
+        # fallback:
+        #
+        # some pure Planet rules
+        # only expose state
+        #
+
+        elif hasattr(
+            self.planet,
+            "state"
+        ):
+
+            field = disturbance["field"]
+
+
+            state = self.planet.state
+
+
+            if state.shape == field.shape:
+
+                self.planet.state += field
 
 
 
@@ -105,40 +130,32 @@ class InternalDynamics:
         packet
     ):
         """
-        bytes -> ndarray
+        Universal byte unpacking.
 
-        Preserve:
 
-            shape
-            dtype
-            metadata
+        Input:
+
+            media packet
+
+
+        Output:
+
+            disturbance packet
+
 
         No:
 
-            conversion
-            normalization
-            interpretation
+            camera logic
+
+            feature extraction
+
+            semantic conversion
         """
 
 
-        if isinstance(
-            packet,
-            np.ndarray
-        ):
+        if packet is None:
 
-            return {
-
-                "field": packet,
-
-                "shape":
-                    packet.shape,
-
-                "dtype":
-                    str(packet.dtype),
-
-                "metadata":
-                    None
-            }
+            return None
 
 
 
@@ -152,9 +169,13 @@ class InternalDynamics:
 
 
         required = (
+
             "bytes",
+
             "shape",
+
             "dtype"
+
         )
 
 
@@ -169,42 +190,124 @@ class InternalDynamics:
 
         try:
 
-            raw = np.frombuffer(
+            data = np.frombuffer(
+
                 packet["bytes"],
+
                 dtype=np.dtype(
                     packet["dtype"]
                 )
+
             )
 
 
-            field = raw.reshape(
+            data = data.reshape(
+
                 packet["shape"]
+
             )
 
 
         except Exception:
 
+
             return None
+
+
+
+        #
+        # external field projection
+        #
+        # media -> disturbance
+        #
+
+        if data.ndim == 3:
+
+
+            #
+            # collapse channels
+            #
+            # not semantic
+            #
+            # just create scalar disturbance field
+            #
+
+            data = data.astype(
+                np.float32
+            ).mean(
+                axis=2
+            )
+
+
+        elif data.ndim != 2:
+
+
+            return None
+
+
+
+        data = data.astype(
+            np.float32
+        )
+
+
+        #
+        # normalize disturbance magnitude
+        #
+
+        if data.max() > 1.0:
+
+            data = (
+
+                data / 255.0
+
+                -
+
+                0.5
+
+            )
 
 
 
         return {
 
+
             "field":
-                field.astype(
-                    np.float32,
-                    copy=False
-                ),
+
+                data,
+
 
             "shape":
-                packet["shape"],
+
+                data.shape,
+
 
             "dtype":
-                packet["dtype"],
 
-            "metadata":
+                "float32",
+
+
+
+            "type":
+
+                "disturbance",
+
+
+
+            "source":
+
                 packet.get(
-                    "metadata"
+                    "source",
+                    "external"
+                ),
+
+
+
+            "origin":
+
+                packet.get(
+                    "format",
+                    "unknown"
                 )
 
         }
@@ -214,13 +317,6 @@ class InternalDynamics:
     def step(
         self
     ):
-        """
-        Advance Planet dynamics.
-
-        No budget.
-        No control.
-        """
-
 
         if hasattr(
             self.planet,
@@ -231,74 +327,58 @@ class InternalDynamics:
 
 
 
-        self.last_snapshot = (
-            self.snapshot()
-        )
+        self.last_snapshot = {
+
+
+            "planet":
+
+                self._snapshot_planet()
+
+        }
+
+
+
+    def _snapshot_planet(
+        self
+    ):
+
+
+        if hasattr(
+            self.planet,
+            "snapshot"
+        ):
+
+            return self.planet.snapshot()
+
+
+
+        if hasattr(
+            self.planet,
+            "state"
+        ):
+
+            return self.planet.state.copy()
+
+
+
+        return None
 
 
 
     def snapshot(
         self
     ):
-        """
-        Read-only exposure.
-        """
 
 
-        if not hasattr(
-            self.planet,
-            "snapshot"
-        ):
+        if self.last_snapshot is None:
 
-            return None
+            return {
 
+                "planet":
 
-
-        state = self.planet.snapshot()
-
-
-
-        return {
-
-            "planet":
-            {
-
-                "bytes":
-                    state.tobytes()
-                    if isinstance(
-                        state,
-                        np.ndarray
-                    )
-                    else None,
-
-
-                "shape":
-                    state.shape
-                    if isinstance(
-                        state,
-                        np.ndarray
-                    )
-                    else None,
-
-
-                "dtype":
-                    str(
-                        state.dtype
-                    )
-                    if isinstance(
-                        state,
-                        np.ndarray
-                    )
-                    else None,
-
-
-                "field":
-                    state,
-
-
-                "metadata":
-                    self.last_metadata
+                    self._snapshot_planet()
 
             }
 
-        }
+
+        return self.last_snapshot.copy()

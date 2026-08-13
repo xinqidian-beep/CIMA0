@@ -1,6 +1,7 @@
 import numpy as np
 
 
+
 class DisplayIO:
     """
     Pure display port.
@@ -8,26 +9,29 @@ class DisplayIO:
 
     Input:
 
-        byte packet
-
-        {
-            bytes,
-            shape,
-            dtype
-        }
+        field/media packet
 
 
     Output:
 
-        RGB uint8 frame
+        RGB uint8 framebuffer
 
 
-    No:
 
-        semantic interpretation
-        model knowledge
+    Knows:
+
+        packet format
+
+
+    Does NOT know:
+
+        camera meaning
+
+        planet meaning
+
         feature meaning
-        control
+
+        semantic meaning
 
     """
 
@@ -40,16 +44,11 @@ class DisplayIO:
     ):
 
         self.height = height
+
         self.width = width
-        #
-        # latest display state
-        #
-        
-        #self.current_field = None
-        #self.current_timestamp = None
-        
-    
-        
+
+
+
     def encode(
         self,
         packet
@@ -59,140 +58,229 @@ class DisplayIO:
         if packet is None:
 
             return None
-            
+
+
+
         data = self._decode(
             packet
         )
-            
-        #
-        # receive new display state
-        #
+
+
         if data is None:
+
             return None
-        
-                
-        return self._render(
-            data
-        )    
 
 
 
+        fmt = packet.get(
+            "format",
+            "field"
+        )
 
-    #
-    # byte -> array
-    #
+
+
+        #
+        # media stream
+        #
+
+        if fmt == "BGR":
+
+            image = self._bgr_to_rgb(
+                data
+            )
+
+
+
+        #
+        # internal numeric field
+        #
+
+        else:
+
+            image = self._field_to_rgb(
+                data
+            )
+
+
+
+        if image is None:
+
+            return None
+
+
+
+        image = self._resize(
+            image
+        )
+
+
+        return image.astype(
+            np.uint8
+        )
+
+
 
     def _decode(
         self,
         packet
     ):
-        if packet is None:
 
-            return None
-        
+
         try:
 
+
             raw = np.frombuffer(
+
                 packet["bytes"],
+
                 dtype=np.dtype(
                     packet["dtype"]
                 )
+
             )
 
 
-            array = raw.reshape(
+            data = raw.reshape(
+
                 packet["shape"]
+
             )
 
 
-            return array.astype(
-                np.float32
-            )
+        except Exception:
 
-
-        except Exception as e:
 
             return None
 
 
 
+        return data
 
 
-    #
-    # dimension adapter only
-    #
 
-    def _to_rgb(
+    def _bgr_to_rgb(
         self,
-        array
+        data
     ):
 
 
-        if array.ndim == 2:
+        if data.ndim != 2:
+
+            return None
 
 
-            return np.repeat(
-                array[:, :, None],
+
+        if data.shape[1] != 3:
+
+            return None
+
+
+
+        #
+        # restore pixel structure
+
+        #
+        # if original shape information exists,
+        # prefer it
+        #
+
+        return data.reshape(
+
+            -1,
+
+            1,
+
+            3
+
+        )[:, :, ::-1]
+
+
+
+    def _field_to_rgb(
+        self,
+        data
+    ):
+
+
+        if data.ndim == 2:
+
+            img = data[:, :, None]
+
+            img = np.repeat(
+
+                img,
+
                 3,
+
                 axis=2
+
+            )
+
+
+        elif data.ndim == 3:
+
+
+            if data.shape[2] == 3:
+
+                img = data
+
+
+            else:
+
+                img = np.repeat(
+
+                    data[:, :, :1],
+
+                    3,
+
+                    axis=2
+
+                )
+
+
+        else:
+
+            return None
+
+
+
+        minimum = img.min()
+
+        maximum = img.max()
+
+
+
+        if maximum > minimum:
+
+
+            img = (
+
+                img - minimum
+
+            ) / (
+
+                maximum - minimum
+
+            )
+
+        else:
+
+
+            img = np.zeros_like(
+                img
             )
 
 
 
-        if array.ndim == 3:
+        return (
+
+            img * 255
+
+        ).astype(
+            np.uint8
+        )
 
 
-            #
-            # already image-like
-            #
-
-            if array.shape[2] == 3:
-
-                return array
-
-
-
-            #
-            # arbitrary feature channels
-            #
-            # take first 3 channels only
-            # no semantic meaning
-            #
-
-            if array.shape[2] > 3:
-
-                return array[:, :, :3]
-
-
-
-        if array.ndim == 1:
-
-
-            #
-            # vector state
-            #
-            # reshape as line field
-            #
-
-            return array.reshape(
-                1,
-                -1,
-                1
-            ).repeat(
-                3,
-                axis=2
-            )
-
-
-        return None
-
-
-
-
-
-    #
-    # resize
-    #
 
     def _resize(
         self,
@@ -203,112 +291,43 @@ class DisplayIO:
         h,w,c = img.shape
 
 
+
         ys = np.linspace(
+
             0,
+
             h-1,
+
             self.height
+
         ).astype(
             np.int32
         )
 
 
         xs = np.linspace(
+
             0,
+
             w-1,
+
             self.width
+
         ).astype(
             np.int32
         )
 
 
         return img[
+
             np.ix_(
+
                 ys,
+
                 xs,
+
                 np.arange(c)
+
             )
+
         ]
-
-
-
-
-
-    #
-    # numeric -> framebuffer
-    #
-
-    def _to_uint8(
-        self,
-        img
-    ):
-
-
-        minimum = img.min()
-
-        maximum = img.max()
-
-
-        if maximum > minimum:
-
-            img = (
-                img - minimum
-            ) / (
-                maximum - minimum
-            )
-
-        else:
-
-            img = np.zeros_like(
-                img
-            )
-
-
-
-        return (
-            img * 255.0
-        ).astype(
-            np.uint8
-        )
-        
-    def _render(
-        self,
-        data
-    ):
-
-        img = data
-
-
-        #
-        # numeric field
-        #
-
-        img = self._to_rgb(
-            img
-        )
-
-
-        if img is None:
-
-            return None
-
-
-
-        #
-        # resize to window
-        #
-
-        img = self._resize(
-            img
-        )
-
-
-        #
-        # uint8 framebuffer
-        #
-
-        img = self._to_uint8(
-            img
-        )
-
-
-        return img
