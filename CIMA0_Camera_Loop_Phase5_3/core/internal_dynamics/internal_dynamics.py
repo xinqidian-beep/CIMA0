@@ -5,22 +5,31 @@ Internal Dynamics Interface
 
 Role:
 
-    Connect external system and Planet dynamics.
+    Transport boundary between external packets
+    and Planet dynamics.
+
+Responsible:
+
+    - decode byte payload
+    - preserve structural identity
+    - forward disturbance
 
 Does NOT know:
 
     camera
+    image
+    color
     cloud
     clip
-    observer meaning
     display
+    feature meaning
 
-Only manages:
-
-    receive external disturbance
-    advance local dynamics
-    expose current state
+The internal field keeps its own physics.
 """
+
+
+import numpy as np
+
 
 
 class InternalDynamics:
@@ -35,18 +44,50 @@ class InternalDynamics:
 
         self.last_snapshot = None
 
+        #
+        # preserve external identity
+        #
+        self.last_metadata = None
+
 
 
     def receive(
         self,
-        raw
+        packet
     ):
         """
-        Forward external disturbance.
+        Receive external disturbance packet.
 
-        InternalDynamics does not interpret data.
-        Planet decides whether and how to use it.
+        Only transport conversion.
+
+        No interpretation.
         """
+
+
+        disturbance_packet = self._prepare_disturbance(
+            packet
+        )
+
+
+        if disturbance_packet is None:
+
+            return
+
+
+
+        field = disturbance_packet["field"]
+
+
+        #
+        # preserve identity side-channel
+        #
+        self.last_metadata = (
+            disturbance_packet.get(
+                "metadata"
+            )
+        )
+
+
 
         if hasattr(
             self.planet,
@@ -54,8 +95,119 @@ class InternalDynamics:
         ):
 
             self.planet.receive(
-                raw
+                field
             )
+
+
+
+    def _prepare_disturbance(
+        self,
+        packet
+    ):
+        """
+        bytes -> ndarray
+
+        Preserve:
+
+            shape
+            dtype
+            metadata
+
+        No:
+
+            conversion
+            normalization
+            interpretation
+        """
+
+
+        if isinstance(
+            packet,
+            np.ndarray
+        ):
+
+            return {
+
+                "field": packet,
+
+                "shape":
+                    packet.shape,
+
+                "dtype":
+                    str(packet.dtype),
+
+                "metadata":
+                    None
+            }
+
+
+
+        if not isinstance(
+            packet,
+            dict
+        ):
+
+            return None
+
+
+
+        required = (
+            "bytes",
+            "shape",
+            "dtype"
+        )
+
+
+        if not all(
+            key in packet
+            for key in required
+        ):
+
+            return None
+
+
+
+        try:
+
+            raw = np.frombuffer(
+                packet["bytes"],
+                dtype=np.dtype(
+                    packet["dtype"]
+                )
+            )
+
+
+            field = raw.reshape(
+                packet["shape"]
+            )
+
+
+        except Exception:
+
+            return None
+
+
+
+        return {
+
+            "field":
+                field.astype(
+                    np.float32,
+                    copy=False
+                ),
+
+            "shape":
+                packet["shape"],
+
+            "dtype":
+                packet["dtype"],
+
+            "metadata":
+                packet.get(
+                    "metadata"
+                )
+
+        }
 
 
 
@@ -63,10 +215,12 @@ class InternalDynamics:
         self
     ):
         """
-        Advance the only internal dynamics.
+        Advance Planet dynamics.
 
-        The evolution rule belongs to Planet.
+        No budget.
+        No control.
         """
+
 
         if hasattr(
             self.planet,
@@ -76,21 +230,10 @@ class InternalDynamics:
             self.planet.step()
 
 
-        if hasattr(
-            self.planet,
-            "snapshot"
-        ):
 
-            self.last_snapshot = {
-
-                "planet":
-                    self.planet.snapshot()
-
-            }
-
-        else:
-
-            self.last_snapshot = {}
+        self.last_snapshot = (
+            self.snapshot()
+        )
 
 
 
@@ -98,20 +241,64 @@ class InternalDynamics:
         self
     ):
         """
-        Return current Planet state.
+        Read-only exposure.
         """
 
-        if self.last_snapshot is None:
 
-            if hasattr(
-                self.planet,
-                "snapshot"
-            ):
-
-                return self.planet.snapshot()
-
+        if not hasattr(
+            self.planet,
+            "snapshot"
+        ):
 
             return None
 
 
-        return self.last_snapshot.copy()
+
+        state = self.planet.snapshot()
+
+
+
+        return {
+
+            "planet":
+            {
+
+                "bytes":
+                    state.tobytes()
+                    if isinstance(
+                        state,
+                        np.ndarray
+                    )
+                    else None,
+
+
+                "shape":
+                    state.shape
+                    if isinstance(
+                        state,
+                        np.ndarray
+                    )
+                    else None,
+
+
+                "dtype":
+                    str(
+                        state.dtype
+                    )
+                    if isinstance(
+                        state,
+                        np.ndarray
+                    )
+                    else None,
+
+
+                "field":
+                    state,
+
+
+                "metadata":
+                    self.last_metadata
+
+            }
+
+        }

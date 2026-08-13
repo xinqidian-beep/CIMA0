@@ -12,31 +12,31 @@ class InternalDynamicsObserver:
         InternalDynamics snapshot
                 |
                 v
-        selected state read
+        calculate observation values
                 |
                 v
-        internal packet
+        sampling information
                 |
                 v
-        IO field packet
+        ComputeSystem / Sampler
 
 
     Does NOT know:
 
         camera
         planet dynamics
-        clip generation
-        cloud generation
-        activity calculation
-        sampler
-        compute allocation rules
-        meaning
+        cloud meaning
+        sampler rule
+        compute allocation
+        interpretation
     """
 
 
     def __init__(self):
 
-        self.cache = {}
+        self.previous = None
+
+        self.age = None
 
 
 
@@ -45,145 +45,183 @@ class InternalDynamicsObserver:
         snapshot,
         allocation=None
     ):
-        """
-        Read selected parts of internal state.
-
-        allocation is produced by ComputeSystem.
-
-        Observer only executes the decision.
-        """
 
         if snapshot is None:
 
             return None
 
 
-        result = {}
+
+        state = self._extract_state(
+            snapshot
+        )
 
 
-        for name, value in snapshot.items():
-
-            selected = None
-
-
-            if allocation is None:
-
-                selected = value
-
-
-            else:
-
-                selected = self._read_value(
-                    name,
-                    value,
-                    allocation.get(
-                        name,
-                        None
-                    )
-                )
-
-
-            result[name] = selected
-
-
-        return result
-
-
-
-    def _read_value(
-        self,
-        path,
-        value,
-        allocation
-    ):
-
-        if value is None:
+        if state is None:
 
             return None
 
 
 
-        if isinstance(
-            value,
-            np.ndarray
-        ):
+        #
+        # first observation
+        #
 
-            return self._read_array(
-                path,
-                value,
-                allocation
+        if self.previous is None:
+
+            self.previous = state.copy()
+
+            self.age = np.zeros_like(
+                state,
+                dtype=np.float32
             )
 
 
-
-        if isinstance(
-            value,
-            dict
-        ):
-
-            result = {}
+            delta = np.zeros_like(
+                state,
+                dtype=np.float32
+            )
 
 
-            for key, child in value.items():
-
-                child_allocation = None
+        else:
 
 
-                if isinstance(
-                    allocation,
-                    dict
-                ):
-
-                    child_allocation = allocation.get(
-                        key
-                    )
+            delta = np.abs(
+                state -
+                self.previous
+            )
 
 
-                result[key] = self._read_value(
-                    f"{path}.{key}",
-                    child,
-                    child_allocation
-                )
+            self.previous = state.copy()
 
 
-            return result
+            self.age += 1
 
 
 
-        if isinstance(
-            value,
-            list
-        ):
+            #
+            # active area refresh
+            #
 
-            return [
+            active = delta > 0
 
-                self._read_value(
-                    f"{path}.{i}",
-                    v,
+
+            self.age[active] = 0
+
+
+
+        #
+        # local activity
+        #
+
+        activity = (
+            delta
+            +
+            1e-6
+        )
+
+
+
+        return {
+
+            "state":
+                self._sample(
+                    state,
+                    allocation
+                ),
+
+            "delta":
+                self._sample(
+                    delta,
+                    allocation
+                ),
+
+            "age":
+                self._sample(
+                    self.age,
+                    allocation
+                ),
+
+            "activity":
+                self._sample(
+                    activity,
                     allocation
                 )
 
-                for i,v in enumerate(value)
-
-            ]
-
-
-        return value
+        }
 
 
 
-    def _read_array(
+    def _extract_state(
         self,
-        path,
+        snapshot
+    ):
+
+        if not isinstance(
+            snapshot,
+            dict
+        ):
+
+            return None
+            
+        planet = snapshot.get(
+            "planet"
+        )    
+
+
+        if planet is None:
+
+            return None
+            
+        #
+        # new PlanetField snapshot
+        #
+
+        if  isinstance(
+            planet,
+            dict
+        ):
+
+            state = planet.get(
+                "field"
+            )
+
+
+        #
+        # old compatibility
+        #
+        elif isinstance(
+            planet,
+            np.ndarray
+        ):
+
+            state = planet
+
+
+        else:
+
+            return None
+
+
+
+        if not isinstance(
+            state,
+            np.ndarray
+        ):
+            return None
+
+        return state
+
+        
+    def _sample(
+        self,
         array,
         allocation
     ):
         """
-        Observer does not decide sampling.
+        Observer only applies allocation.
 
-        If compute gives no restriction,
-        return current state.
-
+        Sampling decision belongs to Sampler.
         """
 
         if allocation is None:
@@ -191,171 +229,56 @@ class InternalDynamicsObserver:
             return array.copy()
 
 
-
         #
-        # allocation format is decided by ComputeSystem.
+        # placeholder:
         #
-        # Observer only applies it.
+        # ComputeSystem will later
+        # provide selected indices.
         #
 
         return array.copy()
 
 
 
-    def pack(
-        self,
-        data
-    ):
-
-        if data is None:
-
-            return None
-
-
-        if isinstance(
-            data,
-            dict
-        ):
-
-            return {
-
-                k:
-                self.pack(v)
-
-                for k,v in data.items()
-
-            }
-
-
-        if isinstance(
-            data,
-            list
-        ):
-
-            return [
-
-                self.pack(v)
-
-                for v in data
-
-            ]
-
-
-        return data
-
-
-
     def encode_field(
         self,
         data,
-        source="internal" 
+        source="internal"
     ):
 
         if data is None:
+
             return None
 
 
-        if isinstance(data, dict):
 
-            if "planet" in data:
+        if "state" not in data:
 
-                array = data["planet"]
-
-
-                if isinstance(
-                    array,
-                    np.ndarray
-                ):
-
-                    array = array.astype(
-                        np.float32
-                    )
-
-
-                    return {
-
-                        "type":
-                            "field",
-
-                        "source":
-                            source,
-
-                        "bytes":
-                            array.tobytes(),
-
-                        "shape":
-                            array.shape,
-
-                        "dtype":
-                            str(array.dtype)
-
-                    }
-
-
-        return None
+            return None
 
 
 
-    def _collect_values(
-        self,
-        value,
-        result
-    ):
-
-
-        if isinstance(
-            value,
-            np.ndarray
-        ):
-
-            result.extend(
-
-                value.reshape(-1)
-                .astype(np.float32)
-
-            )
-
-            return
+        array = data["state"]
 
 
 
-        if isinstance(
-            value,
-            dict
-        ):
+        return {
 
-            for child in value.values():
+            "type":
+                "field",
 
-                self._collect_values(
-                    child,
-                    result
-                )
+            "source":
+                source,
 
-            return
+            "bytes":
+                array.astype(
+                    np.float32
+                ).tobytes(),
 
+            "shape":
+                array.shape,
 
+            "dtype":
+                "float32"
 
-        if isinstance(
-            value,
-            list
-        ):
-
-            for child in value:
-
-                self._collect_values(
-                    child,
-                    result
-                )
-
-            return
-
-
-
-        if isinstance(
-            value,
-            (int,float)
-        ):
-
-            result.append(
-                float(value)
-            )
+        }
