@@ -1,6 +1,19 @@
+import os
 import cv2
 
+BASE_DIR = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        ".."
+    )
+)
 
+
+CLIP_WEIGHT = os.path.join(
+    BASE_DIR,
+    "models",
+    "open_clip_pytorch_model.bin"
+)
 from archive.planet import Planet
 
 
@@ -90,7 +103,7 @@ def main():
 
     clip_field = CLIPField(
         weight_path=
-        "models/open_clip_pytorch_model.bin"
+        CLIP_WEIGHT
     )
 
 
