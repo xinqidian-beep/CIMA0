@@ -1,0 +1,160 @@
+Date:
+2026-08-05
+
+Milestone:
+Camera byte stream -> local field -> display
+
+Verified:
+- RGB field preserved
+- ClipRegion local_state active
+- snapshot raw field output
+- realtime refresh
+
+Known limitations:
+- fixed 64x64 projection
+- temporary spatial projection logic
+- observer path not yet unified
+**********************
+ClipRegion Freeze v1
+
+Verified:
+- raw bytes accepted
+- BGR 3-channel structure preserved
+- local_state evolution active
+- snapshot exports raw field
+
+Known limitations:
+- projection assumes 640x480 input
+- projection currently performs spatial reduction internally
+- observer integration not finalized
+******************************
+core/internal_dynamics.py
+
+状态:
+FREEZE AFTER ONE FIX
+
+
+职责隔离      ✅
+生命周期      ✅
+snapshot      ✅
+局部自治      ✅
+
+Bug:
+receive() duplicate input
+****************************
+Known cleanup:
+DisplayIO.encode contains duplicated ndim branch.
+No functional impact.
+core/display_io.py
+
+状态:
+FREEZE CANDIDATE
+
+
+结构保持       ✅
+RGB支持        ✅
+无解释         ✅
+无控制         ✅
+
+记录问题:
+- encode() 内部重复 ndim 分支
+- resize 为最近邻采样
+***************************
+core/camera_planet.py
+
+状态:
+FREEZE
+
+
+硬件事实层     ✅
+无解释         ✅
+无采样         ✅
+无压缩         ✅
+无控制         ✅
+*********************
+Known issue:
+decode() name is semantic mismatch.
+It performs byte pass-through.
+core/camera_io.py
+
+状态:
+FREEZE
+
+
+职责纯度     ✅
+数据保持     ✅
+无隐藏处理   ✅
+
+记录:
+decode() 名称与实际行为不完全一致
+****************************
+Known architecture deviation:
+
+CameraObserver currently owns field cache
+and performs sparse reconstruction.
+
+Kept for Phase3 validation.
+core/camera_observer.py
+
+状态:
+FREEZE WITH NOTE
+
+
+数据保持        ✅
+BGR结构         ✅
+无语义          ✅
+无压缩          ✅
+
+架构备注:
+Observer 当前包含 field cache
+*******************************
+Known issue:
+previous is shared between request estimation
+and sparse read phase.
+core/internal_dynamics_observer.py
+
+
+状态:
+FREEZE WITH ARCHITECTURE NOTE
+
+
+读取snapshot        ✅
+不修改源状态        ✅
+保持结构            ✅
+支持稀疏读取        ✅
+
+
+Architecture deviation:
+Observer owns cache reconstruction.
+********************************
+Known assumption:
+requests values are scalar numbers.
+core/compute_system.py
+
+状态:
+FREEZE
+
+
+职责隔离      ✅
+资源自治      ✅
+无语义        ✅
+无模块依赖    ✅
+**********************************
+sleep限制速度
+main.py
+
+架构:
+        PASS
+
+数据流:
+        PASS
+
+职责边界:
+        PASS
+
+显示出口:
+        PASS
+
+冻结状态:
+        APPROVED
+************
