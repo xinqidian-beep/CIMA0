@@ -66,7 +66,11 @@ class DisplayIO:
 
         self.width = width
 
+        #
+        # previous complete structure
+        #
 
+        self.previous = None
 
     def encode(
         self,
@@ -88,7 +92,9 @@ class DisplayIO:
 
             return None
 
-
+        data = self._complete(
+            data
+        )
 
         packet_type = packet.get(
             "type"
@@ -140,7 +146,43 @@ class DisplayIO:
             np.uint8
         )
 
+    #
+    # missing position completion
+    #
 
+    def _complete(
+        self,
+        data
+    ):
+
+
+        if self.previous is None:
+
+            self.previous = data.copy()
+
+            return data
+
+
+
+        mask = np.isnan(
+            data
+        )
+
+
+
+        if np.any(mask):
+
+            data = data.copy()
+
+            data[mask] = self.previous[mask]
+
+
+
+        self.previous = data.copy()
+
+
+
+        return data
 
     #
     # byte packet decode

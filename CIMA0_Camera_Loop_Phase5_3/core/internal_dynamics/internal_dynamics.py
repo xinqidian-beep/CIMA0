@@ -122,17 +122,31 @@ class InternalDynamics:
 
         }
 
+        #
+        # bounded collision dynamics
+        #
+
+        collision_strength = 0.05
+        dissipation = 0.05
 
 
-        collision_strength = 0.01
+        # 
+        # natural decay of previous internal state
+        #
 
+        self.planet.state *= (
+            1.0 - dissipation
+        )
+
+
+        #
+        # collision with external field
+        #
 
         self.planet.state += (
             projected *
             collision_strength
         )
-
-    
 
 
 
