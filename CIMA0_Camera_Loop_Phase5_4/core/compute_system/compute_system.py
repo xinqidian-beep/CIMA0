@@ -1,3 +1,5 @@
+import numpy as np
+
 class ComputeSystem:
     """
     CIMA0 Compute Resource Manager.
@@ -173,3 +175,29 @@ class ComputeSystem:
 
 
         return result
+        
+    def step(
+        self,
+        requests
+    ):
+        """
+        Compute cycle.
+
+        Receive requests,
+        allocate resources.
+
+        No semantic knowledge.
+        """
+
+        if requests is None:
+            return {}
+
+
+        for request in requests:
+
+            self.submit(
+                request
+            )
+
+
+        return self.allocate()

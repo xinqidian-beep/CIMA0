@@ -284,9 +284,13 @@ class CLIPField:
 
 
         self.input_packet = packet
-
-
-
+        
+        print(
+            "CLIP receive:",
+            packet.get("shape"),
+            packet.get("dtype")
+        )
+        
         #
         # keep external structure
         #
@@ -433,8 +437,13 @@ class CLIPField:
         self._forward(
 
             tensor
-
+        )    
+        print(
+            "CLIP forward done"
         )
+            
+
+        
 
 
 
@@ -722,16 +731,20 @@ class CLIPField:
             cloud,
 
             axis=0
+            
+            
 
         ).astype(
 
             np.float32
 
         )
-
-
-
-
+        
+        print(
+            "CLIP cloud shape:",
+            self.cloud.shape
+        )
+        
 
         #
         # internal structure
