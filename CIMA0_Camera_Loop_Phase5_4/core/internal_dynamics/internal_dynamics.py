@@ -1,75 +1,42 @@
 import numpy as np
 
 
-
 class InternalDynamics:
     """
     CIMA0 Phase5_4
 
+    Internal dynamics container.
 
-    Internal organism container.
+    Responsibility:
 
-
-    Structure:
-
-
-        external packet
-
-
-              |
-
-
-              v
+        planet
+            |
+            v
+        internal evolution
 
 
         organs
+            |
+            v
+        external byte driven structures
 
 
-              |
+    Keeps:
+
+        identity
+        structure
+        state
+        activity
+        color/channel information
 
 
-              v
+    Does NOT:
 
+        interpret meaning
 
-        cloud fields
+        classify
 
-
-              |
-
-
-              v
-
-
-        planet dynamics
-
-
-
-    Knows:
-
-
-        organ interface
-
-
-        planet interface
-
-
-
-    Does NOT know:
-
-
-        visual meaning
-
-
-        modality meaning
-
-
-        sampling rule
-
-
-        collision rule
-
-
-        semantic meaning
+        control organ evolution
 
     """
 
@@ -78,18 +45,16 @@ class InternalDynamics:
     def __init__(
         self,
         planet,
-        compute_system=None
+        compute=None
     ):
 
 
         self.planet = planet
-
-
-        self.compute_system = compute_system
+        self.compute = compute
 
 
         #
-        # internal organs
+        # organ registry
         #
 
         self.organs = {}
@@ -97,17 +62,16 @@ class InternalDynamics:
 
 
         #
-        # snapshots
+        # last complete snapshot
         #
 
-        self.last_snapshot = {}
-
+        self.last_observation = None
 
 
 
 
     #
-    # organ registration
+    # register organ
     #
 
     def register(
@@ -116,20 +80,13 @@ class InternalDynamics:
         organ
     ):
 
-
-        if organ is None:
-
-            return
-
-
         self.organs[name] = organ
 
 
 
 
-
     #
-    # external input
+    # external input broadcast
     #
 
     def receive(
@@ -138,17 +95,7 @@ class InternalDynamics:
     ):
 
 
-        if packet is None:
-
-            return
-
-
-
-        #
-        # broadcast packet
-        #
-
-        for organ in self.organs.values():
+        for name, organ in self.organs.items():
 
 
             if hasattr(
@@ -156,120 +103,216 @@ class InternalDynamics:
                 "receive"
             ):
 
+
                 organ.receive(
                     packet
                 )
 
 
 
-
-
-
     #
-    # internal clock
+    # evolution step
     #
 
-    def step(
-        self
-    ):
+    def step(self):
+
+        requests = self.observe_requests()
 
 
-        #
-        # organs evolve
-        #
-
-        for organ in self.organs.values():
+        allocation = None
 
 
-            if hasattr(
-                organ,
-                "step"
-            ):
+        if self.compute is not None:
 
-                organ.step()
-
-
-
-        #
-        # compute allocation
-        #
-
-        if self.compute_system is not None:
-
-
-            requests = []
-
-
-            for name,organ in self.organs.items():
-
-
-                if hasattr(
-                    organ,
-                    "compute_request"
-                ):
-
-
-                    request = (
-                        organ.compute_request()
-                    )
-
-
-                    if request is not None:
-
-                        request["source"] = name
-
-                        requests.append(
-                            request
-                        )
-
-
-
-            allocation = (
-                self.compute_system.step(
-                    requests
-                )
+            allocation = self.compute.allocate(
+                requests
             )
 
 
+        self.apply_step(
+            allocation
+        )
+        
+        
+    def observe_requests(self):
+
+        requests = {}
+
+
+        requests["planet"] = {
+
+            "type":"field_request",
+
+            "source":"planet"
+
+        }
+
+
+        for name, organ in self.organs.items():
+
+            requests[name] = {
+
+                "type":"field_request",
+
+                "source":name
+
+            }
+
+
+        return requests    
+        
+        
+    def apply_step(
+        self,
+        allocation
+    ):
+
+        if allocation is None:
+
+            return
+            
+        planet_budget = allocation.get(
+            "planet"
+        )
+
+
+        if planet_budget:
+
+            self.planet_clock += 1
+
+
+            if (
+                self.planet_clock
+                >=
+                self.planet_interval
+            ):
+
+                self.planet.step()
+
+                self.planet_clock = 0
+
+
+
+        for name, organ in self.organs.items():
+
+            if allocation.get(name):
+
+                organ.step()    
+            
+        
+        
+    #
+    # fixed empty schema
+    #
+
+    def _empty_organ_schema(
+        self,
+        name
+    ):
+
+
+        return {
+
+
+            "type":
+                name,
+
+
             #
-            # give budget back
+            # current state
             #
 
-            for name,organ in self.organs.items():
+            "state":
+                None,
 
 
-                if name in allocation:
+            #
+            # internal representation
+            #
+
+            "cloud":
+                None,
 
 
-                    if hasattr(
-                        organ,
-                        "execute_compute"
-                    ):
+            #
+            # activity
+            #
 
-                        organ.execute_compute(
-                            allocation[name]
-                        )
+            "activity":
+                None,
 
 
+            #
+            # structure information
+            #
+
+            "structure":
+                {
 
 
-        #
-        # planet evolution
-        #
-
-        if hasattr(
-            self.planet,
-            "step"
-        ):
-
-            self.planet.step()
+                    "input":
+                    {
 
 
+                        "format":
+                            None,
 
-        self._snapshot()
+
+                        "channels":
+                        {
+
+
+                            "B":
+                            {
+
+                                "index":0,
+
+                                "value":None
+
+                            },
+
+
+                            "G":
+                            {
+
+                                "index":1,
+
+                                "value":None
+
+                            },
+
+
+                            "R":
+                            {
+
+                                "index":2,
+
+                                "value":None
+
+                            }
+
+
+                        }
+
+                    },
+
+
+                    "internal":
+                        None
+
+
+                },
 
 
 
+            #
+            # future compute interface
+            #
+
+            "compute_request":
+                None
+
+        }
 
 
 
@@ -277,32 +320,69 @@ class InternalDynamics:
     # snapshot
     #
 
-    def _snapshot(
+    def snapshot(
         self
     ):
 
 
-        result = {}
+
+        result = {
 
 
+
+            #
+            # Planet
+            #
+
+            "planet":
+                None,
+
+
+
+            #
+            # organs
+            #
+
+            "organs":
+                {}
+
+        }
+
+
+
+        #
+        # Planet snapshot
+        #
 
         if hasattr(
             self.planet,
             "snapshot"
         ):
 
+
             result["planet"] = (
+
                 self.planet.snapshot()
+
             )
 
 
 
-        organs = {}
+        #
+        # create fixed organ schema
+        #
+
+        for name, organ in self.organs.items():
 
 
+            schema = self._empty_organ_schema(
+                name
+            )
 
-        for name,organ in self.organs.items():
 
+            #
+            # organ state
+            #
 
             if hasattr(
                 organ,
@@ -310,26 +390,57 @@ class InternalDynamics:
             ):
 
 
-                organs[name] = (
-                    organ.snapshot()
+                data = organ.snapshot()
+
+
+
+                if data is not None:
+
+
+                    if "cloud" in data:
+
+                        schema["cloud"] = data["cloud"]
+
+
+                    if "activity" in data:
+
+                        schema["activity"] = data["activity"]
+
+
+                    if "structure" in data:
+
+                        schema["structure"] = data["structure"]
+
+
+                    if "state" in data:
+
+                        schema["state"] = data["state"]
+
+
+
+            #
+            # compute request
+            #
+
+            if hasattr(
+                organ,
+                "compute_request"
+            ):
+
+
+                schema["compute_request"] = (
+
+                    organ.compute_request()
+
                 )
 
 
 
-        result["organs"] = organs
+            result["organs"][name] = schema
 
 
 
-        self.last_snapshot = result
+        self.last_observation = result
 
 
-
-
-
-
-    def snapshot(
-        self
-    ):
-
-
-        return self.last_snapshot.copy()
+        return result.copy()
