@@ -190,6 +190,7 @@ class InternalDynamics:
                 self.planet.step()
 
                 self.planet_clock = 0
+                self.planet_interval = 1
 
 
 
