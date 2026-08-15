@@ -87,7 +87,8 @@ def main():
     #
 
     dynamics = InternalDynamics(
-        planet,
+        planet=planet,
+        compute=compute
     )
 
 
