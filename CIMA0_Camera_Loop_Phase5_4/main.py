@@ -1,6 +1,6 @@
 import os
 import cv2
-
+import time
 BASE_DIR = os.path.abspath(
     os.path.join(
         os.path.dirname(__file__),
@@ -88,7 +88,6 @@ def main():
 
     dynamics = InternalDynamics(
         planet,
-        compute
     )
 
 
@@ -188,19 +187,17 @@ def main():
             ret, frame = cap.read()
 
 
-            if ret and frame is not None:
+            if not ret or frame is None:
 
+                print(
+                    "camera frame unavailable"
+                )
+
+            else:
 
                 packet = camera_planet.step(
                     frame
                 )
-
-
-                #
-                # external disturbance
-                #
-                # broadcast to organs
-                #
 
                 dynamics.receive(
                     packet
