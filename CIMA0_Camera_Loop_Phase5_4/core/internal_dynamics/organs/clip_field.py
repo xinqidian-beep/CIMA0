@@ -843,7 +843,7 @@ class CLIPField:
 
             "source":
 
-                "clip_field",
+                "clip",
 
 
 
@@ -905,6 +905,11 @@ class CLIPField:
                 )
 
             )
+            
+        print(
+            "CLIP budget:",
+            self.compute_budget
+        )
 
 
 
@@ -963,7 +968,7 @@ class CLIPField:
 
             "organ":
 
-                "clip_field",
+                "clip",
 
 
 
@@ -987,7 +992,7 @@ class CLIPField:
 
             "source":
 
-                "clip_field",
+                "clip",
 
 
 
