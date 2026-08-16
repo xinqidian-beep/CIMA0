@@ -4,7 +4,10 @@ import open_clip
 
 from PIL import Image
 
-
+print(
+    "LOADED:",
+    __file__
+)
 
 class CLIPField:
     """
@@ -275,109 +278,39 @@ class CLIPField:
     #
 
     def receive(
-
         self,
-
         packet
-
     ):
 
 
+        if packet.tag != "visual":
+
+            return
+
         self.input_packet = packet
-        
-        print(
-            "CLIP receive:",
-            packet.get("shape"),
-            packet.get("dtype")
+
+        raw = packet.data
+
+
+        shape = packet.shape
+
+
+        frame = np.frombuffer(
+            raw,
+            dtype=np.uint8
         )
         
-        #
-        # keep external structure
-        #
-
-        if isinstance(
-
-            packet,
-
-            dict
-
-        ):
+        frame = frame.reshape(
+            shape
+        )
 
 
-            self.structure = {
-
-
-                "input":
-
-                {
-
-
-                    "format":
-
-                        packet.get(
-
-                            "format",
-
-                            "unknown"
-
-                        ),
-
-
-
-                    #
-                    # keep channel position
-                    #
-                    # content intentionally empty
-                    #
-
-                    "channels":
-
-                    {
-
-
-                        "B":
-
-                        {
-
-                            "index":0,
-
-                            "value":None
-
-                        },
-
-
-                        "G":
-
-                        {
-
-                            "index":1,
-
-                            "value":None
-
-                        },
-
-
-                        "R":
-
-                        {
-
-                            "index":2,
-
-                            "value":None
-
-                        }
-
-
-                    }
-
-                }
-
-
-            }
-
-
-
-
+        self.buffer = frame
+        
+        print(
+            "CLIP buffer:",
+            frame.shape
+        )
 
     #
     # internal clock
@@ -790,79 +723,61 @@ class CLIPField:
     def compute_request(
         self
     ):
-
-
-        if len(
-
-            self.layer_activity
-
-        ) == 0:
-
-
-            return None
-
-
-
-
-
-        score = np.array(
-
-
-            [
-
-                self.layer_activity[i]
-
-
-                for i in sorted(
-
-                    self.layer_activity.keys()
-
-                )
-
-
-            ],
-
-
-            dtype=np.float32
-
-
+        print(
+            "=== ENTER CLIP compute_request ==="
+        )
+        print(
+            "FUNCTION VERSION A"
         )
 
+        print(
+            "input_packet:",
+            self.input_packet is None
+        )
+
+        print(
+            "cloud:",
+            self.cloud is None
+        )
+        print(
+            "CLIP compute_request called"
+        )
+        if self.cloud is None:
+
+            print(
+                "CLOUD EMPTY - SHOULD NOT RETURN"
+            )
+        if self.buffer is None:
+
+            return None
+            
+        if self.layer_activity is None:
+
+            score = 1.0
+                                    
+            request = {
+
+                "type":"compute_request",
+
+                "source":"clip",
+            
+                "score":
+                    score,
+                
+                "shape":
+                    self.buffer.shape
+            }
 
 
+            print(
+                "CLIP request:",
+                request
+            )
 
 
-        return {
-
-
-            "type":
-
-                "compute_request",
-
-
-
-            "source":
-
-                "clip",
-
-
-
-            "score":
-
-                score,
-
-
-
-            "shape":
-
-                score.shape
-
-        }
-
-
-
-
-
+            return request
+             
+        
     #
     # receive compute allocation
     #
@@ -924,8 +839,12 @@ class CLIPField:
         self
 
     ):
-
-
+        
+        print(
+            "CLIP cloud:",
+            self.cloud is None
+        )
+        
         if self.cloud is None:
 
 
