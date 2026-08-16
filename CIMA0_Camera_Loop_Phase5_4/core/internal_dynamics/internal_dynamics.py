@@ -51,6 +51,13 @@ class InternalDynamics:
 
         self.planet = planet
         self.compute = compute
+        
+        #
+        # planet internal clock
+        #
+
+        self.planet_clock = 0
+        self.planet_interval = 60
 
 
         #
@@ -124,7 +131,7 @@ class InternalDynamics:
 
         if self.compute is not None:
 
-            allocation = self.compute.allocate(
+            allocation = self.compute.step(
                 requests
             )
 
@@ -133,34 +140,36 @@ class InternalDynamics:
             allocation
         )
         
+        print(
+            "allocation:",
+            allocation
+        )
+        
         
     def observe_requests(self):
 
-        requests = {}
-
-
-        requests["planet"] = {
-
-            "type":"field_request",
-
-            "source":"planet"
-
-        }
-
-
+        requests = []
+        
         for name, organ in self.organs.items():
 
-            requests[name] = {
+            if hasattr(
+                organ,
+                "compute_request"
+            ):
+                
+                request = organ.compute_request()
+                
+                if request is not None:
 
-                "type":"field_request",
-
-                "source":name
-
-            }
-
-
-        return requests    
+                    requests.append(
+                        request
+                    )
         
+        return requests    
+        print(
+            "requests:",
+            requests
+        )
         
     def apply_step(
         self,
@@ -171,36 +180,52 @@ class InternalDynamics:
 
             return
             
-        planet_budget = allocation.get(
-            "planet"
-        )
-
-
-        if planet_budget:
-
-            self.planet_clock += 1
-
-
-            if (
-                self.planet_clock
-                >=
-                self.planet_interval
-            ):
-
-                self.planet.step()
-
-                self.planet_clock = 0
-                self.planet_interval = 1
-
-
+        #
+        # send compute budget
+        #
 
         for name, organ in self.organs.items():
 
-            if allocation.get(name):
 
-                organ.step()    
+            if name in allocation:
+
+
+                if hasattr(
+                    organ,
+                    "apply_compute"
+                ):
+
+
+                    organ.apply_compute(
+                        allocation[name]
+                    )
             
+        #
+        # organ evolution fast organs
+        #
+
+        for name, organ in self.organs.items():
+
+
+            if hasattr(
+                organ,
+                "step"
+            ):
+
+
+                organ.step()
+            
+        #
+        # planet base evolution slow planet
+        #
         
+        self.planet_clock += 1
+
+        if self.planet_clock >= self.planet_interval:
+            
+            self.planet.step()
+            
+            self.planet_clock = 0
         
     #
     # fixed empty schema

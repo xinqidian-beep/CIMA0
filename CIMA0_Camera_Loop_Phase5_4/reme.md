@@ -1080,3 +1080,852 @@ Planet 代码：这里的问题是重复最多的问题。还是要摒弃习惯�
 2	clip_field.py	验证预算闭环
 3	Planetfield.py	慢变量系统接入
 4	Display	最后观察
+
+**************************************对，这里需要进一步修正“最小模块”的定义。
+
+刚才说的 `BitTransport` 如果理解成一个很小的传输类，会过度简化。你指出的更准确：
+
+> 最小的不是功能最少，而是**核心约束最少、扩展空间最大**。
+
+因为 CIMA0 面向的是多模态、多终端、分布式环境，所以传输层天然要面对：
+
+* 图像（camera / video）
+* 声音（audio stream）
+* 网络输入
+* 传感器
+* 其他终端状态
+* 外部设备协议
+* 未来未知模态
+
+所以它不能设计成：
+
+```text
+camera_packet
+clip_packet
+audio_packet
+```
+
+这种越来越多的专用接口。
+
+应该是：
+
+```text
+统一状态流接口
+```
+
+---
+
+# 重新定义 Transport Layer
+
+它不是：
+
+```
+bytes搬运工具
+```
+
+而是：
+
+```
+同构状态交换层
+```
+
+核心只保证：
+
+1. 能携带信息
+2. 能标记来源
+3. 能描述结构
+4. 不解释内容
+
+---
+
+例如：
+
+```python
+Packet
+{
+    header,
+    payload
+}
+```
+
+---
+
+## header
+
+负责：
+
+```
+这个东西是什么
+```
+
+例如：
+
+```python
+{
+    "source": "camera01",
+
+    "tag": "visual",
+
+    "version": 1,
+
+    "timestamp": ...,
+
+    "shape": (480,640,3),
+
+    "dtype": "uint8",
+
+    "encoding": "raw"
+}
+```
+
+---
+
+## payload
+
+只有：
+
+```python
+bytes
+```
+
+例如：
+
+图像：
+
+```
+BGR bytes
+```
+
+声音：
+
+```
+PCM bytes
+```
+
+网络：
+
+```
+serialized bytes
+```
+
+甚至：
+
+```
+None
+```
+
+也可以成立。
+
+---
+
+# 关键：Transport 不知道 CLIP
+
+例如：
+
+现在：
+
+```
+Camera
+ |
+ v
+CLIPField
+```
+
+以后应该：
+
+```
+Camera
+ |
+ v
+Transport
+ |
+ +------------+
+ |            |
+ v            v
+
+CLIP       AudioField
+
+```
+
+Transport 不知道：
+
+* 这是视觉
+* 这是声音
+* 这是文本
+
+它只知道：
+
+```
+有一个状态包
+```
+
+---
+
+# 模块接口应该统一
+
+所有内部模块：
+
+```python
+class Organ:
+
+    def receive(packet):
+        pass
+
+
+    def tick():
+        pass
+
+
+    def emit():
+        pass
+
+```
+
+---
+
+注意：
+
+这里没有：
+
+```python
+compute_request()
+```
+
+没有：
+
+```python
+apply_compute()
+```
+
+因为这些都是具体实现层。
+
+---
+
+例如：
+
+## CLIP
+
+收到：
+
+```
+visual packet
+```
+
+自己决定：
+
+```
+是否编码
+什么时候编码
+编码多少
+```
+
+---
+
+## Audio
+
+收到：
+
+```
+audio packet
+```
+
+自己决定：
+
+```
+频谱
+memory
+prediction
+```
+
+---
+
+## PlanetField
+
+收到：
+
+```
+state disturbance packet
+```
+
+自己决定：
+
+```
+collision
+selection
+propagation
+```
+
+---
+
+# 那 ComputeSystem 放哪里？
+
+这里也需要重新定位。
+
+不是删除。
+
+而是从：
+
+```
+控制器
+```
+
+变成：
+
+```
+资源场
+```
+
+例如：
+
+```
+ComputeField
+
+    available_energy
+
+    thermal_limit
+
+    memory_limit
+
+    latency
+```
+
+模块可以读取：
+
+```
+当前计算环境
+```
+
+然后自己决定。
+
+---
+
+类似生物：
+
+不是大脑说：
+
+```
+心脏，你现在跳60次
+```
+
+而是：
+
+```
+身体环境改变
+器官自己响应
+```
+
+---
+
+# InternalDynamics 的角色也需要调整
+
+它不应该是：
+
+```
+scheduler
+```
+
+而应该：
+
+```
+internal medium
+```
+
+类似：
+
+```
+空间
+```
+
+职责：
+
+保存：
+
+```
+organ集合
+
+transport
+
+state snapshot
+```
+
+提供：
+
+```
+连接
+```
+
+不提供：
+
+```
+控制
+```
+
+---
+
+最终结构：
+
+```
+                 External World
+
+                       |
+                       v
+
+              Bit Transport Layer
+
+                       |
+        --------------------------------
+
+        |              |              |
+
+     Visual         Audio          Network
+
+     CLIP           AudioOrg       NetOrg
+
+
+        |              |              |
+
+        --------------------------------
+
+                 Internal Space
+
+                       |
+
+                 PlanetField
+
+                       |
+
+                  Planet
+
+```
+
+---
+
+所以你说：
+
+> 可以保留接口，随时根据需要补充。
+
+这个是关键。
+
+接口应该稳定：
+
+```text
+packet
+receive()
+emit()
+tick()
+snapshot()
+```
+
+内容可以增长：
+
+今天：
+
+```
+visual
+```
+
+明天：
+
+```
+audio
+```
+
+后天：
+
+```
+robot sensor
+```
+
+甚至：
+
+```
+未知智能体
+```
+
+都不需要修改核心。
+
+---
+
+这也解释了为什么之前 `InternalDynamics` 里不断增加：
+
+* compute_request
+* allocation
+* source匹配
+* budget分发
+
+最后会越来越复杂。
+
+因为它承担了本来应该属于：
+
+```
+transport + environment
+```
+
+的职责。
+
+我认为 Phase5_4 现在应该停在这里重新整理边界：
+
+**先建立通用状态交换层，再让 CLIP / Audio / PlanetField 成为自治模块。**
+
+这样后续增加多模态，不需要继续修改内部动力核心。
+****************************************************
+******************************************************
+这个总结抓到了 CIMA0 这套设计最核心的工程原则。
+
+之前 Phase5_4 出现大量接口问题，本质原因不是代码量增加，而是**逐渐引入了人为中心控制逻辑**：
+
+```text
+InternalDynamics
+        |
+        +-- 告诉 Planet 什么时候运行
+        |
+        +-- 告诉 CLIP 什么时候计算
+        |
+        +-- 告诉 Cloud 如何分配预算
+```
+
+于是系统开始需要维护：
+
+* 谁调用谁
+* 谁先运行
+* 谁申请资源
+* 谁拥有权限
+* 谁知道谁
+
+复杂度自然爆炸。
+
+---
+
+回到你的原则：
+
+## 1. 模块化
+
+每个模块有明确边界：
+
+例如：
+
+```text
+Planet
+
+职责：
+    自己的状态
+    自己的动力规则
+    自己的演化
+
+不知道：
+    CLIP
+    Camera
+    Audio
+```
+
+---
+
+```text
+CLIPField
+
+职责：
+    视觉状态转换
+    自己的内部表示
+
+不知道：
+    Planet怎么演化
+    Cloud怎么传播
+```
+
+---
+
+```text
+Transport
+
+职责：
+    信息交换
+
+不知道：
+    信息是什么意义
+```
+
+---
+
+## 2. 同构化
+
+所有模块遵守类似接口：
+
+```python
+receive(packet)
+
+tick()
+
+snapshot()
+```
+
+或者：
+
+```python
+input()
+
+evolve()
+
+output()
+```
+
+这样新增模块：
+
+Audio：
+
+```text
+AudioField
+```
+
+Network：
+
+```text
+NetworkField
+```
+
+Robot：
+
+```text
+RobotField
+```
+
+都不需要修改核心。
+
+---
+
+## 3. 嵌套化
+
+大的结构由小结构组成：
+
+例如：
+
+```text
+CIMA0
+
+    InternalDynamics
+
+        Planet
+
+        Organs
+
+            CLIP
+
+            Audio
+
+            Memory
+
+        CloudField
+
+```
+
+每一层只关心自己的下一层。
+
+---
+
+类似：
+
+细胞：
+
+```text
+细胞
+ |
+器官
+ |
+个体
+ |
+群体
+```
+
+每层都有自己的规则。
+
+---
+
+## 4. 不引入人为控制
+
+这是最关键的一点。
+
+不要：
+
+```python
+if clip:
+    run_planet()
+
+if planet:
+    give_clip_budget()
+```
+
+这种逻辑。
+
+因为它假设：
+
+> 一个中心知道所有模块需要什么。
+
+而自治系统不应该这样。
+
+正确：
+
+```text
+模块感知环境
+
+        ↓
+
+模块根据自身规则响应
+
+        ↓
+
+产生状态变化
+```
+
+---
+
+例如：
+
+CLIP：
+
+```text
+收到视觉流
+
+检查自身状态
+
+决定：
+    是否更新
+    更新多少
+```
+
+Planet：
+
+```text
+收到扰动
+
+检查自身状态
+
+决定：
+    是否演化
+```
+
+Cloud：
+
+```text
+收到状态
+
+决定：
+    collision
+    decay
+    propagation
+```
+
+---
+
+## 5. 外界工作互不干扰
+
+这里不是“完全隔离”。
+
+而是：
+
+**只通过统一信息流产生影响。**
+
+例如：
+
+错误方式：
+
+```text
+CLIP
+ |
+调用
+ |
+Planet.step()
+```
+
+正确方式：
+
+```text
+CLIP
+
+产生状态包
+
+      ↓
+
+Transport
+
+      ↓
+
+Planet.receive()
+
+      ↓
+
+Planet自己决定
+```
+
+---
+
+这也是为什么：
+
+`packet / transport`
+
+这一层很重要。
+
+它把：
+
+```
+影响
+```
+
+和：
+
+```
+控制
+```
+
+分离。
+
+---
+
+最终 CIMA0 的核心结构可以浓缩为：
+
+```text
+                 Information Flow
+
+                       |
+                       v
+
+        +--------------+--------------+
+
+        |              |              |
+
+      Planet        CLIP          Cloud
+
+        |              |              |
+
+        +--------------+--------------+
+
+                       |
+
+                 Internal Space
+
+
+每个模块：
+
+拥有自己的时间
+
+拥有自己的规则
+
+拥有自己的状态
+
+只接受信息，不接受命令
+
+```
+
+---
+
+所以后续开发原则应该冻结为：
+
+1. **archive 是不可污染的最小基元**
+2. **模块只拥有自己的状态和规则**
+3. **模块之间只交换同构信息**
+4. **Transport 负责流动，不负责解释**
+5. **InternalDynamics 负责承载，不负责调度**
+6. **Observer 只观察，不影响**
+7. **Compute 是环境，不是管理员**
+
+这样代码反而会越来越简单。
+
+复杂度来自“协调”，而不是来自“模块数量”。去掉中心协调以后，多模态、多终端、多节点扩展反而会更容易。
