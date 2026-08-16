@@ -1,212 +1,81 @@
-import numpy as np
+from .sampling.sampler import Sampler
 
 class ComputeSystem:
     """
-    CIMA0 Compute Resource Manager.
+    CIMA0 Compute Field
 
-
-    Responsibility:
-
-        collect requests
-
-        allocate budget
-
-
+    Local compute energy field.
 
     Does NOT know:
 
-        field meaning
-
-        organ meaning
-
-        sampling meaning
+        organ
+        meaning
+        source
 
     """
 
-
-
     def __init__(
         self,
-        capacity=1024
+        capacity=1024,
     ):
 
         self.capacity = capacity
 
-        self.requests = []
+        self.available = capacity
+
+        self.sampler = Sampler()
+    
+    def step(self):
+
+        self.available += (
+            self.capacity
+            -
+            self.available
+        ) * 0.01
 
 
+        self.available = min(
+            self.available,
+            self.capacity
+        )
 
-    def submit(
+    def select(
         self,
-        request
-    ):
-        
-        print(
-            "submit:",
-            request
-        )    
-
-        if not isinstance(
-            request,
-            dict
-        ):
-
-            return
-
-
-        if request.get(
-            "type"
-        ) != "compute_request":
-
-            return
-
-
-
-        self.requests.append(
-            request
-        )
-
-
-
-    def allocate(
-        self
+        signals
     ):
 
 
-        if len(
-            self.requests
-        ) == 0:
+        if not signals:
 
-            return {}
+            return None
 
 
 
-        demands=[]
-
-
-
-        for r in self.requests:
-
-
-            score = r.get(
-                "score"
-            )
-
-
-            if score is None:
-
-                demand=0
-
-            else:
-
-                demand=float(
-                    np.sum(
-                        np.abs(score)
-                    )
-                )
-
-
-            demands.append(
-                demand
-            )
-
-
-
-        total=sum(
-            demands
+        index = self.sampler.select(
+            signals,
+            budget=1
         )
 
-
-
-        result={}
-
-
-
-        for r,d in zip(
-            self.requests,
-            demands
-        ):
-
-
-            name=r.get(
-                "source",
-                "unknown"
-            )
-
-
-            if total>0:
-
-                budget=int(
-
-                    self.capacity
-
-                    *
-
-                    d
-
-                    /
-
-                    total
-
-                )
-
-            else:
-
-                budget=0
-
-
-
-            result[name]={
-
-                "budget":
-                    budget,
-
-
-                "source":
-                    name,
-
-
-                "shape":
-                    r.get(
-                        "shape"
-                    )
-
-            }
-
-
-
-        self.requests.clear()
-
-
-        return result
+        if winner is None:
+            
+            return None
+            
+        return signals[index]
         
-        print(
-            "allocation result:",
-            allocation
-        )
-        
-    def step(
+    def consume(
         self,
-        requests
+        amount=1
     ):
-        """
-        Compute cycle.
-
-        Receive requests,
-        allocate resources.
-
-        No semantic knowledge.
-        """
-
-        if requests is None:
-            return {}
+        
+        self.available -= float(
+            amount
+        )
 
 
-        for request in requests:
+        self.available = max(
+            self.available,
+            0
+        )
 
-            self.submit(
-                request
-            )
 
 
-        return self.allocate()

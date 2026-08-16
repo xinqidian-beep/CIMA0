@@ -1,6 +1,8 @@
-import numpy as np
+import cv2
 import torch
+import numpy as np
 import open_clip
+
 
 from PIL import Image
 
@@ -146,7 +148,7 @@ class CLIPField:
         # structure trace
         #
 
-        self.structure = None
+        self.structure = {}
 
 
 
@@ -289,29 +291,6 @@ class CLIPField:
 
         self.input_packet = packet
 
-        raw = packet.data
-
-
-        shape = packet.shape
-
-
-        frame = np.frombuffer(
-            raw,
-            dtype=np.uint8
-        )
-        
-        frame = frame.reshape(
-            shape
-        )
-
-
-        self.buffer = frame
-        
-        print(
-            "CLIP buffer:",
-            frame.shape
-        )
-
     #
     # internal clock
     #
@@ -321,25 +300,18 @@ class CLIPField:
         self
 
     ):
-
-
-        self.age += 1
-
-
-
-        if self.input_packet is None:
-
-
-            return
-
-
-
-
-
+        
+        print(
+            "=== CLIP STEP ==="
+        )
+        self.age +=1
         self.compute_age += 1
-
-
-
+        
+        print(
+            "input_packet:",
+            self.input_packet is None
+        )
+        
         if self.compute_age < self.compute_interval:
 
 
@@ -347,26 +319,30 @@ class CLIPField:
 
 
 
+
+
         self.compute_age = 0
-
-
-
-
+        
         tensor = self._decode(
 
             self.input_packet
 
         )
-
-
+        
+        print(
+            "decoded:",
+            tensor is None
+        )
 
         if tensor is None:
 
 
             return
-
-
-
+            
+        print(
+            "before forward"
+        )    
+            
         self._forward(
 
             tensor
@@ -386,96 +362,56 @@ class CLIPField:
     # packet decode
     #
 
-    def _decode(
+    def _decode(self, packet):
 
-        self,
+        raw = packet.data
 
-        packet
-
-    ):
+        shape = packet.shape
 
 
-        try:
-
-
-            raw = np.frombuffer(
-
-                packet["bytes"],
-
-                dtype=np.uint8
-
-            )
-
-
-
-            image = raw.reshape(
-
-                packet["shape"]
-
-            )
-
-
-
-        except Exception as e:
-
-
-            print(
-
-                "CLIP decode error:",
-
-                e
-
-            )
-
-
-            return None
-
-
-
-
-
-        #
-        # preserve external format
-        #
-
-        if packet.get(
-
-            "format"
-
-        ) == "BGR":
-
-
-            image = image[:,:,::-1]
-
-
-
-
-
-        image = Image.fromarray(
-
-            image
-
+        frame = np.frombuffer(
+            raw,
+            dtype=np.uint8
         )
 
 
-
-        tensor = self.preprocess(
-
-            image
-
+        frame = frame.reshape(
+            shape
         )
 
 
-
-        return (
-
-            tensor
-
-            .unsqueeze(0)
-
-            .to(self.device)
-
+        frame = cv2.cvtColor(
+            frame,
+            cv2.COLOR_BGR2RGB
         )
+
+
+        frame = cv2.resize(
+            frame,
+            (224,224)
+        )
+
+
+        tensor = torch.from_numpy(
+            frame
+        )
+
+
+        tensor = tensor.permute(
+            2,0,1
+        )
+
+
+        tensor = tensor.float()/255.0
+
+
+        tensor = tensor.unsqueeze(0)
+
+
+        return tensor.to(
+            self.device
+        )
+            
     #
     # transformer hooks
     #
@@ -627,8 +563,12 @@ class CLIPField:
             self.layers
 
         ) != 12:
-
-
+            
+            print(
+                "CLIP layers:",
+                self.layers.keys()
+            )
+            
             self.cloud = None
 
 
@@ -742,42 +682,37 @@ class CLIPField:
         print(
             "CLIP compute_request called"
         )
-        if self.cloud is None:
-
-            print(
-                "CLOUD EMPTY - SHOULD NOT RETURN"
-            )
-        if self.buffer is None:
-
-            return None
-            
-        if self.layer_activity is None:
-
-            score = 1.0
-                                    
-            request = {
-
-                "type":"compute_request",
-
-                "source":"clip",
-            
-                "score":
-                    score,
-                
-                "shape":
-                    self.buffer.shape
-            }
-
-
-            print(
-                "CLIP request:",
-                request
-            )
-
-
-            return request
-             
         
+        if self.cloud is None:
+            return None
+        activity = 0.0
+        if len(self.layer_activity)>0:
+
+            activity=float(
+                np.mean(
+                    list(
+                        self.layer_activity.values()
+                    )
+                )
+            )
+            
+        return {
+
+            "type":"compute_request",
+
+            "activity":activity,
+
+            "age":self.age,
+
+            "delta":activity
+        }
+
+
+        print(
+            "CLIP request:",
+            request
+        )               
+       
     #
     # receive compute allocation
     #
@@ -786,50 +721,12 @@ class CLIPField:
 
         self,
 
-        allocation
+        amount
 
     ):
-
-
-        if allocation is None:
-
-
-            return
-
-
-
-
-
-        if isinstance(
-
-            allocation,
-
-            dict
-
-        ):
-
-
-            self.compute_budget = (
-
-                allocation.get(
-
-                    "budget",
-
-                    0
-
-                )
-
-            )
-            
-        print(
-            "CLIP budget:",
-            self.compute_budget
-        )
-
-
-
-
-
+        
+        self.compute_budget = amount
+        
     #
     # output packet
     #

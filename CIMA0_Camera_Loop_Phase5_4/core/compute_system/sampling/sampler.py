@@ -3,106 +3,100 @@ import numpy as np
 
 class Sampler:
     """
-    CIMA0 Adaptive Sampler.
+    CIMA0 Adaptive Attention Sampler.
 
 
     Responsibility:
 
+        local state field
 
-        state field
+              |
 
-            |
+              v
 
-            v
+        priority field
 
-        adaptive priority
+              |
 
-            |
-
-            v
+              v
 
         selected positions
 
 
 
-    State:
+    Input state:
 
-
-        age
-
-        activity
-
-        delta
-
-        weight
-
+        {
+            "age",
+            "activity",
+            "delta"
+        }
 
 
     Does NOT know:
 
 
-        cloud meaning
+        organ
 
-        planet meaning
+        source
 
-        CLIP meaning
+        meaning
 
-        field semantics
+        compute
 
+        semantics
+
+
+
+    It only selects.
     """
 
 
 
     def __init__(
-        self,
-        minimum=0
+        self
     ):
 
-        self.minimum = minimum
-
-
         #
-        # adaptive coefficients
+        # local selection weights
         #
 
         self.w_age = 0.25
+
         self.w_activity = 0.35
+
         self.w_delta = 0.40
 
 
+
+    #
+    # calculate selection pressure
+    #
 
     def priority(
         self,
         state
     ):
-        """
-        Calculate selection pressure.
 
 
-        state:
+        if state is None:
 
-        {
-            age,
-            activity,
-            delta
-        }
+            return None
 
-        """
 
 
         age = state.get(
             "age"
         )
 
-
         activity = state.get(
             "activity"
         )
 
-
         delta = state.get(
             "delta"
         )
+
 
 
         if (
@@ -119,15 +113,29 @@ class Sampler:
 
         score = (
 
-            self.w_age * age
+            self.w_age
+            *
+            np.asarray(
+                age
+            )
 
             +
 
-            self.w_activity * activity
+            self.w_activity
+            *
+            np.asarray(
+                activity
+            )
 
             +
 
-            self.w_delta * np.abs(delta)
+            self.w_delta
+            *
+            np.abs(
+                np.asarray(
+                    delta
+                )
+            )
 
         )
 
@@ -136,10 +144,14 @@ class Sampler:
 
 
 
+    #
+    # select positions
+    #
+
     def select(
         self,
         state,
-        budget
+        budget=1
     ):
 
 
@@ -162,7 +174,18 @@ class Sampler:
         )
 
 
+
         count = flat.size
+
+
+
+        if count == 0:
+
+            return np.array(
+                [],
+                dtype=np.int64
+            )
+
 
 
         budget = int(
@@ -170,134 +193,39 @@ class Sampler:
         )
 
 
-        if budget >= count:
+        if budget <= 0:
 
-            return np.arange(
-                count
+            return np.array(
+                [],
+                dtype=np.int64
             )
 
 
 
-        indices = np.argpartition(
+        #
+        # all selected
+        #
 
+        if budget >= count:
+
+            return np.arange(
+                count,
+                dtype=np.int64
+            )
+
+
+
+        #
+        # highest pressure
+        #
+
+        index = np.argpartition(
             flat,
-
             -budget
-
         )[-budget:]
 
 
 
-        return indices
-
-
-
-    def update(
-        self,
-        reward,
-        state
-    ):
-        """
-        Adaptive weight evolution.
-
-
-        """
-
-
-
-        age = np.mean(
-            state["age"]
+        return index.astype(
+            np.int64
         )
-
-
-        activity = np.mean(
-            state["activity"]
-        )
-
-
-        delta = np.mean(
-            np.abs(
-                state["delta"]
-            )
-        )
-
-
-
-        self.w_delta += (
-
-            reward *
-
-            (
-                age
-                +
-                activity
-            )
-
-            *
-
-            0.001
-
-        )
-
-
-        self.w_age += (
-
-            reward *
-
-            (
-                delta
-                +
-                activity
-            )
-
-            *
-
-            0.001
-
-        )
-
-
-        self.w_activity += (
-
-            reward *
-
-            (
-                delta
-                +
-                age
-            )
-
-            *
-
-            0.001
-
-        )
-
-
-
-        #
-        # normalize
-        #
-
-        total = (
-
-            self.w_age
-
-            +
-
-            self.w_activity
-
-            +
-
-            self.w_delta
-
-        )
-
-
-        if total > 0:
-
-            self.w_age /= total
-
-            self.w_activity /= total
-
-            self.w_delta /= total
