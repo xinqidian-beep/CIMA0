@@ -21,31 +21,32 @@ from core.internal_dynamics.internal_dynamics import (
     InternalDynamics
 )
 
-from core.internal_dynamics.internal_dynamics_observer import (
+from core.observer.internal_dynamics_observer import (
     InternalDynamicsObserver
 )
-
 
 from core.compute_system.compute_system import (
     ComputeSystem
 )
 
+from core.io.display_io import (
+    DisplayIO
+)
+
+from core.io.transport import (
+    TransportRouter
+)
 
 from core.terminal.camera import (
     CameraPlanet
 )
+from core.terminal.camera.camera_io import (
+    CameraIO
+)
 
-
-from core.organs.clip_field import (
+from core.internal_dynamics.organs.clip_field import (
     CLIPField
 )
-
-
-from core.display_io import (
-    DisplayIO
-)
-
-
 
 def main():
 
@@ -92,7 +93,27 @@ def main():
     )
 
 
+    
+    #
+    # readonly observer
+    #
 
+    observer = InternalDynamicsObserver()
+
+
+
+    #
+    # display port
+    #
+
+    display = DisplayIO()
+    
+    #
+    # information transport
+    #
+
+    transport = TransportRouter()
+    
     #
     # Internal organ
     #
@@ -111,25 +132,22 @@ def main():
         "clip",
         clip_field
     )
-
-
-
+    
     #
-    # readonly observer
+    # transport connection
     #
 
-    observer = InternalDynamicsObserver()
-
-
-
+    transport.subscribe(
+        "visual",
+        dynamics
+    )
+    
     #
-    # display port
+    # camera io adapter
     #
 
-    display = DisplayIO()
-
-
-
+    camera_io = CameraIO()
+    
     #
     # external boundary
     #
@@ -196,13 +214,36 @@ def main():
 
             else:
 
-                packet = camera_planet.step(
-                    frame
+                #
+                # camera state
+                #
+
+                camera_state = {
+                    "field": frame.reshape(
+                        -1,
+                        3
+                    )
+                }
+
+
+                #
+                # camera local io
+                #
+
+                packet = camera_io.encode(
+                    camera_state
                 )
 
-                dynamics.receive(
-                    packet
-                )
+
+                #
+                # publish information
+                #
+
+                if packet is not None:
+
+                    transport.publish(
+                        packet
+                    )
 
 
 

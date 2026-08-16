@@ -40,7 +40,11 @@ class ComputeSystem:
         self,
         request
     ):
-
+        
+        print(
+            "submit:",
+            request
+        )    
 
         if not isinstance(
             request,
@@ -175,6 +179,11 @@ class ComputeSystem:
 
 
         return result
+        
+        print(
+            "allocation result:",
+            allocation
+        )
         
     def step(
         self,

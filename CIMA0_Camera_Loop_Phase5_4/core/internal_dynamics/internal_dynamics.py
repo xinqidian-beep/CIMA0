@@ -149,27 +149,32 @@ class InternalDynamics:
     def observe_requests(self):
 
         requests = []
-        
+
+
         for name, organ in self.organs.items():
+
 
             if hasattr(
                 organ,
                 "compute_request"
             ):
-                
+
+
                 request = organ.compute_request()
-                
+
+
                 if request is not None:
 
                     requests.append(
                         request
                     )
-        
-        return requests    
+                    
         print(
             "requests:",
             requests
-        )
+        )    
+
+        return requests
         
     def apply_step(
         self,

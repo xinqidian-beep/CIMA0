@@ -1,45 +1,10 @@
 import numpy as np
 
+from core.io.transport import BitPacket
+
 
 
 class CameraIO:
-    """
-    CIMA0 Camera IO.
-
-
-    Input:
-
-        CameraObserver field
-
-
-    Output:
-
-        BGR media packet
-
-
-
-    Responsibility:
-
-
-        preserve media stream identity
-
-        bytes packaging
-
-
-
-    No:
-
-
-        sampling
-
-        compute
-
-        image processing
-
-        semantic interpretation
-
-    """
-
 
 
     def __init__(self):
@@ -79,14 +44,6 @@ class CameraIO:
 
 
 
-        #
-        # CameraObserver internal form:
-
-        #
-        # (pixels,3)
-
-        #
-
         if field.ndim != 2:
 
             return None
@@ -99,75 +56,44 @@ class CameraIO:
 
 
 
-        packet = {
+        packet = BitPacket(
 
+            source="camera",
 
-            "bytes":
+            tag="visual",
 
+            data=
                 field.astype(
                     np.uint8
                 ).tobytes(),
 
 
-
-            "shape":
-
+            shape=
                 field.shape,
 
 
-
-            "dtype":
-
+            dtype=
                 "uint8",
 
 
-
-            #
-            # media identity
-            #
-
-            "type":
-
-                "media",
+            schema=
+                "media.bgr",
 
 
+            meta={
 
-            "format":
+                "format":"BGR",
 
-                "BGR",
+                "channels":3,
 
+                "color_space":"BGR"
 
+            }
 
-            "channels":
-
-                3,
-
-
-
-            "color_space":
-
-                "BGR",
-
-
-
-            "source":
-
-                "camera_io"
-
-        }
-
+        )
 
 
         self.last_packet = packet
 
 
-
         return packet
-
-
-
-    def state(
-        self
-    ):
-
-        return self.last_packet
