@@ -1990,3 +1990,54 @@ ComputeSystem
 资源分配
 **************************
 *****************************
+当前修改顺序
+建议严格按这个顺序：
+
+Step 1
+修：
+
+compute_system.py
+让 Sampler 正常工作。
+
+Step 2
+修：
+
+internal_dynamics.py
+统一 signals。
+
+Step 3
+修：
+
+clip_field.py
+增加：
+
+activity()
+delta
+Step 4
+删除旧协议：
+
+compute_request
+
+source
+
+allocation dict
+
+Step 5
+测试：
+
+启动后观察：
+
+应该看到：
+
+CLIP STEP
+
+CLIP cloud shape:
+
+(12,50,768)
+
+winner:
+clip
+
+budget:
+...
+目前架构已经从“调度系统”退回到了“生命体内部竞争”。

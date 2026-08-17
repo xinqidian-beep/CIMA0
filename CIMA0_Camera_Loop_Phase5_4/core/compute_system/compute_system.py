@@ -52,30 +52,35 @@ class ComputeSystem:
 
 
         index = self.sampler.select(
-            signals,
+            [
+                s["state"]
+                for s in signals
+            ],
             budget=1
         )
 
-        if winner is None:
+        if len(index)==0:
             
             return None
             
-        return signals[index]
+        return signals[
+            int(index[0])
+        ]
         
     def consume(
         self,
         amount=1
     ):
-        
-        self.available -= float(
-            amount
-        )
-
-
-        self.available = max(
+        self.available=max(
             self.available,
             0
         )
+        
+        amount=min(
+            float(amount),
+            self.available
+        )
 
+        self.available-=amount
 
 

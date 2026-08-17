@@ -186,3 +186,19 @@ io.py
 observer.py
     测量
 *********
+organ 接口统一
+以后所有 organ：
+
+必须有：
+
+receive(packet)
+
+step()
+
+snapshot()
+
+activity()
+
+apply_compute()
+但是不是强制全部存在。
+********************

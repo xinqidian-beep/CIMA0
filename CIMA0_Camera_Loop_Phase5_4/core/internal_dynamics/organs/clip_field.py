@@ -283,12 +283,21 @@ class CLIPField:
         self,
         packet
     ):
-
-
-        if packet.tag != "visual":
+        
+        if packet is None:
+            return
+        
+        if packet.tag(
+            "type"
+        ) != "media":
+            return
+            
+        if packet.get(
+            "format"
+        ) != "BGR":
 
             return
-
+            
         self.input_packet = packet
 
     #
@@ -304,6 +313,7 @@ class CLIPField:
         print(
             "=== CLIP STEP ==="
         )
+        self._forward(tensor)
         self.age +=1
         self.compute_age += 1
         
@@ -364,9 +374,9 @@ class CLIPField:
 
     def _decode(self, packet):
 
-        raw = packet.data
+        raw = packet["bytes"]
 
-        shape = packet.shape
+        shape = packet["shape"]
 
 
         frame = np.frombuffer(
@@ -390,19 +400,14 @@ class CLIPField:
             frame,
             (224,224)
         )
-
-
-        tensor = torch.from_numpy(
+        
+        image=Image.fromarray(
             frame
         )
-
-
-        tensor = tensor.permute(
-            2,0,1
+        
+        tensor = self.preprocess(
+            image
         )
-
-
-        tensor = tensor.float()/255.0
 
 
         tensor = tensor.unsqueeze(0)
@@ -697,8 +702,6 @@ class CLIPField:
             )
             
         return {
-
-            "type":"compute_request",
 
             "activity":activity,
 

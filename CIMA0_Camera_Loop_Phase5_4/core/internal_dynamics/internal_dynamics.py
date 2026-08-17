@@ -1,4 +1,4 @@
-import numpy as np
+import copy
 
 
 class InternalDynamics:
@@ -14,7 +14,7 @@ class InternalDynamics:
 
         route external packets
 
-        provide compute field
+        provide compute opportunity
 
         trigger local evolution
 
@@ -28,14 +28,12 @@ class InternalDynamics:
 
         interpret meaning
 
-        control organ behavior
+        control organ rules
 
         modify planet rules
 
 
-
-    Time appears only in observation.
-
+    Time appears only in Observer.
     """
 
 
@@ -45,39 +43,18 @@ class InternalDynamics:
         compute=None
     ):
 
-        #
-        # original dynamical entity
-        #
-
         self.planet = planet
-
-
-        #
-        # local compute field
-        #
 
         self.compute = compute
 
-
-
-        #
-        # internal organs
-        #
-
         self.organs = {}
-
-
-
-        #
-        # latest complete observation
-        #
 
         self.last_observation = None
 
 
 
     #
-    # register internal organ
+    # register organ
     #
 
     def register(
@@ -91,7 +68,7 @@ class InternalDynamics:
 
 
     #
-    # receive external information flow
+    # external input
     #
 
     def receive(
@@ -99,79 +76,73 @@ class InternalDynamics:
         packet
     ):
 
-        for organ in self.organs.values():
-
+        for name,organ in self.organs.items():
 
             if hasattr(
                 organ,
-                "receive"
-            ):
+                "activity"
+            ): 
+                state = organ.activity()
 
-                organ.receive(
-                    packet
-                )
+                if state is not None:
 
+                    signals.append(
+                        {
+                            "name": name,
+                            "organ": organ,
+                            "state": state
+                        }
+                    )
 
 
     #
-    # internal evolution cycle
+    # internal evolution
     #
 
-    def step(
-        self
-    ):
+   def step(self):
 
 
-        #
-        # collect local activity
-        #
-        # compute does not know organ
-        #
-
-        signals = []
+        signals=[]
 
 
-        for organ in self.organs.items():
-
+        for name, organ in self.organs.items():
 
             if hasattr(
                 organ,
                 "activity"
             ):
 
+                state=organ.activity()
 
-                signal = organ.activity()
-
-
-                if signal is not None:
+                if state is not None:
 
                     signals.append(
                         {
-                            "organ": organ,
-                            "signal": signal
+                            "name":name,
+                            "organ":organ,
+                            "state":state
                         }
                     )
 
 
 
-        #
-        # compute field chooses
-        #
-        # only resource allocation
-        #
-
-        if self.compute:
+        if self.compute is not None:
 
 
-            winner = self.compute.select(
-                signals
-            )
+            winner=None
 
 
-            if winner:
+            if self.compute.available > 0:
+
+                winner=self.compute.select(
+                    signals
+                )
 
 
-                organ = winner["organ"]
+            if winner is not None:
+
+
+                organ=winner["organ"]
 
 
                 if hasattr(
@@ -179,8 +150,9 @@ class InternalDynamics:
                     "apply_compute"
                 ):
 
-                    organ.apply_compute()
-
+                    organ.apply_compute(
+                        1
+                    )
 
 
                 self.compute.consume(
@@ -189,7 +161,9 @@ class InternalDynamics:
 
 
             self.compute.step()
-            
+
+
+
         for organ in self.organs.values():
 
             if hasattr(
@@ -197,11 +171,19 @@ class InternalDynamics:
                 "step"
             ):
 
-                organ.step()    
-            
-                
+                organ.step()
+
+
+
+        if hasattr(
+            self.planet,
+            "step"
+        ):
+
+            self.planet.step()
+
     #
-    # snapshot for observer
+    # observer interface
     #
 
     def snapshot(
@@ -211,19 +193,13 @@ class InternalDynamics:
 
         result = {
 
-
             "planet": None,
-
 
             "organs": {}
 
         }
 
 
-
-        #
-        # Planet snapshot
-        #
 
         if hasattr(
             self.planet,
@@ -236,10 +212,6 @@ class InternalDynamics:
 
 
 
-        #
-        # organ snapshot
-        #
-
         for name, organ in self.organs.items():
 
 
@@ -248,14 +220,11 @@ class InternalDynamics:
                 "snapshot"
             ):
 
-
                 result["organs"][name] = (
                     organ.snapshot()
                 )
 
-
             else:
-
 
                 result["organs"][name] = None
 
@@ -264,4 +233,6 @@ class InternalDynamics:
         self.last_observation = result
 
 
-        return result.copy()
+        return copy.deepcopy(
+            result
+        )
