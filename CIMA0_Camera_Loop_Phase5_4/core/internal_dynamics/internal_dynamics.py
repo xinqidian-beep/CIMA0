@@ -99,7 +99,7 @@ class InternalDynamics:
     # internal evolution
     #
 
-   def step(self):
+    def step(self):
 
 
         signals=[]
