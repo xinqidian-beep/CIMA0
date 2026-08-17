@@ -283,21 +283,13 @@ class CLIPField:
         self,
         packet
     ):
-        
-        if packet is None:
+        print(
+            "CLIP receive tag:",
+            packet.tag
+        )
+        if packet.tag != "visual":
             return
         
-        if packet.tag(
-            "type"
-        ) != "media":
-            return
-            
-        if packet.get(
-            "format"
-        ) != "BGR":
-
-            return
-            
         self.input_packet = packet
 
     #
@@ -359,11 +351,15 @@ class CLIPField:
     # packet decode
     #
 
-    def _decode(self, packet):
+    def _decode(
+        self,
+        packet
+    ):
 
-        raw = packet["bytes"]
 
-        shape = packet["shape"]
+        raw = packet.data
+
+        shape = packet.shape
 
 
         frame = np.frombuffer(
@@ -387,17 +383,26 @@ class CLIPField:
             frame,
             (224,224)
         )
-        
-        image=Image.fromarray(
+
+
+        tensor = torch.from_numpy(
             frame
         )
-        
-        tensor = self.preprocess(
-            image
+
+
+        tensor = tensor.permute(
+            2,
+            0,
+            1
         )
 
 
-        tensor = tensor.unsqueeze(0)
+        tensor = tensor.float()/255.0
+
+
+        tensor = tensor.unsqueeze(
+            0
+        )
 
 
         return tensor.to(

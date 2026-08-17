@@ -277,7 +277,7 @@ def main():
         # display
         #
 
-        display_packet = observer.encode_field(
+        display_packet = display.encode_field(
             read_state,
             source="internal"
         )

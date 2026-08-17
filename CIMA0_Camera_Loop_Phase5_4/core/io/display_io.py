@@ -183,6 +183,102 @@ class DisplayIO:
 
 
         return data
+        
+    def encode_field(
+        self,
+        observation,
+        source="internal"
+    ):
+
+        if observation is None:
+
+            return None
+
+
+        state = observation.get(
+            "state"
+        )
+
+
+        if state is None:
+
+            return None
+
+
+        planet = state.get(
+            "planet"
+        )
+
+
+        if planet is None:
+
+            return None
+
+
+
+        field = np.asarray(
+            planet
+        )
+
+
+        #
+        # normalize
+        #
+
+        minimum = field.min()
+
+        maximum = field.max()
+
+
+        if maximum - minimum > 0:
+
+            image = (
+                (field - minimum)
+                /
+                (maximum - minimum)
+                *
+                255
+            )
+
+        else:
+
+            image = np.zeros_like(
+                field
+            )
+
+
+
+        image = image.astype(
+            np.uint8
+        )
+
+
+        return {
+
+            "type":
+                "field",
+
+
+            "source":
+                source,
+
+
+            "bytes":
+                image.tobytes(),
+
+
+            "shape":
+                image.shape,
+
+
+            "dtype":
+                "uint8",
+                
+            "format":
+                "GRAY",    
+
+        }
+        
 
     #
     # byte packet decode
