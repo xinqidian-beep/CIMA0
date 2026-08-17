@@ -8,20 +8,97 @@ class InternalDynamicsObserver:
         self.current=None
         
     def observe(self,snapshot):
+        
+        self.previous = self.current
+        
+        self.current = snapshot
+               
+        return {
 
-        current=snapshot
+            "state": self.current,
+
+            "delta": self._compare()
+
+        }
 
 
-        delta=self.compare(
-            self.previous,
-            current
+    def _compare(
+        self
+    ):
+
+
+        if self.previous is None:
+
+            return None
+
+
+        delta={}
+
+
+
+        #
+        # planet
+        #
+
+        old_planet=self.previous.get(
+            "planet"
         )
 
+        new_planet=self.current.get(
+            "planet"
+        )
+        
+        if (
+            old_planet is not None
+            and
+            new_planet is not None
+        ):
 
-        self.previous=current
+            delta["planet"]=(
+                new_planet
+                -
+                old_planet
+            )
 
 
-        return {
-            "state":current,
-            "delta":delta
-        }
+
+        #
+        # organs
+        #
+        
+        delta["organs"]={}
+
+
+        for name,new in self.current.get(
+            "organs",
+            {}
+        ).items():
+
+
+            old=self.previous.get(
+                "organs",
+                {}
+            ).get(
+                name
+            )
+
+
+            if old is None:
+
+                delta["organs"][name]=None
+
+            else:
+
+                delta["organs"][name]={
+                    "changed":True
+                }
+
+
+
+        return delta
+        
+    def read(
+        self
+    ):
+
+        return self.current

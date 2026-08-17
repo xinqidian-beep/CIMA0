@@ -2041,3 +2041,128 @@ clip
 budget:
 ...
 目前架构已经从“调度系统”退回到了“生命体内部竞争”。
+************************
+下一步顺序建议
+不要同时改多个层。
+
+按照依赖：
+
+Step 1
+修复 Observer
+
+恢复：
+
+observe(snapshot)
+
+read()
+
+compare()
+只输出：
+
+{
+    "state":snapshot,
+    "delta":delta
+}
+不要 encode。
+
+Step 2
+恢复 DisplayIO
+
+加入：
+
+encode_field()
+
+encode_media()
+
+render()
+Observer 不碰显示。
+
+Step 3
+固定 Packet
+
+统一：
+
+BitPacket
+
+    tag
+    data
+    shape
+    dtype
+CLIPField只接受：
+
+packet.tag=="visual"
+不要再出现：
+
+packet.tag("type")
+这种旧dict接口。
+
+Step 4
+再优化 CLIPField
+
+现在它还有两个问题：
+
+自己定义了 compute_age
+
+实际上：
+
+时间不存在于内部
+所以：
+
+compute_age
+compute_interval
+以后应该删除。
+
+应该由：
+
+ComputeSystem
+
+决定什么时候给它计算资源。
+
+CLIPField不应该主动等待30步
+
+现在：
+
+CLIPField:
+
+if compute_age < 30:
+    return
+这是内部时间。
+
+违背 Phase5_4 原则。
+
+应该：
+
+ComputeSystem:
+
+今天给CLIP 1个compute token
+
+CLIP才forward一次
+总结当前状态
+其实现在架构已经比 Phase5_3 清晰很多：
+
+已经实现：
+
+✅ Planet独立演化
+✅ InternalDynamics作为容器
+✅ Observer只观察
+✅ ComputeSystem负责选择
+✅ CLIP成为organ
+✅ transport开始出现
+
+剩余主要是：
+
+清理旧接口
+
+删除时间概念残留
+
+Display边界恢复
+
+transport最后接管数据流
+
+现在不要继续加模块。
+
+Phase5_4的核心目标应该定为：
+
+证明一个没有时间概念的内部动力系统，在外部观察时可以产生可测量的时间序列。
+
+目前方向已经对了。下一步就是清理接口，让这个原则在代码结构中完全体现出来。

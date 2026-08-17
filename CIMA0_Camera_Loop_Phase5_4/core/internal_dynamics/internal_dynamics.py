@@ -75,6 +75,17 @@ class InternalDynamics:
         self,
         packet
     ):
+        
+        print(
+            "Dynamics receive:",
+            type(packet)
+        )
+        
+        for organ in self.organs.values():
+
+            if hasattr(organ,"receive"):
+
+                organ.receive(packet)    
 
         for name,organ in self.organs.items():
 
