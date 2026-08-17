@@ -304,69 +304,56 @@ class CLIPField:
     # internal clock
     #
 
-    def step(
 
-        self
+    def step(self):
 
-    ):
-        
+
         print(
             "=== CLIP STEP ==="
         )
-        self._forward(tensor)
-        self.age +=1
-        self.compute_age += 1
-        
-        print(
-            "input_packet:",
-            self.input_packet is None
-        )
-        
-        if self.compute_age < self.compute_interval:
 
+
+        self.age += 1
+
+
+        if self.input_packet is None:
+
+            print(
+                "CLIP waiting input"
+            )
 
             return
 
 
 
-
-
-        self.compute_age = 0
-        
         tensor = self._decode(
-
             self.input_packet
+        )
 
-        )
-        
-        print(
-            "decoded:",
-            tensor is None
-        )
 
         if tensor is None:
 
+            print(
+                "CLIP decode failed"
+            )
 
             return
-            
+
+
+
         print(
             "before forward"
-        )    
-            
-        self._forward(
+        ) 
 
+
+        self._forward(
             tensor
-        )    
+        )
+
+
         print(
             "CLIP forward done"
         )
-            
-
-        
-
-
-
-
 
     #
     # packet decode
