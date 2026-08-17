@@ -2166,3 +2166,1102 @@ Phase5_4的核心目标应该定为：
 证明一个没有时间概念的内部动力系统，在外部观察时可以产生可测量的时间序列。
 
 目前方向已经对了。下一步就是清理接口，让这个原则在代码结构中完全体现出来。
+*********************************
+-----------------------------
+++++++++++++++++++++++++++++++++
+----------------------------------
+*********************************
+Phase5_4 冻结状态
+当前版本已经达到一个明确里程碑：
+
+已验证闭环
+Camera
+  |
+  v
+BitPacket
+  |
+  v
+InternalDynamics.receive()
+  |
+  v
+CLIPField.receive()
+  |
+  v
+CLIPField.activity()
+  |
+  v
+signals
+  |
+  v
+ComputeSystem
+  |
+  v
+Sampler.select()
+  |
+  v
+winner(CLIPField)
+  |
+  v
+apply_compute(1)
+  |
+  v
+CLIPField.step()
+也就是说：
+
+唯一注意力 + 计算资源竞争机制已经第一次真实运行。
+
+Phase5_4 当前保留的问题（不要在冻结版修）
+记录为下一阶段任务：
+
+1. activity 仍是假信号
+当前：
+
+input_activity =
+len(packet.data)/1000000.0
+只是：
+
+输入尺寸
+不是：
+
+输入变化
+Phase5_5 改为：
+
+frame(t)
+   -
+frame(t-1)
+
+      |
+
+      v
+
+delta activity
+2. CLIP cloud 尚未完成验证
+下一阶段确认：
+
+CLIP.step()
+
+      |
+
+      v
+
+_forward()
+
+      |
+
+      v
+
+hooks
+
+      |
+
+      v
+
+cloud=(12,50,768)
+3. Observer接口整理
+当前：
+
+计算态：
+
+{
+    name,
+    organ,
+    state
+}
+观察态：
+
+应该：
+
+{
+    name,
+    state
+}
+分离。
+
+Phase5_5 初始目标
+不要增加新功能。
+
+只做三个动作：
+
+第一阶段：复制冻结
+复制：
+
+CIMA0_Camera_Loop_Phase5_4
+为：
+
+CIMA0_Camera_Loop_Phase5_5
+然后：
+
+确认：
+
+python main.py
+仍然可以进入：
+
+WINNER:
+{
+'name':'clip',
+'organ':<CLIPField>,
+'state':...
+}
+
+CLIP budget: 1
+作为基线。
+
+第二阶段：完成 CLIP 内部状态生成
+目标：
+
+看到：
+
+CLIP cloud shape:
+
+(12,50,768)
+形成：
+
+camera
+ |
+ v
+CLIP transformer
+ |
+ v
+internal cloud
+第三阶段：替换 activity
+从：
+
+byte size
+升级为：
+
+visual disturbance
+形成真正：
+
+外部变化
+      |
+      v
+organ activity
+      |
+      v
+attention
+Phase5_5 架构目标
+最终：
+
+             Camera
+                |
+                v
+          BitPacket Field
+                |
+                v
+
+        +----------------+
+        | InternalDynamics|
+        +----------------+
+
+          /          \
+         /            \
+
+   CLIP Organ       Planet
+       |
+       |
+ activity()
+       |
+       v
+
+  Compute Competition
+
+       |
+       v
+
+  Single Winner
+
+       |
+       v
+
+ Internal Evolution
+我建议 Phase5_5 不再大规模重构，而采用：
+
+验证 → 小修 → 固化接口
+
+路线。
+
+Phase5_4 已经完成最重要的一步：
+从“外部驱动系统”进入了“内部竞争驱动系统”。
+
+下一阶段主要是让这个内部系统产生更真实的动力。
+
+
+-------**********************----------------------
+
+
+
+这份审核结论非常准确。我建议 Phase5_5 按这个顺序处理，不要同时大改。现在 Phase5_4 已经形成闭环，下一步重点是**保证内部状态的真实性和结构完整性**。
+
+我整理一下当前状态和执行顺序：
+
+---
+
+# Phase5_5 第一轮修正计划
+
+## ① 首先确认 CLIP Transformer hook 维度（最高优先级）
+
+原因：
+
+现在整个设计假设：
+
+```
+CLIP Vision Transformer
+
+12 layers
+
+每层:
+
+50 tokens × 768 dimension
+```
+
+也就是：
+
+```
+cloud:
+
+(12,50,768)
+```
+
+但是代码：
+
+```python
+data = output.detach().cpu().numpy()
+
+self.layers[index] = data[0]
+```
+
+存在风险。
+
+先不要猜。
+
+在：
+
+```python
+def hook(
+    self,
+    module,
+    inputs,
+    output
+):
+```
+
+加入：
+
+```python
+data = output.detach().cpu().numpy()
+
+print(
+    "HOOK:",
+    data.shape
+)
+```
+
+运行一次。
+
+---
+
+可能结果：
+
+### 情况 A
+
+如果：
+
+```
+HOOK: (1,50,768)
+```
+
+那么现在：
+
+```python
+data[0]
+```
+
+正确。
+
+得到：
+
+```
+(50,768)
+```
+
+无需修改。
+
+---
+
+### 情况 B
+
+如果：
+
+```
+HOOK: (50,1,768)
+```
+
+那么：
+
+```python
+data[0]
+```
+
+错误。
+
+当前得到：
+
+```
+(1,768)
+```
+
+应该改：
+
+```python
+self.layers[index]=data[:,0,:]
+```
+
+得到：
+
+```
+(50,768)
+```
+
+---
+
+这一项直接决定：
+
+```
+Transformer layer
+        |
+        v
+token field
+        |
+        v
+CloudField
+        |
+        v
+Cell
+```
+
+是否保持空间结构。
+
+---
+
+# ② 修复 CLIP 输入分布
+
+当前：
+
+```python
+tensor.float()/255.0
+```
+
+只能得到：
+
+```
+[0,1]
+```
+
+但是 CLIP 训练输入：
+
+```
+Normalize:
+
+(mean,std)
+
+mean=
+0.48145466
+0.4578275
+0.40821073
+
+
+std=
+0.26862954
+0.26130258
+0.27577711
+```
+
+所以应该恢复：
+
+## 推荐直接使用 open_clip preprocess
+
+改 `_decode()`：
+
+流程：
+
+```
+bytes
+ |
+ v
+numpy BGR
+ |
+ v
+RGB
+ |
+ v
+PIL.Image
+ |
+ v
+self.preprocess()
+ |
+ v
+tensor
+```
+
+例如：
+
+```python
+image = Image.fromarray(
+    frame
+)
+
+tensor = self.preprocess(
+    image
+)
+
+tensor = tensor.unsqueeze(0)
+```
+
+这样：
+
+```
+Resize
+CenterCrop
+ToTensor
+Normalize
+```
+
+全部由模型原生流程负责。
+
+---
+
+# ③ 修复 attention snapshot
+
+现在：
+
+```python
+signals=[]
+```
+
+计算完成以后：
+
+增加：
+
+```python
+self.last_signals = signals
+```
+
+位置：
+
+```python
+for name, organ in self.organs.items():
+
+    ...
+
+```
+
+之后：
+
+```python
+self.last_signals = signals
+
+
+if self.compute is not None:
+```
+
+这样：
+
+snapshot:
+
+```python
+"attention":
+    self.last_signals
+```
+
+才有意义。
+
+---
+
+# ④ 清理 debug print
+
+当前：
+
+## internal_dynamics.py
+
+删除：
+
+```python
+print("Dynamics receive")
+print("Dynamics step")
+print("WINNER")
+```
+
+---
+
+## clip_field.py
+
+删除：
+
+```python
+print("CLIP received")
+print("CLIP budget")
+```
+
+保留必要异常：
+
+例如：
+
+```python
+logging.warning()
+```
+
+而不是：
+
+```python
+print()
+```
+
+---
+
+# Phase5_5 完成标准
+
+不是看窗口，而是看数据链：
+
+## 输入
+
+```
+BitPacket
+
+921600 bytes
+```
+
+↓
+
+## Attention
+
+```
+CLIP activity()
+
+{
+ activity,
+ age,
+ delta
+}
+```
+
+↓
+
+## Selection
+
+```
+Sampler
+
+winner=clip
+```
+
+↓
+
+## Compute
+
+```
+budget=1
+```
+
+↓
+
+## CLIP
+
+```
+forward
+```
+
+↓
+
+## Transformer
+
+```
+12 hooks
+```
+
+↓
+
+## Cloud
+
+必须：
+
+```
+cloud.shape
+
+(12,50,768)
+```
+
+↓
+
+## Snapshot
+
+必须：
+
+```
+attention:
+[
+ {
+  name:"clip",
+  state:{...}
+ }
+]
+```
+
+---
+
+现在 CIMA0 的核心已经从：
+
+Phase5_3：
+
+```
+输入改变 Planet
+```
+
+进入：
+
+Phase5_4：
+
+```
+输入
+ |
+ Organ
+ |
+ Attention
+ |
+ Compute
+ |
+ Internal State
+```
+
+Phase5_5 的任务不是增加能力，而是确认：
+
+**这个内部状态是否保持真实结构。**
+
+我建议新目录 `Phase5_5` 第一提交就只做这四项修正，然后冻结一个“CLIP organ stable baseline”。
+------------------------
+*******************
+-----------------------
+************************
+谢谢总结提醒。你的这个修正很重要：**当前阶段不能给显示现象附加语义解释。**
+
+我们只记录**可观测事实、链路状态、结构变化**，不推断：
+
+* “理解”
+* “识别”
+* “地形”
+* “概念形成”
+* “语义特征”
+
+这些都属于后续可能产生的解释层，目前不应该进入系统设计判断。
+
+---
+
+# Phase5_5 当前阶段总结
+
+## 一、已经完成的结构验证
+
+### 1. Camera → Packet → InternalDynamics
+
+已确认：
+
+```text
+Camera
+ |
+ v
+BitPacket
+ |
+ v
+InternalDynamics.receive()
+ |
+ v
+CLIPField.receive()
+```
+
+运行正常。
+
+---
+
+### 2. Organ attention 接入完成
+
+之前的问题：
+
+* `CLIPField` 没有 `activity()`
+* `Sampler.select()` 未真正执行
+* `ComputeSystem` 没有实际选择对象
+
+已经修复。
+
+当前运行：
+
+```text
+WINNER:
+{
+'name':'clip',
+'organ':CLIPField,
+'state':
+{
+ activity,
+ age,
+ delta
+}
+}
+```
+
+说明：
+
+```text
+organ
+ |
+activity()
+ |
+signals
+ |
+Sampler
+ |
+winner
+ |
+compute allocation
+```
+
+已经成为实际路径。
+
+---
+
+### 3. Sampler 修复完成
+
+原始问题：
+
+* score/state变量错误
+* scores覆盖
+* list/float混用
+
+现在：
+
+```text
+signals
+    |
+priority
+    |
+score
+    |
+select
+```
+
+正常运行。
+
+---
+
+### 4. CLIP 内部状态生成完成
+
+验证：
+
+```text
+HOOK:
+(1,50,768)
+```
+
+12次。
+
+最终：
+
+```text
+CLIP CLOUD:
+(12,50,768)
+```
+
+确认：
+
+* 12层保留
+* 50 token保留
+* 768维保留
+
+没有压缩成标量。
+
+---
+
+### 5. CLIP 输入分布修正完成
+
+已经补充：
+
+```python
+Normalize(
+mean,
+std
+)
+```
+
+输入路径：
+
+```text
+BGR byte
+
+↓
+
+RGB
+
+↓
+
+224×224
+
+↓
+
+tensor
+
+↓
+
+normalize
+
+↓
+
+ViT
+```
+
+---
+
+### 6. Attention snapshot 修复进行中
+
+目标：
+
+让：
+
+```python
+snapshot()
+```
+
+可以读取：
+
+```python
+last_signals
+```
+
+保存：
+
+```python
+[
+ {
+  "name":"clip",
+  "state":{}
+ }
+]
+```
+
+不保存 organ 对象引用。
+
+---
+
+# 二、当前不要做的事情
+
+## 1. 不做语义解释
+
+显示：
+
+```text
+黑灰白变化
+缓慢变化
+渐变
+```
+
+只记录：
+
+> Display 输出随内部状态变化而变化。
+
+不要解释为：
+
+* 图像理解
+* 场景
+* 地形
+* 特征
+
+---
+
+## 2. 暂停摄像头实验暂缓
+
+目前原因：
+
+当前系统时间响应仍未知。
+
+需要先确认：
+
+```text
+输入变化
+    |
+    v
+CLIP状态变化
+    |
+    v
+Display变化
+```
+
+之间的延迟。
+
+如果内部状态更新周期较长，暂停实验意义有限。
+
+---
+
+# 三、下一阶段计划（Phase5_5 后续）
+
+## Step 1：完成清理
+
+目标：
+
+稳定运行输出。
+
+清理：
+
+* debug print
+* hook print
+* cloud print
+
+保留：
+
+* warning
+* error
+
+---
+
+## Step 2：完善观察链
+
+确认：
+
+```text
+InternalDynamics.snapshot()
+
+{
+
+ organs:
+
+ attention:
+
+ planet:
+
+}
+```
+
+可以稳定输出。
+
+重点观察：
+
+```python
+attention
+```
+
+是否每轮正确记录。
+
+---
+
+## Step 3：建立 CLIP cloud → 内部场接口
+
+当前：
+
+```text
+CLIPField
+
+cloud
+
+(12,50,768)
+```
+
+停留在 organ 内。
+
+下一步设计：
+
+```text
+CLIPField.packet()
+
+        |
+
+        v
+
+InternalDynamics
+
+        |
+
+        v
+
+CloudField
+```
+
+注意：
+
+不是解释 cloud。
+
+只是传递状态。
+
+---
+
+## Step 4：CloudField 接收高维状态
+
+需要重新设计：
+
+目前 CloudField 原来适配：
+
+```text
+scalar/value
+```
+
+而现在输入：
+
+```text
+12×50×768
+```
+
+需要确定：
+
+* cell映射规则
+* token映射
+* layer映射
+* value结构
+
+这里不要急。
+
+这是 Phase5_5 后半部分核心。
+
+---
+
+## Step 5：加入内部演化观察
+
+之后观察：
+
+不是：
+
+“它是什么”。
+
+而是：
+
+* 是否保持状态
+* 是否衰减
+* 是否产生稳定结构
+* 是否受输入扰动
+* 是否存在周期变化
+
+全部使用动力系统语言。
+
+---
+
+# 当前里程碑
+
+Phase5_4：
+
+> Camera进入InternalDynamics
+
+完成。
+
+Phase5_5 前半：
+
+> CLIP成为受内部计算资源调度的organ
+
+完成。
+
+下一阶段：
+
+> CLIP内部状态进入CloudField，并参与内部演化。
+
+---
+
+目前最重要成果：
+
+**CLIP已经不是外部推理模块，而成为InternalDynamics中的一个可竞争、可分配计算资源、可输出内部状态的器官。**
+
+后续继续保持这个方向：
+**结构 → 状态 → 演化 → 观察。**
+
+避免提前进入语义层。你这个限制是正确的。辛苦。
