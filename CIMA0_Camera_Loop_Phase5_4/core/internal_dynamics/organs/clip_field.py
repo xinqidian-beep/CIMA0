@@ -4,72 +4,27 @@ import numpy as np
 import open_clip
 
 
-from PIL import Image
-
-print(
-    "LOADED:",
-    __file__
-)
-
 class CLIPField:
+
     """
     CIMA0 Phase5_4
 
-    Internal cloud organ.
+    Internal organ.
 
-
-    Input:
-
-        external byte field packet
-
-
-    Output:
-
-        internal cloud field packet
-
-
-
-    Responsibility:
-
-        byte decode
-
-        internal feature formation
-
-        structure preservation
-
-        layer response generation
-
-
-
-    Does NOT know:
+    No knowledge:
 
         Planet
-
         CloudField
-
         InternalDynamics
+        Display
 
-        DisplayIO
+    Responsible:
 
-        Sampling
-
-        Compute allocation
-
-        Semantic meaning
-
-
-
-    Internal structure:
-
-        transformer layers
-
-        token states
-
-        feature dimensions
-
-
+        decode
+        feature formation
+        layer state
+        activity request
     """
-
 
 
     def __init__(
@@ -78,241 +33,201 @@ class CLIPField:
         device="cpu"
     ):
 
-
         self.device = device
 
 
-
-        #
-        # input packet
-        #
-
         self.input_packet = None
-
-
-
+        
         #
-        # cloud output
+        # external input activity
         #
+
+        self.input_activity = 0.0
+
 
         self.cloud = None
 
 
-
-        #
-        # internal age
-        #
-
         self.age = 0
 
 
-
         #
-        # compute clock
-        #
-
-        self.compute_age = 0
-
-        self.compute_interval = 30
-
-
-
-        #
-        # transformer states
-        #
-
-        self.layers = {}
-
-
-        #
-        # layer activity
-        #
-        # used for hand raising
-        #
-
-        self.layer_activity = {}
-
-
-
-        #
-        # selected compute budget
-        #
-        # only receive allocation
+        # compute allocation
         #
 
         self.compute_budget = 0
 
 
+        #
+        # internal states
+        #
 
-        #
-        # structure trace
-        #
+        self.layers = {}
+
+        self.layer_activity = {}
 
         self.structure = {}
 
 
 
-        #
-        # create CLIP
-        #
-
         model, _, preprocess = (
-
             open_clip
             .create_model_and_transforms(
-
                 "ViT-B-32",
-
                 pretrained=None
-
             )
-
         )
 
-
-
-        #
-        # load visual weights
-        #
 
         checkpoint = torch.load(
-
             weight_path,
-
             map_location="cpu"
-
         )
-
 
 
         state_dict = checkpoint["state_dict"]
 
 
-
         visual_state = {}
-
 
 
         for k,v in state_dict.items():
 
-
             if k.startswith(
-
                 "module.visual."
-
             ):
 
-
                 name = k.replace(
-
                     "module.visual.",
-
                     ""
-
                 )
-
 
                 visual_state[name] = v
 
 
 
-
-
-        missing, unexpected = (
-
-            model.visual.load_state_dict(
-
-                visual_state,
-
-                strict=False
-
-            )
-
+        model.visual.load_state_dict(
+            visual_state,
+            strict=False
         )
-
-
-
-        print(
-
-            "CLIP visual missing:",
-
-            len(missing)
-
-        )
-
-
-        print(
-
-            "CLIP visual unexpected:",
-
-            len(unexpected)
-
-        )
-
 
 
         self.model = model.visual
 
-
-
         self.model.eval()
-
 
 
         self.preprocess = preprocess
 
 
-
-        #
-        # transformer capture
-        #
-
-        self.handles = []
+        self.handles=[]
 
         self._register_hooks()
 
 
 
-
-
     #
-    # receive byte packet
+    # input
     #
 
     def receive(
         self,
         packet
     ):
-        print(
-            "CLIP receive tag:",
-            packet.tag
-        )
+
         if packet.tag != "visual":
+
             return
-        
+
+
         self.input_packet = packet
-
-    #
-    # internal clock
-    #
-
-
-    def step(self):
-
-
+        
         print(
-            "=== CLIP STEP ==="
+            "CLIP received:",
+            len(packet.data)
         )
+        
+        #
+        # initial attention signal
+        #
 
+        self.input_activity = (
+            len(packet.data)
+            /
+            1000000.0
+        )
+        
+    #
+    # attention signal
+    #
 
-        self.age += 1
-
+    def activity(
+        self
+    ):
 
         if self.input_packet is None:
 
-            print(
-                "CLIP waiting input"
-            )
+            return None
+
+
+        value=self.input_activity
+            
+        
+        return {
+
+            "activity":
+                float(value),
+
+            "age": 
+                self.age,
+
+            "delta": 
+                float(value)
+
+        }
+
+
+
+    #
+    # compute allocation
+    #
+
+    def apply_compute(
+        self,
+        amount
+    ):
+
+        self.compute_budget = amount
+
+
+
+    #
+    # evolution step
+    #
+
+    def step(
+        self
+    ):
+        
+        print(
+            "CLIP budget:",
+            self.compute_budget
+        )
+        
+        self.age += 1
+
+
+        #
+        # no resource
+        #
+
+        if self.compute_budget <= 0:
+
+            return
+
+
+
+        if self.input_packet is None:
 
             return
 
@@ -325,17 +240,8 @@ class CLIPField:
 
         if tensor is None:
 
-            print(
-                "CLIP decode failed"
-            )
-
             return
 
-
-
-        print(
-            "before forward"
-        ) 
 
 
         self._forward(
@@ -343,12 +249,17 @@ class CLIPField:
         )
 
 
-        print(
-            "CLIP forward done"
-        )
+        #
+        # consume budget
+        #
+
+        self.compute_budget = 0
+
+
+
 
     #
-    # packet decode
+    # decode
     #
 
     def _decode(
@@ -357,102 +268,86 @@ class CLIPField:
     ):
 
 
-        raw = packet.data
+        try:
 
-        shape = packet.shape
-
-
-        frame = np.frombuffer(
-            raw,
-            dtype=np.uint8
-        )
+            frame=np.frombuffer(
+                packet.data,
+                dtype=np.uint8
+            )
 
 
-        frame = frame.reshape(
-            shape
-        )
+            frame=frame.reshape(
+                packet.shape
+            )
 
 
-        frame = cv2.cvtColor(
-            frame,
-            cv2.COLOR_BGR2RGB
-        )
+            frame=cv2.cvtColor(
+                frame,
+                cv2.COLOR_BGR2RGB
+            )
 
 
-        frame = cv2.resize(
-            frame,
-            (224,224)
-        )
+            frame=cv2.resize(
+                frame,
+                (224,224)
+            )
 
 
-        tensor = torch.from_numpy(
-            frame
-        )
+            tensor=torch.from_numpy(
+                frame
+            )
 
 
-        tensor = tensor.permute(
-            2,
-            0,
-            1
-        )
+            tensor=tensor.permute(
+                2,
+                0,
+                1
+            )
 
 
-        tensor = tensor.float()/255.0
+            tensor=tensor.float()/255.0
 
 
-        tensor = tensor.unsqueeze(
-            0
-        )
+            tensor=tensor.unsqueeze(
+                0
+            )
 
 
-        return tensor.to(
-            self.device
-        )
-            
+            return tensor.to(
+                self.device
+            )
+
+
+        except Exception:
+
+            return None
+
+
+
     #
-    # transformer hooks
+    # hooks
     #
 
     def _register_hooks(
         self
     ):
 
-
-        blocks = (
+        blocks=(
 
             self.model
-
             .transformer
-
             .resblocks
 
         )
 
 
+        for i,block in enumerate(blocks):
 
-        for i, block in enumerate(blocks):
-
-
-            handle = (
-
-                block
-
-                .register_forward_hook(
-
-                    self._make_hook(i)
-
-                )
-
+            h=block.register_forward_hook(
+                self._make_hook(i)
             )
 
-
-            self.handles.append(
-
-                handle
-
-            )
-
-
+            self.handles.append(h)
 
 
 
@@ -469,58 +364,32 @@ class CLIPField:
         ):
 
 
-            data = (
+            data=(
 
                 output
-
                 .detach()
-
                 .cpu()
-
                 .numpy()
 
             )
 
 
-
-            #
-            # keep complete layer state
-            #
-
-            self.layers[index] = data[0]
+            self.layers[index]=data[0]
 
 
-
-            #
-            # layer raises hand
-            #
-            # no selection here
-            #
-
-            self.layer_activity[index] = float(
-
+            self.layer_activity[index]=float(
                 np.mean(
-
-                    np.abs(
-
-                        data
-
-                    )
-
+                    np.abs(data)
                 )
-
             )
-
 
 
         return hook
 
 
 
-
-
     #
-    # CLIP forward
+    # forward
     #
 
     def _forward(
@@ -531,362 +400,137 @@ class CLIPField:
 
         self.layers.clear()
 
-
         self.layer_activity.clear()
-
 
 
         with torch.no_grad():
 
-
             self.model(
-
                 tensor
-
             )
 
 
 
+        if len(self.layers)!=12:
 
-
-        #
-        # keep all candidate layers
-        #
-        # selection happens outside
-        #
-
-        if len(
-
-            self.layers
-
-        ) != 12:
-            
-            print(
-                "CLIP layers:",
-                self.layers.keys()
-            )
-            
-            self.cloud = None
-
+            self.cloud=None
 
             return
 
 
 
+        self.cloud=np.stack(
 
-
-        cloud = []
-
-
-
-        for i in sorted(
-
-            self.layers.keys()
-
-        ):
-
-
-            cloud.append(
-
+            [
                 self.layers[i]
-
-            )
-
-
-
-
-
-        self.cloud = np.stack(
-
-            cloud,
+                for i in sorted(
+                    self.layers.keys()
+                )
+            ],
 
             axis=0
-            
-            
 
         ).astype(
-
             np.float32
-
         )
-        
-        print(
-            "CLIP cloud shape:",
-            self.cloud.shape
-        )
-        
 
-        #
-        # internal structure
-        #
 
-        self.structure["cloud"] = {
 
+        self.structure={
 
             "representation":
-
                 "multilevel_cloud",
 
-
-
             "levels":
-
                 12,
 
-
-
             "tokens":
-
                 50,
 
-
-
             "dimension":
-
                 768
 
         }
 
 
 
-
-
     #
-    # compute request
-    #
-    # CLIPField only raises request
-    #
-
-    def compute_request(
-        self
-    ):
-        print(
-            "=== ENTER CLIP compute_request ==="
-        )
-        print(
-            "FUNCTION VERSION A"
-        )
-
-        print(
-            "input_packet:",
-            self.input_packet is None
-        )
-
-        print(
-            "cloud:",
-            self.cloud is None
-        )
-        print(
-            "CLIP compute_request called"
-        )
-        
-        if self.cloud is None:
-            return None
-        activity = 0.0
-        if len(self.layer_activity)>0:
-
-            activity=float(
-                np.mean(
-                    list(
-                        self.layer_activity.values()
-                    )
-                )
-            )
-            
-        return {
-
-            "activity":activity,
-
-            "age":self.age,
-
-            "delta":activity
-        }
-
-
-        print(
-            "CLIP request:",
-            request
-        )               
-       
-    #
-    # receive compute allocation
-    #
-
-    def apply_compute(
-
-        self,
-
-        amount
-
-    ):
-        
-        self.compute_budget = amount
-        
-    #
-    # output packet
+    # output
     #
 
     def packet(
-
         self
-
     ):
-        
-        print(
-            "CLIP cloud:",
-            self.cloud is None
-        )
-        
-        if self.cloud is None:
 
+
+        if self.cloud is None:
 
             return None
 
 
 
-
-
-        data = (
-
-            self.cloud
-
-            .astype(
-
-                np.float32
-
-            )
-
-        )
-
-
-
-
-
         return {
 
-
             "type":
-
                 "field",
 
-
-
             "representation":
-
                 "cloud",
 
-
-
             "organ":
-
                 "clip",
-
-
 
             "bytes":
-
-                data.tobytes(),
-
-
+                self.cloud.tobytes(),
 
             "shape":
-
-                data.shape,
-
-
+                self.cloud.shape,
 
             "dtype":
-
                 "float32",
 
-
-
-            "source":
-
-                "clip",
-
-
-
-            "timestamp":
-
-                self.age,
-
-
+            "activity":
+                self.layer_activity,
 
             "structure":
-
                 self.structure,
 
-
-
-            "activity":
-
-                self.layer_activity
+            "timestamp":
+                self.age
 
         }
 
 
 
-
-
-    #
-    # observer snapshot
-    #
-
     def snapshot(
-
         self
-
     ):
-
 
         return {
 
-
             "age":
-
                 self.age,
 
-
-
             "cloud":
-
                 self.cloud,
 
-
-
             "activity":
-
                 self.layer_activity,
 
-
-
             "structure":
-
                 self.structure
 
         }
 
 
 
-
-
-    #
-    # cleanup
-    #
-
     def close(
-
         self
-
     ):
 
+        for h in self.handles:
 
-        for handle in self.handles:
-
-
-            handle.remove()
-
+            h.remove()
 
 
         self.handles.clear()

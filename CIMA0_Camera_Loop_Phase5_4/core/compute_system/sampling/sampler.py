@@ -23,7 +23,6 @@ class Sampler:
         selected positions
 
 
-
     Input state:
 
         {
@@ -34,7 +33,6 @@ class Sampler:
 
 
     Does NOT know:
-
 
         organ
 
@@ -47,7 +45,6 @@ class Sampler:
         semantics
 
 
-
     It only selects.
     """
 
@@ -58,7 +55,7 @@ class Sampler:
     ):
 
         #
-        # local selection weights
+        # selection weights
         #
 
         self.w_age = 0.25
@@ -70,7 +67,7 @@ class Sampler:
 
 
     #
-    # calculate selection pressure
+    # calculate priority
     #
 
     def priority(
@@ -101,10 +98,8 @@ class Sampler:
 
         if (
             age is None
-            or
-            activity is None
-            or
-            delta is None
+            or activity is None
+            or delta is None
         ):
 
             return None
@@ -119,6 +114,7 @@ class Sampler:
                 age
             )
 
+
             +
 
             self.w_activity
@@ -126,6 +122,7 @@ class Sampler:
             np.asarray(
                 activity
             )
+
 
             +
 
@@ -145,7 +142,7 @@ class Sampler:
 
 
     #
-    # select positions
+    # select top priority
     #
 
     def select(
@@ -155,32 +152,7 @@ class Sampler:
     ):
 
 
-        scores=[]
-
-
-        for c in candidates:
-
-
-            state=self.priority(c)
-
-            if score is None:
-
-                score=0
-
-
-            scores=float(
-                np.mean(score)
-            )
-
-
-
-        scores.append(
-            scores
-        )
-
-
-
-        if scores.size==0:
+        if candidates is None:
 
             return np.array(
                 [],
@@ -188,10 +160,90 @@ class Sampler:
             )
 
 
-        index=np.argpartition(
+        if len(candidates)==0:
+
+            return np.array(
+                [],
+                dtype=np.int64
+            )
+
+
+
+        scores=[]
+
+
+
+        for candidate in candidates:
+
+
+            score = self.priority(
+                candidate
+            )
+
+
+            if score is None:
+
+                score_value = 0.0
+
+
+            else:
+
+                score_value = float(
+                    np.mean(
+                        score
+                    )
+                )
+
+
+            scores.append(
+                score_value
+            )
+
+
+
+        scores=np.asarray(
             scores,
+            dtype=np.float32
+        )
+
+
+
+        budget=min(
+            int(budget),
+            len(scores)
+        )
+
+
+
+        if budget <= 0:
+
+            return np.array(
+                [],
+                dtype=np.int64
+            )
+
+
+
+        index=np.argpartition(
+
+            scores,
+
             -budget
+
         )[-budget:]
+
+
+
+        #
+        # highest priority first
+        #
+
+        index=index[
+            np.argsort(
+                scores[index]
+            )[::-1]
+        ]
+
 
 
         return index

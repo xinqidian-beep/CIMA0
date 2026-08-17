@@ -63,8 +63,12 @@ class ComputeSystem:
             
             return None
             
+        winner_index=int(
+            index[0]
+        )
+            
         return signals[
-            int(index[0])
+            winner_index
         ]
         
     def consume(

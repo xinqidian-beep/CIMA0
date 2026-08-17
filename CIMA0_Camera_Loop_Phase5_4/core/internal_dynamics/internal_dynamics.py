@@ -48,6 +48,8 @@ class InternalDynamics:
         self.compute = compute
 
         self.organs = {}
+        
+        self.last_signals = []
 
         self.last_observation = None
 
@@ -86,32 +88,14 @@ class InternalDynamics:
             if hasattr(organ,"receive"):
 
                 organ.receive(packet)    
-
-        for name,organ in self.organs.items():
-
-            if hasattr(
-                organ,
-                "activity"
-            ): 
-                state = organ.activity()
-
-                if state is not None:
-
-                    signals.append(
-                        {
-                            "name": name,
-                            "organ": organ,
-                            "state": state
-                        }
-                    )
-
-
+        
     #
     # internal evolution
     #
 
     def step(self):
-
+        
+        print("Dynamics step")
 
         signals=[]
 
@@ -129,8 +113,8 @@ class InternalDynamics:
 
                     signals.append(
                         {
-                            "name":name,
-                            "organ":organ,
+                            "name":name,   
+                            "organ": organ,
                             "state":state
                         }
                     )
@@ -151,8 +135,12 @@ class InternalDynamics:
 
 
             if winner is not None:
-
-
+                
+                print(
+                    "WINNER:",
+                    winner
+                )
+                
                 organ=winner["organ"]
 
 
@@ -197,53 +185,35 @@ class InternalDynamics:
     # observer interface
     #
 
-    def snapshot(
-        self
-    ):
+    def snapshot(self):
+
+        return {
+
+            "organs":
+            {
+                name:
+                    organ.snapshot()
+                    if hasattr(
+                        organ,
+                        "snapshot"
+                    )
+                    else None
+
+                for name,organ
+                in self.organs.items()
+            },
 
 
-        result = {
+            "attention":
+                self.last_signals,
 
-            "planet": None,
 
-            "organs": {}
+            "planet":
+                self.planet.snapshot()
+                if hasattr(
+                    self.planet,
+                    "snapshot"
+                )
+                else None
 
         }
-
-
-
-        if hasattr(
-            self.planet,
-            "snapshot"
-        ):
-
-            result["planet"] = (
-                self.planet.snapshot()
-            )
-
-
-
-        for name, organ in self.organs.items():
-
-
-            if hasattr(
-                organ,
-                "snapshot"
-            ):
-
-                result["organs"][name] = (
-                    organ.snapshot()
-                )
-
-            else:
-
-                result["organs"][name] = None
-
-
-
-        self.last_observation = result
-
-
-        return copy.deepcopy(
-            result
-        )
