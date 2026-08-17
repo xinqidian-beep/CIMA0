@@ -1,4 +1,4 @@
-from .sampler import Sampler
+from .sampling.sampler import Sampler
 
 
 

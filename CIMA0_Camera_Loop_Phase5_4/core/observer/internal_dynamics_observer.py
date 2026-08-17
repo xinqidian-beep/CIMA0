@@ -4,9 +4,9 @@ class InternalDynamicsObserver:
     def __init__(self):
 
         self.previous=None
-
-
-
+        
+        self.current=None
+        
     def observe(self,snapshot):
 
         current=snapshot

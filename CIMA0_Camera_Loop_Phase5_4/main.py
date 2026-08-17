@@ -267,7 +267,7 @@ def main():
         # observer
         #
 
-        read_state = observer.read(
+        read_state = observer.observe(
             snapshot
         )
 

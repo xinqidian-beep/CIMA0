@@ -150,17 +150,37 @@ class Sampler:
 
     def select(
         self,
-        state,
+        candidates,
         budget=1
     ):
 
 
-        score = self.priority(
-            state
+        scores=[]
+
+
+        for c in candidates:
+
+
+            state=self.priority(c)
+
+            if score is None:
+
+                score=0
+
+
+            scores=float(
+                np.mean(score)
+            )
+
+
+
+        scores.append(
+            scores
         )
 
 
-        if score is None:
+
+        if scores.size==0:
 
             return np.array(
                 [],
@@ -168,64 +188,10 @@ class Sampler:
             )
 
 
-
-        flat = score.reshape(
-            -1
-        )
-
-
-
-        count = flat.size
-
-
-
-        if count == 0:
-
-            return np.array(
-                [],
-                dtype=np.int64
-            )
-
-
-
-        budget = int(
-            budget
-        )
-
-
-        if budget <= 0:
-
-            return np.array(
-                [],
-                dtype=np.int64
-            )
-
-
-
-        #
-        # all selected
-        #
-
-        if budget >= count:
-
-            return np.arange(
-                count,
-                dtype=np.int64
-            )
-
-
-
-        #
-        # highest pressure
-        #
-
-        index = np.argpartition(
-            flat,
+        index=np.argpartition(
+            scores,
             -budget
         )[-budget:]
 
 
-
-        return index.astype(
-            np.int64
-        )
+        return index
