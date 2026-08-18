@@ -1,35 +1,20 @@
+import numpy as np
+
+
 class InternalDynamicsObserver:
 
 
     def __init__(self):
 
         self.previous = None
-
         self.current = None
 
 
-
-    #
-    # attention trigger
-    #
-    # current stage:
-    #
-    # keep CLIP trigger
-    #
-    # future:
-    #
-    # planet activity
-    # planetfield activity
-    # audio activity
-    # text activity
-    #
-    #
 
     def _trigger(
         self,
         snapshot
     ):
-
 
         fields = (
             snapshot
@@ -39,12 +24,6 @@ class InternalDynamicsObserver:
             )
         )
 
-
-        #
-        # keep current behavior
-        #
-        # CLIP is still attention source
-        #
 
         clip = fields.get(
             "clip"
@@ -60,32 +39,26 @@ class InternalDynamicsObserver:
 
 
 
-
     def observe(
         self,
         snapshot
     ):
 
-
         #
-        # attention gate
+        # keep current attention logic
         #
 
         if self._trigger(snapshot):
-
 
             self.previous = self.current
 
             self.current = snapshot
 
 
-
         return {
-
 
             "state":
                 self.current,
-
 
             "delta":
                 self._compare()
@@ -130,11 +103,13 @@ class InternalDynamicsObserver:
         )
 
 
+
         if (
             old_planet is not None
             and
             new_planet is not None
         ):
+
 
             delta["planet"] = (
                 new_planet
@@ -143,13 +118,25 @@ class InternalDynamicsObserver:
             )
 
 
+            print(
+                "OBSERVER PLANET DELTA:",
+                float(
+                    np.mean(
+                        np.abs(
+                            delta["planet"]
+                        )
+                    )
+                )
+            )
+
+
+
 
         #
         # organs
         #
 
         delta["organs"] = {}
-
 
 
         old_organs = (

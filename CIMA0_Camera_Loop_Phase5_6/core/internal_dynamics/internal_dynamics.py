@@ -111,7 +111,32 @@ class InternalDynamics:
                             "state":state
                         }
                     )
-         
+        #
+        # planet attention
+        #
+
+        if hasattr(
+            self.planet,
+            "activity"
+        ):
+
+            state = self.planet.activity()
+
+
+            if state is not None:
+
+                signals.append(
+                    {
+                        "name":
+                            "planet",
+
+                        "organ":
+                            self.planet,
+
+                        "state":
+                            state
+                    }
+                ) 
                     
         #
         # save attention observation
@@ -124,7 +149,10 @@ class InternalDynamics:
             }
             for s in signals
         ]   
-
+        print(
+            "ATTENTION SIGNALS:",
+            self.last_signals
+        )
 
         #
         # compute selection
@@ -142,6 +170,11 @@ class InternalDynamics:
                 )
                 
             if winner is not None:
+                
+                print(
+                    "COMPUTE WINNER:",
+                    winner["name"]
+                )
                 
                 organ=winner["organ"]
 
@@ -191,7 +224,22 @@ class InternalDynamics:
                 if packet is not None:
 
                     self.internal_fields[name] = packet    
+                    
+        #
+        # collect planet field
+        #
 
+        if hasattr(
+            self.planet,
+            "packet"
+        ):
+
+            packet = self.planet.packet()
+
+
+            if packet is not None:
+
+                self.internal_fields["planet"] = packet            
                 
         #
         # planet evolution
@@ -242,6 +290,9 @@ class InternalDynamics:
                     self.planet,
                     "snapshot"
                 )
+                
+                    
+                
                 else None
 
         }
