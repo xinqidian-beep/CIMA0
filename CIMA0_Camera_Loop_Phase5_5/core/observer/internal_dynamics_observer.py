@@ -9,9 +9,20 @@ class InternalDynamicsObserver:
         
     def observe(self,snapshot):
         
-        self.previous = self.current
+        #
+        # temporary check only
+        #
+        clip = (
+            snapshot
+            .get("fields", {})
+            .get("clip")
+        )
+
+        if clip is not None:
+
+            self.previous = self.current
         
-        self.current = snapshot
+            self.current = snapshot
                
         return {
 

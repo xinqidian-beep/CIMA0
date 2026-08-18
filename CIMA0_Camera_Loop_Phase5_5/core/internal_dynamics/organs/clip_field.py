@@ -34,8 +34,11 @@ class CLIPField:
     ):
 
         self.device = device
-
-
+        
+        self.cloud = None
+        
+        self.previous_cloud = None
+        
         self.input_packet = None
         
         #
@@ -72,11 +75,7 @@ class CLIPField:
             1,
             1
         )
-
-        
-        self.cloud = None
-
-
+                
         self.age = 0
 
 
@@ -234,7 +233,6 @@ class CLIPField:
         self
     ):
         
-        
         self.age += 1
 
 
@@ -249,7 +247,7 @@ class CLIPField:
 
 
         if self.input_packet is None:
-
+            
             return
 
 
@@ -257,10 +255,10 @@ class CLIPField:
         tensor = self._decode(
             self.input_packet
         )
-
-
+        
         if tensor is None:
-
+            
+            
             return
 
 
@@ -268,7 +266,7 @@ class CLIPField:
         self._forward(
             tensor
         )
-
+        
 
         #
         # consume budget
@@ -454,7 +452,22 @@ class CLIPField:
             np.float32
         )
         
-        
+        if self.previous_cloud is not None:
+
+            delta = np.mean(
+                np.abs(
+                    self.cloud - self.previous_cloud
+                )
+            )
+
+            print(
+                "CLOUD DELTA:",
+                float(delta)
+            )
+
+
+        self.previous_cloud = self.cloud.copy()
+                
         self.structure={
 
             "representation":

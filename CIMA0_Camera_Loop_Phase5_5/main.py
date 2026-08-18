@@ -53,7 +53,7 @@ def main():
 
     print("=" * 60)
     print(
-        "CIMA0 Phase5_4 Internal Dynamics Loop"
+        "CIMA0 Phase5_5 Internal Dynamics Loop"
     )
     print("=" * 60)
 
@@ -260,9 +260,7 @@ def main():
         #
 
         snapshot = dynamics.snapshot()
-
-
-
+        
         #
         # observer
         #

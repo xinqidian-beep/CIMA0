@@ -48,3 +48,144 @@ self.layers[index] = data[0]
 1. **先加一行 print 确认 hook 输出的真实形状**——这个如果真的是 `(12,1,768)`,是这次改动里唯一一个会实质性影响"CLIP 云结构能不能被 Cell 正确认领"的问题,比归一化更紧急,因为归一化只影响数值质量,这个如果错了会影响整个数据结构的正确性。
 2. 补回 `Normalize`。
 3. 补上 `self.last_signals = signals` 这一行,顺手清掉调试 print。
+***************************
+
+*****************************
+Step 1：完成清理
+目标：
+
+稳定运行输出。
+
+清理：
+
+debug print
+
+hook print
+
+cloud print
+
+保留：
+
+warning
+
+error
+
+Step 2：完善观察链
+确认：
+
+InternalDynamics.snapshot()
+
+{
+
+ organs:
+
+ attention:
+
+ planet:
+
+}
+可以稳定输出。
+
+重点观察：
+
+attention
+是否每轮正确记录。
+
+Step 3：建立 CLIP cloud → 内部场接口
+当前：
+
+CLIPField
+
+cloud
+
+(12,50,768)
+停留在 organ 内。
+
+下一步设计：
+
+CLIPField.packet()
+
+        |
+
+        v
+
+InternalDynamics
+
+        |
+
+        v
+
+CloudField
+注意：
+
+不是解释 cloud。
+
+只是传递状态。
+
+Step 4：CloudField 接收高维状态
+需要重新设计：
+
+目前 CloudField 原来适配：
+
+scalar/value
+而现在输入：
+
+12×50×768
+需要确定：
+
+cell映射规则
+
+token映射
+
+layer映射
+
+value结构
+
+这里不要急。
+
+这是 Phase5_5 后半部分核心。
+
+Step 5：加入内部演化观察
+之后观察：
+
+不是：
+
+“它是什么”。
+
+而是：
+
+是否保持状态
+
+是否衰减
+
+是否产生稳定结构
+
+是否受输入扰动
+
+是否存在周期变化
+
+全部使用动力系统语言。
+
+当前里程碑
+Phase5_4：
+
+Camera进入InternalDynamics
+
+完成。
+
+Phase5_5 前半：
+
+CLIP成为受内部计算资源调度的organ
+
+完成。
+
+下一阶段：
+
+CLIP内部状态进入CloudField，并参与内部演化。
+
+目前最重要成果：
+
+CLIP已经不是外部推理模块，而成为InternalDynamics中的一个可竞争、可分配计算资源、可输出内部状态的器官。
+
+后续继续保持这个方向：
+结构 → 状态 → 演化 → 观察。
