@@ -45,16 +45,16 @@ class InternalDynamics:
 
         self.planet = planet
 
-        self.compute = None
+        self.compute = compute
 
         self.organs = {}
         
         self.last_signals = []
 
         self.last_observation = None
-
-
-
+        
+        self.internal_fields = {}
+        
     #
     # register organ
     #
@@ -92,7 +92,7 @@ class InternalDynamics:
         
         signals=[]
 
-
+        
         for name, organ in self.organs.items():
 
             if hasattr(
@@ -111,6 +111,7 @@ class InternalDynamics:
                             "state":state
                         }
                     )
+         
                     
         #
         # save attention observation
@@ -122,23 +123,24 @@ class InternalDynamics:
                 "state":s["state"]
             }
             for s in signals
-        ]        
+        ]   
+
+
         #
         # compute selection
         #            
         if self.compute is not None:
-
-
+            
             winner=None
 
 
             if self.compute.available > 0:
 
+
                 winner=self.compute.select(
                     signals
                 )
-
-
+                
             if winner is not None:
                 
                 organ=winner["organ"]
@@ -152,8 +154,7 @@ class InternalDynamics:
                     organ.apply_compute(
                         1
                     )
-
-
+                    
                 self.compute.consume(
                     1
                 )
@@ -173,6 +174,24 @@ class InternalDynamics:
             ):
 
                 organ.step()
+
+        #
+        # collect internal fields
+        #
+
+        for name, organ in self.organs.items():
+
+            if hasattr(
+                organ,
+                "packet"
+            ):
+
+                packet = organ.packet()
+
+                if packet is not None:
+
+                    self.internal_fields[name] = packet    
+
                 
         #
         # planet evolution
@@ -210,8 +229,10 @@ class InternalDynamics:
 
             "attention":
                 self.last_signals,
-
-
+                
+            "fields":
+                self.internal_fields,    
+                
             "planet":
                 self.planet.snapshot()
                 if hasattr(
