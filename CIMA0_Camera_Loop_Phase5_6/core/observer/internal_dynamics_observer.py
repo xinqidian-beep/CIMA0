@@ -3,34 +3,96 @@ class InternalDynamicsObserver:
 
     def __init__(self):
 
-        self.previous=None
-        
-        self.current=None
-        
-    def observe(self,snapshot):
-        
-        #
-        # temporary check only
-        #
-        clip = (
+        self.previous = None
+
+        self.current = None
+
+
+
+    #
+    # attention trigger
+    #
+    # current stage:
+    #
+    # keep CLIP trigger
+    #
+    # future:
+    #
+    # planet activity
+    # planetfield activity
+    # audio activity
+    # text activity
+    #
+    #
+
+    def _trigger(
+        self,
+        snapshot
+    ):
+
+
+        fields = (
             snapshot
-            .get("fields", {})
-            .get("clip")
+            .get(
+                "fields",
+                {}
+            )
         )
+
+
+        #
+        # keep current behavior
+        #
+        # CLIP is still attention source
+        #
+
+        clip = fields.get(
+            "clip"
+        )
+
 
         if clip is not None:
 
+            return True
+
+
+        return False
+
+
+
+
+    def observe(
+        self,
+        snapshot
+    ):
+
+
+        #
+        # attention gate
+        #
+
+        if self._trigger(snapshot):
+
+
             self.previous = self.current
-        
+
             self.current = snapshot
-               
+
+
+
         return {
 
-            "state": self.current,
 
-            "delta": self._compare()
+            "state":
+                self.current,
+
+
+            "delta":
+                self._compare()
 
         }
+
+
 
 
     def _compare(
@@ -43,7 +105,8 @@ class InternalDynamicsObserver:
             return None
 
 
-        delta={}
+
+        delta = {}
 
 
 
@@ -51,21 +114,29 @@ class InternalDynamicsObserver:
         # planet
         #
 
-        old_planet=self.previous.get(
-            "planet"
+        old_planet = (
+            self.previous
+            .get(
+                "planet"
+            )
         )
 
-        new_planet=self.current.get(
-            "planet"
+
+        new_planet = (
+            self.current
+            .get(
+                "planet"
+            )
         )
-        
+
+
         if (
             old_planet is not None
             and
             new_planet is not None
         ):
 
-            delta["planet"]=(
+            delta["planet"] = (
                 new_planet
                 -
                 old_planet
@@ -76,38 +147,59 @@ class InternalDynamicsObserver:
         #
         # organs
         #
-        
-        delta["organs"]={}
+
+        delta["organs"] = {}
 
 
-        for name,new in self.current.get(
-            "organs",
-            {}
-        ).items():
 
-
-            old=self.previous.get(
+        old_organs = (
+            self.previous
+            .get(
                 "organs",
                 {}
-            ).get(
+            )
+        )
+
+
+        new_organs = (
+            self.current
+            .get(
+                "organs",
+                {}
+            )
+        )
+
+
+
+        for name,new in new_organs.items():
+
+
+            old = old_organs.get(
                 name
             )
 
 
             if old is None:
 
-                delta["organs"][name]=None
+                delta["organs"][name] = None
+
 
             else:
 
-                delta["organs"][name]={
-                    "changed":True
+                delta["organs"][name] = {
+
+                    "changed":
+                        True
+
                 }
 
 
 
         return delta
-        
+
+
+
+
     def read(
         self
     ):

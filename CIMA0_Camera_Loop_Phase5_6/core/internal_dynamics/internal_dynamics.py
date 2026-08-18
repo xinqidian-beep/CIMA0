@@ -201,7 +201,10 @@ class InternalDynamics:
             self.planet,
             "step"
         ):
-
+            print(
+                "PLANET OBJECT:",
+                type(self.planet)
+            )
             self.planet.step()
 
     #

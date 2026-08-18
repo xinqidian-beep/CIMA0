@@ -15,7 +15,7 @@ CLIP_WEIGHT = os.path.join(
     "open_clip_pytorch_model.bin"
 )
 from archive.planet import Planet
-
+from core.internal_dynamics.cloud import PlanetField
 
 from core.internal_dynamics.internal_dynamics import (
     InternalDynamics
@@ -65,12 +65,14 @@ def main():
     # base internal dynamical space
     #
 
-    planet = Planet(
+    planet_rule = Planet(
         size=128
     )
-
-
-
+    
+    planet = PlanetField(
+        planet_rule
+    )
+    
     #
     # Compute system
     #
