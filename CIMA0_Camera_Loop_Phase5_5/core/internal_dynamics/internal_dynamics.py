@@ -45,7 +45,7 @@ class InternalDynamics:
 
         self.planet = planet
 
-        self.compute = compute
+        self.compute = None
 
         self.organs = {}
         
@@ -123,7 +123,9 @@ class InternalDynamics:
             }
             for s in signals
         ]        
-                    
+        #
+        # compute selection
+        #            
         if self.compute is not None:
 
 
@@ -158,9 +160,11 @@ class InternalDynamics:
 
 
             self.compute.step()
-
-
-
+            
+        #
+        # organs evolution
+        #    
+            
         for organ in self.organs.values():
 
             if hasattr(
@@ -169,9 +173,11 @@ class InternalDynamics:
             ):
 
                 organ.step()
-
-
-
+                
+        #
+        # planet evolution
+        #        
+                
         if hasattr(
             self.planet,
             "step"
