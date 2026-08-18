@@ -85,6 +85,11 @@ class CLIPField:
 
         self.compute_budget = 0
 
+        #
+        # internal evolution activity
+        #
+
+        self.internal_activity = 0.0   
 
         #
         # internal states
@@ -189,24 +194,39 @@ class CLIPField:
         self
     ):
 
-        if self.input_packet is None:
+        if self.cloud is None:
+            
+            if self.input_packet is not None:
+
+                return {
+
+                    "activity":
+                        1.0,
+
+                    "age":
+                        self.age,
+
+                    "delta":
+                        1.0
+
+                }
 
             return None
-
-
-        value=self.input_activity
-            
-        
+                              
         return {
 
             "activity":
-                float(value),
+                float(
+                    self.internal_activity
+                ),    
 
             "age": 
                 self.age,
 
             "delta": 
-                float(value)
+                float(
+                    self.internal_activity
+                )
 
         }
 
@@ -459,11 +479,15 @@ class CLIPField:
                     self.cloud - self.previous_cloud
                 )
             )
+            self.internal_activity = float(delta)
 
             print(
                 "CLOUD DELTA:",
-                float(delta)
+                self.internal_activity
             )
+        else:
+
+            self.internal_activity = 0.0    
 
 
         self.previous_cloud = self.cloud.copy()
