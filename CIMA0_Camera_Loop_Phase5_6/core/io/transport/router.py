@@ -34,7 +34,12 @@ class TransportRouter:
         self,
         packet
     ):
-
+        print(
+            "ROUTER:",
+            packet.source,
+            packet.tag,
+            packet.schema
+        )
         receivers = self.subscribers.get(
             packet.tag,
             []

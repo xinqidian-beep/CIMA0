@@ -70,7 +70,7 @@ Architecture:
 
 
 import numpy as np
-
+from core.io.transport.packet import BitPacket
 
 
 class PlanetField:
@@ -352,36 +352,32 @@ class PlanetField:
     def packet(
         self
     ):
+        print(
+            "PLANET PACKET CREATED"
+        )
+        field = self.state.astype(
+            np.float32
+        )
+        
+        return BitPacket(
 
+            source="planet",
 
-        return {
+            tag="visual",
 
-            "type":
-                "field",
+            data=field.tobytes(),
 
-            "representation":
-                "planet",
+            shape=field.shape,
 
-            "organ":
-                "planet",
+            dtype="float32",
 
-            "shape":
-                self.state.shape,
+            schema="continuous_field",
 
-            "dtype":
-                "float32",
+            meta={
+                "age": self.age
+            }
 
-            "bytes":
-                self.state
-                .astype(
-                    np.float32
-                )
-                .tobytes(),
-
-            "timestamp":
-                self.age
-
-        }
+        )
 
 
 

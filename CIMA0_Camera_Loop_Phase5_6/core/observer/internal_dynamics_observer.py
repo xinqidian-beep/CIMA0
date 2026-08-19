@@ -82,8 +82,30 @@ class InternalDynamicsObserver:
                 winner["state"]
 
         }
+        
+        selected = observer.attention()
 
+        print("IO SOURCE:", selected)
 
+        if selected is not None:
+
+            organ = selected.get("organ")
+
+            if organ is not None and hasattr(organ, "packet"):
+
+                packet = organ.packet()
+
+                if packet is not None:
+
+                    display.receive(packet)
+
+        if display.frame is not None:
+
+            cv2.imshow(
+                "CIMA0",
+                display.frame
+            )
+        
 
     def _trigger(
         self,

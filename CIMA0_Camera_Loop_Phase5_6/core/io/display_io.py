@@ -198,9 +198,17 @@ class DisplayIO:
                 packet.shape
 
             )
-
-
-        except Exception:
+            
+            data = raw.reshape(
+                packet.shape
+            )
+            
+        except Exception as e:
+            
+            print(
+                "DISPLAY DECODE ERROR:",
+                e
+            )
 
             return None
 
@@ -212,7 +220,13 @@ class DisplayIO:
         self,
         packet
     ):
-
+        
+        print(
+            "DISPLAY RECEIVE:",
+            packet.source,
+            packet.tag,
+            packet.schema
+        )
         frame = self.encode(
             packet
         )
