@@ -183,10 +183,56 @@ class InternalDynamicsObserver:
 
 
         return delta
+        
+    #
+    # attention output
+    #
+    # provide selected internal source for IO
+    #
+    def attention(self):
+
+        if self.current is None:
+
+            return None
+
+
+        signals = (
+            self.current
+            .get(
+                "attention",
+                []
+            )
+        )
+
+
+        if len(signals) == 0:
+
+            return None
 
 
 
+        winner = max(
+            signals,
+            key=lambda x:
+                x["state"]
+                .get(
+                    "activity",
+                    0
+                )
+        )
 
+
+        return {
+
+            "name":
+                winner["name"],
+
+            "state":
+                winner["state"]
+
+        }        
+        
+        
     def read(
         self
     ):
