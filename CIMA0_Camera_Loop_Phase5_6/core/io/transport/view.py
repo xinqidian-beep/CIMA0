@@ -12,6 +12,8 @@ class PacketView:
     ):
 
         self.envelope = packet.envelope.copy()
+        
+        self.packet = packet
 
         self.data = {}
 
@@ -35,3 +37,8 @@ class PacketView:
     def tag(self):
 
         return self.envelope.tag
+        
+    @property
+    def schema(self):
+
+        return self.envelope.schema    

@@ -11,10 +11,89 @@ class InternalDynamicsObserver:
 
 
 
+    #
+    # attention selector
+    #
+    # output:
+    #
+    # {
+    #     name,
+    #     organ,
+    #     state
+    # }
+    #
+    # no sampling
+    # no packet
+    # no IO
+    #
+
+    def attention(
+        self
+    ):
+
+
+        if self.current is None:
+
+            return None
+
+
+
+        signals = (
+            self.current
+            .get(
+                "attention",
+                []
+            )
+        )
+
+
+        if len(signals) == 0:
+
+            return None
+
+
+
+        winner = max(
+
+            signals,
+
+            key=lambda x:
+
+                x["state"]
+                .get(
+                    "activity",
+                    0
+                )
+
+        )
+
+
+        return {
+
+            "name":
+                winner["name"],
+
+
+            "organ":
+                winner["organ"],
+
+
+            "state":
+                winner["state"]
+
+        }
+
+
+
     def _trigger(
         self,
         snapshot
     ):
+
+        #
+        # 暂时保留原逻辑
+        # 后面可以扩展
+        #
 
         fields = (
             snapshot
@@ -35,7 +114,7 @@ class InternalDynamicsObserver:
             return True
 
 
-        return False
+        return True
 
 
 
@@ -44,15 +123,13 @@ class InternalDynamicsObserver:
         snapshot
     ):
 
-        #
-        # keep current attention logic
-        #
 
         if self._trigger(snapshot):
 
             self.previous = self.current
 
             self.current = snapshot
+
 
 
         return {
@@ -67,13 +144,16 @@ class InternalDynamicsObserver:
 
 
 
-
     def _compare(
         self
     ):
 
 
-        if self.previous is None:
+        if (
+            self.previous is None
+            or
+            self.current is None
+        ):
 
             return None
 
@@ -82,10 +162,6 @@ class InternalDynamicsObserver:
         delta = {}
 
 
-
-        #
-        # planet
-        #
 
         old_planet = (
             self.previous
@@ -131,108 +207,10 @@ class InternalDynamicsObserver:
 
 
 
-
-        #
-        # organs
-        #
-
-        delta["organs"] = {}
-
-
-        old_organs = (
-            self.previous
-            .get(
-                "organs",
-                {}
-            )
-        )
-
-
-        new_organs = (
-            self.current
-            .get(
-                "organs",
-                {}
-            )
-        )
-
-
-
-        for name,new in new_organs.items():
-
-
-            old = old_organs.get(
-                name
-            )
-
-
-            if old is None:
-
-                delta["organs"][name] = None
-
-
-            else:
-
-                delta["organs"][name] = {
-
-                    "changed":
-                        True
-
-                }
-
-
-
         return delta
-        
-    #
-    # attention output
-    #
-    # provide selected internal source for IO
-    #
-    def attention(self):
-
-        if self.current is None:
-
-            return None
-
-
-        signals = (
-            self.current
-            .get(
-                "attention",
-                []
-            )
-        )
-
-
-        if len(signals) == 0:
-
-            return None
 
 
 
-        winner = max(
-            signals,
-            key=lambda x:
-                x["state"]
-                .get(
-                    "activity",
-                    0
-                )
-        )
-
-
-        return {
-
-            "name":
-                winner["name"],
-
-            "state":
-                winner["state"]
-
-        }        
-        
-        
     def read(
         self
     ):

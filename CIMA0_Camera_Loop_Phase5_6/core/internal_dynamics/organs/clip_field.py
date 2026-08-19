@@ -2,7 +2,7 @@ import cv2
 import torch
 import numpy as np
 import open_clip
-
+from core.io.transport.packet import BitPacket
 
 class CLIPField:
 
@@ -517,44 +517,43 @@ class CLIPField:
     def packet(
         self
     ):
-
-
-        if self.cloud is None:
+        
+        state = self.snapshot()
+        
+        if self is None:
 
             return None
 
 
 
-        return {
+        field = np.asarray(
+            state
+        )
 
-            "type":
-                "field",
 
-            "representation":
-                "cloud",
 
-            "organ":
-                "clip",
+        return BitPacket(
 
-            "bytes":
-                self.cloud.tobytes(),
+            source="planet",
 
-            "shape":
-                self.cloud.shape,
+            tag="visual",
 
-            "dtype":
-                "float32",
+            data=field.tobytes(),
 
-            "activity":
-                self.layer_activity,
+            shape=field.shape,
 
-            "structure":
-                self.structure,
+            dtype=str(field.dtype),
 
-            "timestamp":
-                self.age
+            schema="continuous_field",
 
-        }
+            meta={
+
+                "representation":
+                    "planetfield"
+
+            }
+
+        )
 
 
 

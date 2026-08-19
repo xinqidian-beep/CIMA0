@@ -19,8 +19,26 @@ class PacketEnvelope:
         self.tag = tag
         self.schema = schema
         self.version = version
+        
+    @property
+    def source(self):
+        return self._source
 
 
+    @property
+    def tag(self):
+        return self._tag
+
+
+    @property
+    def schema(self):
+        return self._schema
+
+
+    @property
+    def version(self):
+        return self._version
+    
     def copy(self):
 
         return PacketEnvelope(
