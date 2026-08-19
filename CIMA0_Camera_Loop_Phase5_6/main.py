@@ -270,9 +270,15 @@ def main():
         read_state = observer.observe(
             snapshot
         )
+        
+        selected = observer.attention()
 
 
-
+        print(
+            "IO SOURCE:",
+            selected
+        )
+        
         #
         # display
         #
