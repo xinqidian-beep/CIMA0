@@ -1458,3 +1458,753 @@ camera
 attention → packet → transport → io 的闭环还没有形成。
 
 而且这个闭环应该沿用现有 transport/envelope/packet/router/view，不要新增概念。你这个判断是对的。下一步从 selector.py / display_io.py 之前的 packet 流开始整理。
++**********************
+Step 2
+
+修改 main.py：
+
+删除：
+
+display.encode_field(
+    read_state
+)
+
+换成：
+
+winner
+ |
+ organ
+ |
+ packet
+ |
+ DisplayIO
+Step 3
+
+让 PlanetField.packet() 输出：
+
+BitPacket
+
+不要 dict。
+
+Step 4
+
+让 DisplayIO 只接受 packet。
+
+这样链路会变成：
+
+Camera
+ |
+ IO packet
+ |
+ Transport
+ |
+ InternalDynamics
+ |
+ Planet / organs
+ |
+ attention
+ |
+ winner
+ |
+ packet
+ |
+ TransportRouter
+ |
+ DisplayIO
+ |
+ window
+
+这条链已经和你最初设计的：
+
+举手 → 分配计算资源 → 采样 → 输出 IO
+
+一致。
+
+现在最大的问题不是缺模块，而是Observer 越界 + IO 前缺少 packet 路由层。下一步应该从 display_io.py 和 transport/view.py 收拢，而不是再动 CLIP。
+*****************************
+## Phase5_6 当前阶段总结
+
+这一阶段的核心目标已经从：
+
+> 摄像头 → CLIP → 内部动力场 → 显示
+
+转变为：
+
+> 外部信息进入 → 内部 organ 自主演化 → attention 选择 → packet 输出 → IO 自动路由
+
+这个方向是正确的。
+
+目前已经完成了几个关键架构迁移。
+
+---
+
+# 一、已经完成的结构调整
+
+## 1. InternalDynamics 已经成为真正的 organ 容器
+
+当前：
+
+```
+External
+   |
+   v
+TransportRouter
+   |
+   v
+InternalDynamics
+   |
+   +---- CLIPField
+   |
+   +---- PlanetField
+          |
+          +---- Planet
+```
+
+InternalDynamics 不再负责理解数据。
+
+它只负责：
+
+* 注册 organ
+* 广播输入
+* 收集 activity
+* 选择 compute
+* 请求 packet
+
+符合原设计：
+
+> 动力系统不知道意义，只知道状态变化。
+
+---
+
+# 二、Attention 链路已经建立
+
+现在输出：
+
+```
+ATTENTION SIGNALS:
+
+[
+ {
+   name:"planet",
+   organ:<PlanetField>,
+   state:
+   {
+      activity,
+      age,
+      delta
+   }
+ }
+]
+```
+
+这个变化很重要。
+
+以前：
+
+```
+Observer
+ |
+ 判断视觉
+ |
+ 制造显示数据
+```
+
+现在：
+
+```
+Observer
+ |
+ 读取状态
+ |
+ 输出 signal
+```
+
+Observer 权限下降了。
+
+这是正确方向。
+
+Observer 不应该决定：
+
+* 什么是视觉
+* 什么应该显示
+* 哪个 organ 有意义
+
+它只提供：
+
+> 当前内部状态的注意候选。
+
+---
+
+# 三、Transport 层方向正确
+
+目前已经建立：
+
+```
+BitPacket
+
+    |
+    |
+PacketEnvelope
+
+    |
+    |
+TransportRouter
+```
+
+职责：
+
+## Envelope
+
+负责：
+
+```
+source
+tag
+schema
+version
+```
+
+身份。
+
+## BitPacket
+
+负责：
+
+```
+data
+shape
+dtype
+meta
+```
+
+结构。
+
+## Router
+
+负责：
+
+```
+tag
+  |
+  receiver
+```
+
+传播。
+
+这个设计比以前：
+
+```
+source="clip"
+显示clip
+```
+
+高级很多。
+
+因为：
+
+```
+planet tag=visual
+schema=discrete_field
+
+planetfield tag=visual
+schema=continuous_field
+```
+
+完全允许存在。
+
+关键：
+
+tag 不是意义。
+
+schema 不是意义。
+
+它们只是结构描述。
+
+---
+
+# 四、发现的问题
+
+## 问题1
+
+PlanetField packet 曾经返回 dict。
+
+导致：
+
+```
+PlanetField
+ |
+ dict
+ |
+ DisplayIO
+ |
+ BitPacket接口
+```
+
+断裂。
+
+已经确认应该统一：
+
+```
+PlanetField
+ |
+ BitPacket
+ |
+ Router
+ |
+ DisplayIO
+```
+
+---
+
+## 问题2
+
+DisplayIO 曾经承担太多职责。
+
+旧：
+
+```
+DisplayIO
+
+知道:
+
+camera
+planet
+field
+source
+format
+```
+
+现在应该收缩为：
+
+```
+DisplayIO
+
+输入:
+
+BitPacket
+
+
+输出:
+
+framebuffer
+```
+
+它只问：
+
+```
+packet.schema?
+packet.dtype?
+packet.shape?
+```
+
+不问：
+
+```
+谁产生?
+为什么产生?
+有没有视觉意义?
+```
+
+---
+
+# 五、当前最大问题：Planet.step()
+
+现在运行：
+
+```
+COMPUTE WINNER: planet
+
+PLANET OBJECT:
+PlanetField
+
+PLANETFIELD DELTA:
+0.000025
+
+然后：
+
+PlanetField.step()
+
+    ↓
+
+archive/planet.py
+
+    ↓
+
+np.sin(old[x,y])
+
+```
+
+这里出现：
+
+```
+KeyboardInterrupt
+```
+
+说明：
+
+不是逻辑错误。
+
+是：
+
+## Planet evolution 太重。
+
+当前：
+
+```
+每一个 dynamics.step()
+
+都会：
+
+PlanetField.step()
+
+调用:
+
+Planet.step()
+
+```
+
+也就是说：
+
+内部时间：
+
+```
+camera FPS
+
+=
+planet evolution FPS
+```
+
+这是不合理的。
+
+Planet 是慢变量。
+
+需要独立时间尺度。
+
+---
+
+# 六、下一阶段重点：检查 Planet 自动举手机制
+
+你提出的问题非常关键。
+
+目标：
+
+> Observer 不应该持续扫描 Planet 全部状态，而应该依靠 Planet 自己产生 attention signal。
+
+也就是：
+
+现在：
+
+```
+Observer
+
+读取:
+
+planet.activity()
+
+```
+
+未来：
+
+```
+Planet
+
+内部变化
+
+↓
+
+activity increase
+
+↓
+
+raise hand
+
+↓
+
+attention signal
+
+↓
+
+Observer
+
+只读取举手者
+
+```
+
+这才符合：
+
+> 最省力观察无穷演化系统。
+
+---
+
+# 七、后续工作计划
+
+## Step 1
+
+检查 Planet 是否已经拥有 activity / attention 机制。
+
+检查：
+
+```
+archive/planet.py
+```
+
+重点：
+
+寻找：
+
+```
+activity()
+
+delta()
+
+energy()
+
+change()
+
+signal()
+
+```
+
+确认：
+
+Planet 有没有：
+
+```
+内部变化
+    |
+    v
+活动度
+    |
+    v
+举手
+```
+
+如果没有：
+
+增加最小接口：
+
+```
+Planet.activity()
+
+return {
+
+ "activity": value,
+ "delta": value,
+ "age": age
+
+}
+```
+
+不要增加语义。
+
+---
+
+## Step 2
+
+修改 InternalDynamics attention 收集
+
+现在：
+
+```
+for organ:
+    activity()
+```
+
+未来：
+
+统一：
+
+```
+organ.attention()
+```
+
+例如：
+
+```
+CLIPField.attention()
+
+PlanetField.attention()
+
+```
+
+返回：
+
+```
+{
+ name,
+ organ,
+ state
+}
+```
+
+这样：
+
+organ 自己决定：
+
+什么时候举手。
+
+---
+
+## Step 3
+
+解决 Planet 时间尺度
+
+当前：
+
+```
+camera loop
+
+100 FPS
+
+↓
+
+planet evolve 100 FPS
+```
+
+改：
+
+例如：
+
+```
+Planet clock:
+
+every 50 step
+
+evolve once
+```
+
+结构：
+
+```
+InternalDynamics
+
+step()
+
+ |
+ +-- fast organs
+ |
+ +-- slow organs
+```
+
+Planet 保持慢演化。
+
+---
+
+## Step 4
+
+完成 attention → packet → router → display
+
+最终链：
+
+```
+organ
+
+ |
+ attention()
+
+ |
+ compute winner
+
+ |
+ organ.packet()
+
+ |
+ BitPacket
+
+ |
+ TransportRouter
+
+ |
+ tag="visual"
+
+ |
+ DisplayIO
+```
+
+main.py 最终只保留：
+
+```
+while:
+
+    camera input
+
+    dynamics.step()
+
+    cv2.imshow()
+```
+
+不要：
+
+```
+if clip:
+ display clip
+
+if planet:
+ display planet
+```
+
+---
+
+## Step 5
+
+删除历史遗留接口
+
+最终删除：
+
+```
+DisplayIO.encode_field()
+
+```
+
+原因：
+
+它违反新原则：
+
+> Display 不创造 packet。
+
+packet 必须由产生者产生。
+
+---
+
+# 当前阶段评价
+
+Phase5_6 已经跨过一个关键节点：
+
+以前：
+
+```
+程序控制内部世界
+```
+
+现在：
+
+```
+内部实体产生状态
+       |
+       v
+注意力竞争
+       |
+       v
+计算资源分配
+       |
+       v
+输出
+```
+
+下一阶段的核心不是 CLIP，也不是显示。
+
+而是：
+
+**让 Planet 真正成为一个自主举手、自主演化、低观察成本的内部生命单元。**
+
+后续优先顺序：
+
+1. ✅ 检查 Planet attention / activity 机制
+2. ✅ 修正 Planet 时间尺度
+3. ✅ 完成 packet/router/display 闭环
+4. 再观察 CLIP 与 Planet 的竞争关系
+
+目前架构方向已经稳定，可以继续推进。辛苦了。
+***************************
+******************************
+***************************
