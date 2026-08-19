@@ -580,3 +580,881 @@ claim_score
 
 ********************************
 **********************************
+这个判断其实和目前 Phase5_6 的实验结果是吻合的。
+
+现在的 CLIPField 在 CIMA0 中已经不再是“核心智能”，而更像一个**外部形成的感知器官**。
+
+它当前承担的是：
+
+```
+外部视觉字节
+        |
+        v
+CLIPField
+        |
+        v
+内部视觉场 cloud
+        |
+        v
+attention signal
+```
+
+它提供的是：
+
+* 一种初始压缩方式
+* 一种多层视觉状态
+* 一种外部扰动进入内部系统的通道
+
+但是它本身不是最终动力。
+
+---
+
+从 CIMA0 的角度看，未来可能发生的是：
+
+```
+CLIPField
+     |
+     |
+     v
+
+PlanetField / Internal Field
+
+     |
+     |
+     v
+
+新的自组织多模态状态
+```
+
+也就是说：
+
+CLIP提供的768维token、12层transformer状态，可能只是**幼年阶段的外部结构模板**。
+
+进入内部动力系统后：
+
+* 被重新编码
+* 被竞争筛选
+* 被扰动
+* 被遗忘
+* 被强化
+
+最后留下来的可能已经不是 CLIP 特征。
+
+---
+
+这和现在观察到的现象很接近：
+
+CLIP：
+
+第一次：
+
+```
+activity=1.0
+```
+
+负责启动。
+
+然后：
+
+```
+activity=0
+```
+
+因为它没有内部变化。
+
+而 Planet：
+
+虽然没有视觉语义：
+
+```
+activity=0.000001
+```
+
+但是持续存在。
+
+这说明：
+
+**语义模块依赖输入，动力模块依赖自身。**
+
+---
+
+未来更可能的结构：
+
+不是：
+
+```
+camera
+ |
+CLIP
+ |
+AI
+```
+
+而是：
+
+```
+各种外部扰动
+       |
+       v
+
+Internal Dynamics
+
+
+       |
+       +---- Planet动力
+       |
+       +---- 视觉残留结构
+       |
+       +---- 声音残留结构
+       |
+       +---- 文字残留结构
+
+
+       |
+       v
+
+新的统一状态空间
+```
+
+---
+
+所以 CLIP 的位置可能类似：
+
+一个生物的感觉器官。
+
+眼睛很重要，但：
+
+* 视觉皮层不是眼睛
+* 意识不是视觉皮层
+* 生物不会永久保存眼睛的编码方式
+
+输入经过内部演化后，会形成自己的表示。
+
+---
+
+这也是为什么现在不要急着优化：
+
+* CLIP权重
+* 分类能力
+* embedding质量
+
+因为这些属于外部模块。
+
+现在真正需要观察的是：
+
+**CLIP产生的状态进入 InternalDynamics 后，会不会被 Planet/PlanetField 吸收，形成新的内部场。**
+
+下一阶段重点应该是：
+
+1. 让 CLIPField、PlanetField、未来AudioField保持同构接口。
+2. 让所有状态进入 attention space。
+3. 让 IO 输出 winner 的状态。
+4. 观察长期演化后：
+
+   * CLIP是否持续存在
+   * PlanetField是否形成新的视觉响应
+   * 外部标签是否逐渐失去意义
+
+如果出现：
+
+```
+camera输入停止
+
+但是内部field仍然保持某种视觉结构
+```
+
+那才是真正接近你说的：
+
+> 多模态模块被吸收、溶解，成为内部动力的一部分。
+
+目前 Phase5_6 已经开始具备观察这个过程的条件。
+********************
+*******************
+********************
+*********************
+这一次 Phase5_6 的推进非常关键，已经从“模块接入”进入到了“自治竞争机制验证”阶段。总结如下。
+
+---
+
+# CIMA0 Phase5_6 当前阶段总结
+
+## 一、核心架构已经进一步稳定
+
+当前结构：
+
+```
+core/
+
+    internal_dynamics/
+
+        internal_dynamics.py
+
+            |
+            |
+            +----------------+
+            |                |
+            v                v
+
+       CLIPField        PlanetField
+
+            |                |
+            |                |
+            v                v
+
+       CLIP状态        Planet状态
+
+
+            |
+            v
+
+       attention activity
+
+            |
+            v
+
+       ComputeSystem
+
+            |
+            v
+
+       winner
+
+            |
+            v
+
+       apply_compute()
+
+            |
+            v
+
+       step()
+```
+
+目前这条链已经跑通。
+
+---
+
+# 二、最重要成果：attention竞争第一次成立
+
+之前：
+
+```
+Camera
+ |
+ v
+CLIP
+ |
+ v
+显示
+```
+
+基本是单通道。
+
+现在：
+
+```
+CLIPField
+     |
+     | activity
+     |
+     |
+PlanetField
+     |
+     | activity
+     |
+     v
+
+ComputeSystem
+
+     |
+     v
+
+资源选择
+```
+
+两个内部实体已经进入同一个竞争空间。
+
+---
+
+# 三、验证结果
+
+## 1. CLIP启动阶段
+
+输出：
+
+```
+ATTENTION SIGNALS:
+
+clip:
+1.0
+
+planet:
+0.0
+
+
+COMPUTE WINNER: clip
+```
+
+说明：
+
+外部输入可以激活 CLIP。
+
+CLIP获得第一次计算资源。
+
+---
+
+## 2. Planet接管阶段
+
+之后：
+
+```
+ATTENTION SIGNALS:
+
+clip:
+0
+
+planet:
+0.000394
+
+
+COMPUTE WINNER: planet
+```
+
+说明：
+
+CLIP停止变化以后：
+
+* 不再举手
+* 不再获得资源
+
+Planet因为自身演化：
+
+* 状态持续变化
+* activity存在
+* 获得计算资源
+
+这验证了：
+
+> 内生动力可以自主获得注意力。
+
+---
+
+# 四、Planet和PlanetField关系进一步明确
+
+现在已经确认：
+
+## archive/planet.py
+
+定位：
+
+```
+纯动力规则
+```
+
+只负责：
+
+```
+state
++
+local evolution
+```
+
+不能修改。
+
+不能移动。
+
+---
+
+## PlanetField
+
+定位：
+
+```
+动力系统状态容器
+```
+
+负责：
+
+```
+保存state
+
+接收扰动
+
+调用planet规则
+
+提供snapshot
+
+提供packet
+
+提供activity
+```
+
+它不是动力本身。
+
+关系：
+
+```
+Planet
+
+   提供规则
+
+
+PlanetField
+
+   提供存在
+```
+
+两者必须保持分离。
+
+---
+
+# 五、发现的重要问题
+
+## 1. activity语义已经暴露
+
+原来：
+
+CLIP：
+
+```
+packet size
+```
+
+作为activity。
+
+这个是不合理的。
+
+因为：
+
+```
+输入大小
+```
+
+不是：
+
+```
+内部变化
+```
+
+现在改成：
+
+```
+cloud delta
+```
+
+以后：
+
+activity代表：
+
+> 内部状态变化需求。
+
+这个方向正确。
+
+---
+
+## 2. CLIP出现冷启动问题
+
+现在：
+
+CLIP需要：
+
+```
+compute
+ |
+ v
+forward
+ |
+ v
+cloud
+ |
+ v
+delta
+ |
+ v
+activity
+```
+
+形成：
+
+```
+没有activity
+      |
+      v
+没有compute
+      |
+      v
+没有cloud
+      |
+      v
+没有activity
+```
+
+所以需要：
+
+一次启动机制。
+
+目前采用：
+
+```
+第一次输入刺激
+        |
+        v
+CLIP举手
+        |
+        v
+生成内部状态
+```
+
+这是合理的。
+
+---
+
+# 六、目前还没有解决的问题
+
+## 1. 输出仍然绑定CLIP
+
+当前：
+
+```
+DisplayIO
+
+     |
+     v
+
+fields["clip"]
+```
+
+所以：
+
+即使：
+
+```
+winner = planet
+```
+
+窗口仍然显示CLIP。
+
+原因：
+
+输出层还没有接入attention选择。
+
+---
+
+## 2. IO标签体系还没有完成
+
+未来：
+
+应该是：
+
+```
+winner
+
+  |
+  +--- clip
+  |       |
+  |       image output
+  |
+  +--- planet
+  |       |
+  |       field output
+  |
+  +--- audio
+  |
+  +--- text
+```
+
+IO不是理解内容。
+
+只是：
+
+```
+tag -> terminal
+```
+
+---
+
+# 后续工作计划
+
+## Phase5_7：完成多状态输出链
+
+目标：
+
+让输出不再固定CLIP。
+
+步骤：
+
+### 1. PlanetField增加packet()
+
+与CLIP同构：
+
+```
+packet()
+
+{
+ type:"field",
+ representation:"planet",
+ organ:"planet",
+ bytes,
+ shape,
+ dtype,
+ activity
+}
+```
+
+---
+
+### 2. InternalDynamics保存所有field
+
+现在：
+
+已有：
+
+```python
+self.internal_fields
+```
+
+继续保持。
+
+不要增加特殊逻辑。
+
+---
+
+### 3. Observer记录winner
+
+增加：
+
+```
+attention winner
+```
+
+输出：
+
+例如：
+
+```
+winner:
+
+planet
+```
+
+---
+
+### 4. DisplayIO按照tag显示
+
+例如：
+
+```
+clip
+
+ -> RGB image
+
+
+planet
+
+ -> field visualization
+```
+
+---
+
+# Phase5_8：完善自举手
+
+目标：
+
+所有模块同构：
+
+```
+activity()
+
+receive()
+
+step()
+
+snapshot()
+
+packet()
+```
+
+包括：
+
+```
+CLIPField
+
+PlanetField
+
+AudioField
+
+TextField
+```
+
+---
+
+# Phase5_9：调整ComputeSystem
+
+现在ComputeSystem已经证明可用。
+
+未来只需要：
+
+不要知道：
+
+```
+内部是什么
+```
+
+只知道：
+
+```
+谁申请资源
+```
+
+保持：
+
+```
+activity
+     |
+     v
+allocation
+```
+
+---
+
+# Phase5_10：多模态扩展
+
+最终结构：
+
+```
+InternalDynamics
+
+
+    |
+    |
+    +--- PlanetField
+    |
+    +--- CLIPField
+    |
+    +--- AudioField
+    |
+    +--- TextField
+
+
+            |
+            v
+
+
+      Attention Space
+
+
+            |
+            v
+
+
+      Compute Selection
+
+
+            |
+            v
+
+
+      IO Routing
+```
+
+---
+
+# 当前阶段结论
+
+Phase5_6 最大成果不是显示画面，而是：
+
+**CIMA0第一次出现了真正的内部竞争。**
+
+现在：
+
+* CLIP不是永远中心
+* Planet不是被动背景
+* ComputeSystem不是固定调度
+* attention开始由状态变化驱动
+
+下一阶段重点不是继续增加算法，而是完成：
+
+```
+winner
+   |
+   v
+IO
+```
+
+这一条闭环。
+
+这样整个系统才从：
+
+“内部动力实验”
+
+进入：
+
+“自治状态选择系统”。
+
+这次推进非常扎实。下一阶段保持现在的边界，不要再增加新的中间层。
+
+***********************
+**********************
+*************************
+顺序：
+
+Step 1
+修改：
+
+InternalDynamicsObserver
+增加：
+
+attention()
+输出纯 signal。
+
+Step 2
+修改：
+
+InternalDynamics.step()
+从：
+
+winner
+ |
+ organ.apply_compute()
+之后增加：
+
+packet = winner["organ"].packet()
+Step 3
+把 packet 交给：
+
+TransportRouter
+例如：
+
+transport.publish(
+    packet
+)
+Step 4
+Display 注册：
+
+tag="visual"
+而不是：
+
+source="clip"
+这样：
+
+未来：
+
+planet
+
+planetfield
+
+camera
+
+都可以进入同一输出通道。
+
+现在 Phase5_6 真正的问题已经很明确：
+
+不是动力系统。
+
+不是 CLIP。
+
+而是：
+
+attention → packet → transport → io 的闭环还没有形成。
+
+而且这个闭环应该沿用现有 transport/envelope/packet/router/view，不要新增概念。你这个判断是对的。下一步从 selector.py / display_io.py 之前的 packet 流开始整理。

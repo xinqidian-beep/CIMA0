@@ -283,19 +283,13 @@ def main():
         # display
         #
 
-        display_packet = display.encode_field(
-            read_state,
-            source="internal"
-        )
+        if display.frame is not None:
 
-
-
-        frame_out = display.encode(
-            display_packet
-        )
-
-
-
+            cv2.imshow(
+                "CIMA0",
+                display.frame
+            )
+            
         if frame_out is not None:
 
 

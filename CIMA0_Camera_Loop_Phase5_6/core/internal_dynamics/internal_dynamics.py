@@ -40,12 +40,15 @@ class InternalDynamics:
     def __init__(
         self,
         planet,
-        compute=None
+        compute=None,
+        transport=None
     ):
 
         self.planet = planet
 
         self.compute = compute
+        
+        self.transport = transport
 
         self.organs = {}
         
@@ -92,6 +95,7 @@ class InternalDynamics:
         
         signals=[]
 
+            winner = None
         
         for name, organ in self.organs.items():
 
@@ -145,6 +149,7 @@ class InternalDynamics:
         self.last_signals = [
             {
                 "name":s["name"],
+                "organ":s["organ"],
                 "state":s["state"]
             }
             for s in signals
@@ -160,8 +165,9 @@ class InternalDynamics:
         if self.compute is not None:
             
             winner=None
-
-
+            
+            selected_organ = None
+            
             if self.compute.available > 0:
 
 
@@ -191,6 +197,8 @@ class InternalDynamics:
                 self.compute.consume(
                     1
                 )
+                
+                selected_organ = organ
 
 
             self.compute.step()
@@ -207,7 +215,34 @@ class InternalDynamics:
             ):
 
                 organ.step()
+                
+        #
+        # winner output sampling
+        #
 
+        if selected_organ is not None:
+
+
+            if hasattr(
+                selected_organ,
+                "packet"
+            ):
+
+            packet = selected_organ.packet()
+
+
+            if packet is not None:
+
+                self.internal_fields[
+                    "selected"
+                ] = packet   
+                
+                if self.transport is not None:
+
+                    self.transport.publish(
+                        packet
+                    )
+                               
         #
         # collect internal fields
         #

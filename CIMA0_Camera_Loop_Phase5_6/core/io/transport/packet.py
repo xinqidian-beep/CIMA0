@@ -55,8 +55,11 @@ class BitPacket:
     def tag(self):
 
         return self.envelope.tag
+        
+    @property
+    def schema(self):
 
-
+        return self.envelope.schema    
 
     def view(
         self,

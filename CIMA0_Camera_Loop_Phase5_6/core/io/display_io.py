@@ -71,6 +71,7 @@ class DisplayIO:
         #
 
         self.previous = None
+        self.frame = None
 
     def encode(
         self,
@@ -96,35 +97,21 @@ class DisplayIO:
             data
         )
 
-        packet_type = packet.get(
-            "type"
-        )
-
-
-
         #
         # external media stream
         #
-        if packet_type == "media":
-
-            image = self._media_to_rgb(
-                data,
-                packet
-            )
-
-
-
-        #
-        # internal field
-        #
-        elif packet_type == "field":
+        if packet.schema == "continuous_field":
 
             image = self._field_to_rgb(
                 data
             )
+            
+        elif packet.schema == "discrete_field":
 
-
-
+            image = self._field_to_rgb(
+                data
+            )    
+        
         else:
 
             return None
@@ -183,102 +170,7 @@ class DisplayIO:
 
 
         return data
-        
-    def encode_field(
-        self,
-        observation,
-        source="internal"
-    ):
-
-        if observation is None:
-
-            return None
-
-
-        state = observation.get(
-            "state"
-        )
-
-
-        if state is None:
-
-            return None
-
-
-        planet = state.get(
-            "planet"
-        )
-
-
-        if planet is None:
-
-            return None
-
-
-
-        field = np.asarray(
-            planet
-        )
-
-
-        #
-        # normalize
-        #
-
-        minimum = field.min()
-
-        maximum = field.max()
-
-
-        if maximum - minimum > 0:
-
-            image = (
-                (field - minimum)
-                /
-                (maximum - minimum)
-                *
-                255
-            )
-
-        else:
-
-            image = np.zeros_like(
-                field
-            )
-
-
-
-        image = image.astype(
-            np.uint8
-        )
-
-
-        return {
-
-            "type":
-                "field",
-
-
-            "source":
-                source,
-
-
-            "bytes":
-                image.tobytes(),
-
-
-            "shape":
-                image.shape,
-
-
-            "dtype":
-                "uint8",
-                
-            "format":
-                "GRAY",    
-
-        }
-        
+    
 
     #
     # byte packet decode
@@ -294,7 +186,7 @@ class DisplayIO:
 
             raw = np.frombuffer(
 
-                packet["bytes"],
+                packet.data,
 
                 dtype=np.dtype(
                     packet["dtype"]
@@ -305,7 +197,7 @@ class DisplayIO:
 
             data = raw.reshape(
 
-                packet["shape"]
+                packet.shape
 
             )
 
@@ -317,9 +209,20 @@ class DisplayIO:
 
 
         return data
+        
+    def receive(
+        self,
+        packet
+    ):
 
+        frame = self.encode(
+            packet
+        )
 
+        if frame is not None:
 
+            self.frame = frame    
+        
     #
     # media stream decoder
     #
