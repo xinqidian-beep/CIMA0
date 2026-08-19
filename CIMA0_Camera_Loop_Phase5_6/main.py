@@ -271,35 +271,11 @@ def main():
             snapshot
         )
         
-        selected = observer.attention()
-
-
-        print(
-            "IO SOURCE:",
-            selected
-        )
         
-        #
-        # display
-        #
-
-        if display.frame is not None:
-
-            cv2.imshow(
-                "CIMA0",
-                display.frame
-            )
+        
+        
             
-        if frame_out is not None:
-
-
-            cv2.imshow(
-                "CIMA0",
-                frame_out
-            )
-
-
-
+        
     if camera_available:
 
         cap.release()
