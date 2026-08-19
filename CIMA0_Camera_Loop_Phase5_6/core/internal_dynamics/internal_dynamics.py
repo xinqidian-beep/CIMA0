@@ -95,8 +95,6 @@ class InternalDynamics:
         
         signals=[]
 
-            winner = None
-        
         for name, organ in self.organs.items():
 
             if hasattr(
@@ -217,65 +215,69 @@ class InternalDynamics:
                 organ.step()
                 
         #
-        # winner output sampling
+        # sampling phase
+        # 
+        # collect available internal packets
+        #
+        # no attention meaning
+        # no compute winner dependency
         #
 
-        if selected_organ is not None:
 
+        if self.transport is not None:
+
+
+            #
+            # organs sampling
+            #
+
+            for name, organ in self.organs.items():
+
+
+                if hasattr(
+                    organ,
+                    "packet"
+                ):
+
+
+                    packet = organ.packet()
+
+
+                    if packet is not None:
+
+
+                        self.internal_fields[name] = packet
+
+
+                        self.transport.publish(
+                            packet
+                        )
+
+
+
+            #
+            # planet sampling
+            #
 
             if hasattr(
-                selected_organ,
+                self.planet,
                 "packet"
             ):
 
-            packet = selected_organ.packet()
+
+                packet = self.planet.packet()
 
 
-            if packet is not None:
+                if packet is not None:
 
-                self.internal_fields[
-                    "selected"
-                ] = packet   
-                
-                if self.transport is not None:
+
+                    self.internal_fields["planet"] = packet
+
 
                     self.transport.publish(
                         packet
                     )
-                               
-        #
-        # collect internal fields
-        #
-
-        for name, organ in self.organs.items():
-
-            if hasattr(
-                organ,
-                "packet"
-            ):
-
-                packet = organ.packet()
-
-                if packet is not None:
-
-                    self.internal_fields[name] = packet    
-                    
-        #
-        # collect planet field
-        #
-
-        if hasattr(
-            self.planet,
-            "packet"
-        ):
-
-            packet = self.planet.packet()
-
-
-            if packet is not None:
-
-                self.internal_fields["planet"] = packet            
-                
+        
         #
         # planet evolution
         #        

@@ -100,17 +100,15 @@ class DisplayIO:
         #
         # external media stream
         #
-        if packet.schema == "continuous_field":
+        if packet.schema in (
+            "continuous_field",
+            "discrete_field"
+        ):
 
             image = self._field_to_rgb(
                 data
             )
-            
-        elif packet.schema == "discrete_field":
-
-            image = self._field_to_rgb(
-                data
-            )    
+          
         
         else:
 
@@ -189,7 +187,7 @@ class DisplayIO:
                 packet.data,
 
                 dtype=np.dtype(
-                    packet["dtype"]
+                    packet.dtype
                 )
 
             )
@@ -223,52 +221,7 @@ class DisplayIO:
 
             self.frame = frame    
         
-    #
-    # media stream decoder
-    #
-
-    def _media_to_rgb(
-        self,
-        data,
-        packet
-    ):
-
-
-        fmt = packet.get(
-            "format"
-        )
-
-
-        if fmt != "BGR":
-
-            return None
-
-
-
-        #
-        # preserve original media structure
-        #
-
-        if data.ndim != 3:
-
-            return None
-
-
-
-        if data.shape[2] != 3:
-
-            return None
-
-
-
-        #
-        # BGR -> RGB
-        #
-
-        return data[:, :, ::-1]
-
-
-
+    
     #
     # internal field visualization
     #
