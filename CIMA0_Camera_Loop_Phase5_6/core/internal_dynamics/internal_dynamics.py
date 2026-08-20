@@ -1,9 +1,9 @@
 import copy
-
+import numpy as np
 
 class InternalDynamics:
     """
-    CIMA0 Phase5_4
+    CIMA0 Phase5_6
 
     Internal Dynamics Container.
 
@@ -16,24 +16,29 @@ class InternalDynamics:
 
         provide compute opportunity
 
+        coordinate observation
+
         trigger local evolution
 
 
 
     Does NOT:
 
-        define time
+        define planet rules
 
-        define fast/slow
+        modify organ rules
 
         interpret meaning
 
-        control organ rules
-
-        modify planet rules
+        generate display data
 
 
-    Time appears only in Observer.
+    Observation:
+
+        InternalDynamics owns observation context.
+
+        Observer only describes current state.
+
     """
 
 
@@ -41,23 +46,77 @@ class InternalDynamics:
         self,
         planet,
         compute=None,
-        transport=None
+        observer=None,
+        transport=None,
+        observation_cache=None,
+        attention_field=None
     ):
+
+
+        #
+        # dynamical core
+        #
 
         self.planet = planet
 
+
+        #
+        # computation system
+        #
+
         self.compute = compute
+
+
+        #
+        # observer window
+        #
+
+        self.observer = observer
         
+        self.observation_cache = observation_cache
+
+        self.attention_field = attention_field                
+                     
+        #
+        # information transport
+        #
+
         self.transport = transport
 
+
+
+        #
+        # internal entities
+        #
+
         self.organs = {}
-        
+
+
+
+        #
+        # attention output
+        #
+
         self.last_signals = []
 
-        self.last_observation = None
-        
+
+
+        #
+        # packet cache
+        #
+
         self.internal_fields = {}
-        
+
+
+
+        #
+        # observer context
+        #
+
+        self.previous_observations = {}
+
+
+
     #
     # register organ
     #
@@ -80,256 +139,417 @@ class InternalDynamics:
         self,
         packet
     ):
-                
+
         for organ in self.organs.values():
-
-            if hasattr(organ,"receive"):
-
-                organ.receive(packet)    
-        
-    #
-    # internal evolution
-    #
-
-    def step(self):
-        
-        signals=[]
-
-        for name, organ in self.organs.items():
 
             if hasattr(
                 organ,
-                "activity"
+                "receive"
             ):
 
-                state=organ.activity()
+                organ.receive(
+                    packet
+                )
 
-                if state is not None:
 
-                    signals.append(
-                        {
-                            "name":name,   
-                            "organ": organ,
-                            "state":state
-                        }
+
+    #
+    # main evolution cycle
+    #
+    def step(self):
+
+
+        signals = self._observe()
+
+
+        if self.attention_field:
+
+            for signal in signals:
+
+                self.attention_field.receive(
+                    signal["state"].get(
+                        "change"
                     )
-        #
-        # planet attention
-        #
-
-        if hasattr(
-            self.planet,
-            "activity"
-        ):
-
-            state = self.planet.activity()
+                )
 
 
-            if state is not None:
-
-                signals.append(
-                    {
-                        "name":
-                            "planet",
-
-                        "organ":
-                            self.planet,
-
-                        "state":
-                            state
-                    }
-                ) 
-                    
-        #
-        # save attention observation
-        #
-
-        self.last_signals = [
-            {
-                "name":s["name"],
-                "organ":s["organ"],
-                "state":s["state"]
-            }
-            for s in signals
-        ]   
-        print(
-            "ATTENTION SIGNALS:",
-            self.last_signals
+        attention = (
+            self.attention_field.snapshot()
+            if self.attention_field
+            else None
         )
 
-        #
-        # compute selection
-        #            
-        if self.compute is not None:
-            
-            winner=None
-            
-            selected_organ = None
-            
-            if self.compute.available > 0:
+
+        self.last_signals = attention
 
 
-                winner=self.compute.select(
-                    signals
-                )
-                
-            if winner is not None:
-                
-                print(
-                    "COMPUTE WINNER:",
-                    winner["name"]
-                )
-                
-                organ=winner["organ"]
+
+        self._compute(
+            signals
+        )
 
 
-                if hasattr(
-                    organ,
-                    "apply_compute"
-                ):
+        self._evolve()
 
-                    organ.apply_compute(
-                        1
+
+        self._sample()
+
+
+        self._planet_step()
+    
+    
+    def _measure_change(
+        self,
+        name,
+        current
+    ):
+
+
+        previous = (
+            self.previous_observations
+            .get(name)
+        )
+
+
+        if previous is None:
+
+            delta = 0.0
+
+
+        else:
+
+            delta = float(
+                np.mean(
+                    np.abs(
+                        current
+                        -
+                        previous
                     )
-                    
-                self.compute.consume(
-                    1
                 )
-                
-                selected_organ = organ
+            )
 
+
+        self.previous_observations[name] = (
+            current.copy()
+        )
+
+
+        return delta
+                
+    #
+    # observation stage
+    #
+
+    def _observe(self):
+
+        signals = []
+
+
+        if (
+            self.observer is not None
+            and hasattr(
+                self.planet,
+                "snapshot"
+            )
+        ):
+
+            snapshot = self.planet.snapshot()
+
+
+            observation = self.observer.describe(
+                snapshot
+            )
+
+
+            if self.observation_cache:
+
+                change = (
+                    self.observation_cache.step(
+                        snapshot
+                    )
+                )
+
+
+            else:
+
+                change = None
+
+
+
+            signal = {
+
+                "name":"planet",
+
+                "organ":self.planet,
+
+                "state":{
+
+                    "observation":
+                        observation,
+
+                    "change":
+                        change
+
+                }
+
+            }
+
+
+            signals.append(
+                signal
+            )
+
+
+        return signals
+
+    #
+    # compute stage
+    #
+
+    def _compute(
+        self,
+        signals
+    ):
+
+
+        if self.compute is None:
+
+            return None
+
+
+
+        if self.compute.available <= 0:
 
             self.compute.step()
-            
-        #
-        # organs evolution
-        #    
-            
+
+            return None
+
+
+
+        winner = self.compute.select(
+            signals
+        )
+
+
+
+        if winner is not None:
+
+
+            print(
+                "COMPUTE WINNER:",
+                winner["name"]
+            )
+
+
+
+            organ = winner["organ"]
+
+
+
+            if hasattr(
+                organ,
+                "apply_compute"
+            ):
+
+                organ.apply_compute(
+                    1
+                )
+
+
+
+            self.compute.consume(
+                1
+            )
+
+
+
+        self.compute.step()
+
+
+
+        return winner
+
+
+
+
+    #
+    # internal organ evolution
+    #
+
+    def _evolve(
+        self
+    ):
+
+
         for organ in self.organs.values():
+
 
             if hasattr(
                 organ,
                 "step"
             ):
 
+
                 organ.step()
-                
+
+
+
+
+    #
+    # packet sampling
+    #
+
+    def _sample(
+        self
+    ):
+
+
+        if self.transport is None:
+
+            return
+
+
+
         #
-        # sampling phase
-        # 
-        # collect available internal packets
-        #
-        # no attention meaning
-        # no compute winner dependency
+        # organs
         #
 
+        for name, organ in self.organs.items():
 
-        if self.transport is not None:
-
-
-            #
-            # organs sampling
-            #
-
-            for name, organ in self.organs.items():
-
-
-                if hasattr(
-                    organ,
-                    "packet"
-                ):
-
-
-                    packet = organ.packet()
-
-
-                    if packet is not None:
-
-
-                        self.internal_fields[name] = packet
-
-
-                        self.transport.publish(
-                            packet
-                        )
-
-
-
-            #
-            # planet sampling
-            #
 
             if hasattr(
-                self.planet,
+                organ,
                 "packet"
             ):
 
 
-                packet = self.planet.packet()
+                packet = organ.packet()
+
 
 
                 if packet is not None:
 
 
-                    self.internal_fields["planet"] = packet
+                    self.internal_fields[name] = packet
+
 
 
                     self.transport.publish(
                         packet
                     )
-        
+
+
+
         #
-        # planet evolution
-        #        
-                
+        # planet
+        #
+
+        if hasattr(
+            self.planet,
+            "packet"
+        ):
+
+
+            packet = self.planet.packet()
+
+
+
+            if packet is not None:
+
+
+                self.internal_fields[
+                    "planet"
+                ] = packet
+
+
+
+                self.transport.publish(
+                    packet
+                )
+
+
+
+
+    #
+    # planet evolution
+    #
+
+    def _planet_step(
+        self
+    ):
+
+
         if hasattr(
             self.planet,
             "step"
         ):
+
+
             print(
                 "PLANET OBJECT:",
                 type(self.planet)
             )
+
+
             self.planet.step()
 
+
+
+
     #
-    # observer interface
+    # external snapshot
     #
 
-    def snapshot(self):
+    def snapshot(
+        self
+    ):
+
 
         return {
 
+
             "organs":
+
             {
                 name:
+
                     organ.snapshot()
+
                     if hasattr(
                         organ,
                         "snapshot"
                     )
+
                     else None
 
-                for name,organ
+
+                for name, organ
                 in self.organs.items()
+
             },
 
 
             "attention":
+
                 self.last_signals,
-                
+
+
+
             "fields":
-                self.internal_fields,    
-                
+
+                self.internal_fields,
+
+
+
             "planet":
+
                 self.planet.snapshot()
+
                 if hasattr(
                     self.planet,
                     "snapshot"
                 )
-                
-                    
-                
+
                 else None
 
         }
