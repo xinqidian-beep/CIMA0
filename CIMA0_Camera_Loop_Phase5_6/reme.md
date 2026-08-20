@@ -3161,6 +3161,561 @@ finally:
 ********************************************
 ********************************************
 ********************************************
+## Phase5_6 当前总结
+
+这一次调整非常关键，实际上解决的是 CIMA0 里一个核心架构问题：
+
+> **注意力不是由输入产生，而是由内部状态变化产生。**
+
+之前的设计虽然跑通了链路，但是注意力来源错误。
+
+---
+
+# 一、已经确认正确的架构链路
+
+现在系统结构：
+
+```
+Camera
+  |
+  v
+Transport Router
+  |
+  v
+InternalDynamics.receive()
+  |
+  v
+CLIPField.receive()
+  |
+  v
+保存外部扰动
+  |
+  v
+Attention Observation
+  |
+  v
+Compute Allocation
+  |
+  v
+CLIPField.update()
+  |
+  v
+生成内部状态 cloud
+  |
+  v
+比较状态变化
+  |
+  v
+产生 activity
+```
+
+这个方向正确。
+
+---
+
+# 二、发现并修正的问题
+
+## 1. 原始 attention 来源错误
+
+之前：
+
+```python
+self.disturbance += (
+    len(packet.data)
+    /
+    1000000.0
+)
+```
+
+问题：
+
+它代表：
+
+```
+数据量
+```
+
+不是：
+
+```
+状态变化
+```
+
+导致：
+
+```
+摄像头打开
+      |
+      v
+永久高activity
+      |
+      v
+永久占用compute
+```
+
+这类似传统系统：
+
+```
+输入刺激 = 注意力
+```
+
+容易形成外部驱动。
+
+已经删除。
+
+---
+
+# 三、CLIPField 的重新定位
+
+现在明确：
+
+CLIPField 不是动力系统。
+
+它是：
+
+```
+状态器官
+```
+
+类似：
+
+```
+一个缓慢变化的内部场
+```
+
+它没有自己的时间周期。
+
+它不应该：
+
+```
+每帧运行
+```
+
+而应该：
+
+```
+收到扰动
+     |
+     v
+请求资源
+     |
+     v
+更新状态
+     |
+     v
+等待下一次变化
+```
+
+---
+
+# 四、当前 CLIPField 生命周期
+
+正确模型：
+
+```
+receive()
+
+保存camera packet
+
+       |
+       v
+
+activity()
+
+判断是否需要计算
+
+       |
+       v
+
+compute winner
+
+       |
+       v
+
+update()
+
+CLIP forward
+
+       |
+       v
+
+new_cloud
+
+       |
+       v
+
+compare old cloud
+
+       |
+       v
+
+internal_activity
+
+       |
+       v
+
+attention结束
+```
+
+---
+
+# 五、目前最后一个问题
+
+当前日志：
+
+```
+clip {'activity':1.0}
+clip {'activity':1.0}
+clip {'activity':1.0}
+```
+
+说明：
+
+CLIPField 一直认为：
+
+```
+cloud == None
+```
+
+也就是：
+
+状态没有提交。
+
+原因：
+
+`_forward()` 生成：
+
+```python
+new_cloud
+```
+
+但是没有：
+
+```python
+self.cloud = new_cloud
+```
+
+所以：
+
+每次都是：
+
+```
+没有状态
+    |
+    v
+初始化请求
+    |
+    v
+compute
+    |
+    v
+生成状态
+    |
+    v
+丢失
+```
+
+形成循环。
+
+---
+
+# 六、下一步立即修改
+
+## CLIPField._forward()
+
+增加：
+
+```python
+if self.cloud is None:
+
+    self.internal_activity = 1.0
+
+else:
+
+    self.internal_activity = float(
+        np.mean(
+            np.abs(
+                new_cloud -
+                self.cloud
+            )
+        )
+    )
+
+
+#
+# commit state
+#
+
+self.cloud = new_cloud.copy()
+```
+
+这是当前最重要修改。
+
+---
+
+# 七、修改后的预期现象
+
+第一次：
+
+```
+ATTENTION
+
+clip:
+activity 1.0
+
+
+COMPUTE WINNER: clip
+```
+
+生成状态。
+
+---
+
+第二次，如果摄像头静止：
+
+```
+ATTENTION
+
+(empty)
+```
+
+或者：
+
+```
+clip:
+activity 0.000001
+```
+
+---
+
+移动画面：
+
+```
+ATTENTION
+
+clip:
+activity 0.05
+
+COMPUTE WINNER: clip
+```
+
+也就是：
+
+注意力由变化产生。
+
+---
+
+# 八、Observation Cache / Attention Field 后续计划
+
+目前先不要继续扩展。
+
+顺序：
+
+---
+
+## Phase5_6.1 完成 CLIP 状态生命周期
+
+目标：
+
+确认：
+
+```
+状态形成
+↓
+状态保持
+↓
+状态变化
+↓
+注意力产生
+↓
+资源分配
+```
+
+完成。
+
+---
+
+## Phase5_6.2 接入 ObservationCache
+
+现在：
+
+InternalDynamics 里面还有：
+
+```python
+previous_observations
+```
+
+这个以后需要清理。
+
+原因：
+
+它混合了：
+
+* 观察历史
+* 动力状态
+* attention判断
+
+职责重叠。
+
+调整：
+
+```
+ObservationCache
+
+只负责：
+
+snapshot
+↓
+temporary cache
+↓
+compare
+↓
+discard
+```
+
+不保存长期状态。
+
+---
+
+## Phase5_6.3 AttentionField独立化
+
+现在：
+
+```
+organ.activity()
+```
+
+直接生成attention。
+
+未来：
+
+改成：
+
+```
+organ
+ |
+ v
+observation signal
+
+ |
+ v
+
+AttentionField
+
+ |
+ v
+
+resource request
+```
+
+也就是：
+
+器官只报告变化。
+
+AttentionField负责：
+
+竞争。
+
+---
+
+## Phase5_6.4 ComputeSystem最终定位
+
+最终：
+
+Compute不是主动调度。
+
+而是：
+
+```
+attention field
+       |
+       v
+requests
+       |
+       v
+compute allocation
+```
+
+资源耗尽：
+
+自然结束。
+
+这对应你之前提出的：
+
+> 当计算资源分配结束时，自然终止关注。
+
+这个方向是正确的。
+
+---
+
+# 九、目前最大的架构收获
+
+这次实际上确认了 CIMA0 一个核心原则：
+
+传统：
+
+```
+输入
+ |
+ v
+处理
+ |
+ v
+输出
+```
+
+容易变成：
+
+```
+外部控制内部
+```
+
+你的方向：
+
+```
+输入
+ |
+ v
+内部状态形成
+ |
+ v
+内部状态变化
+ |
+ v
+产生注意力
+ |
+ v
+争取资源
+```
+
+变成：
+
+```
+内部状态控制计算
+```
+
+这就是你之前感觉“避免了传统设计缺陷”的地方。
+
+它不是一个持续运行的大脑模型。
+
+更接近：
+
+> 一个由状态变化驱动的、自竞争计算资源的内生系统。
+
+---
+
+下一阶段建议：
+
+**先不要增加算法。**
+
+先完成：
+
+1. CLIPField 状态提交；
+2. 验证 activity 是否自然消失；
+3. 验证运动时重新出现；
+4. 再抽离 ObservationCache 和 AttentionField。
+
+目前 Phase5_6 的核心方向已经基本确定。你现在是在修最后的生命周期细节。
 
 
 
