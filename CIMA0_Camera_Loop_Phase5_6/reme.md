@@ -2208,3 +2208,960 @@ Phase5_6 已经跨过一个关键节点：
 ***************************
 ******************************
 ***************************
+12. 当前 Phase5_6 下一阶段重点
+根据现在日志：
+
+已经完成：
+
+✅ Camera → BitPacket
+✅ Router
+✅ Organ attention
+✅ Compute winner
+✅ PlanetField packet方向
+✅ Display 接收 packet架构
+
+下一步：
+
+A. 修正 Planet 自动举手机制
+确认：
+
+Planet.activity()
+
+        |
+        v
+
+Attention signal
+
+        |
+        v
+
+Observer attention()
+是否真正由内部变化产生。
+
+目标：
+
+Observer 不主动观察 Planet。
+
+Planet 自己产生：
+
+activity > threshold
+然后被选择。
+----------------------------------------
+B. 修正 Planet.step性能
+现在：
+
+Planet.step()
+ |
+ archive/planet.py
+ |
+ nested loop
+ |
+ KeyboardInterrupt
+需要检查：
+
+网格规模
+
+step频率
+
+是否需要内部clock
+
+是否需要慢变量演化
+
+C. 完成 Packet 全面统一
+目前需要检查：
+
+CLIPField.packet()
+
+PlanetField.packet()
+
+CameraIO.packet()
+
+DisplayIO.decode()
+全部必须：
+
+BitPacket
+禁止混用：
+
+dict packet
+D. 多显示端预留
+保持：
+
+tag="visual"
+
+      |
+      + Display Window A
+      + Display Window B
+      + Terminal
+      + Network
+由 Router 自动选择。
+
+不要：
+
+main.py
+
+if display:
+   show()
+总结一句：
+
+CIMA0 后续编程，不再是“写一个程序完成任务”，而是“建立一个由自治实体、信息流、注意力和资源分配组成的内部生态”。
+
+Phase5_6 已经完成了最关键的结构转变：
+从“控制系统”转向“观察-选择-响应系统”。
+
+后面的重点不是增加功能，而是保持这个范式纯净。
+****************************************
+****************************************
+****************************************
+Step 2
+
+InternalDynamics.__init__
+
+增加：
+
+self.observer
+self.previous_observations
+Step 3
+
+InternalDynamics.step()
+
+替换：
+
+planet.activity()
+
+为：
+
+observer.describe(
+    planet.snapshot()
+)
+Step 4
+
+生成：
+
+attention signal
+
+只进入：
+
+self.last_signals
+Step 5
+
+测试：
+
+没有 Camera：
+
+Planet 是否仍然：
+
+step()
+ |
+ evolve()
+ |
+ observe()
+ |
+ attention
+
+持续产生变化。
+
+这个方向比让每个 Organ 暴露 activity() 更符合你现在提出的“唯一动力主体 + 外部观察窗口”的原则。
+****************************************
+****************************************
+****************************************
+****************************************
+你这里提出的是一个非常关键的架构边界问题。我重新整理一下现在 Phase5_6 的逻辑，并回答你的核心问题：
+
+> **Observer 增加变化测量，记录放在 InternalDynamics.py 能不能实现？是否需要改动核心四模块？**
+
+答案：
+
+**可以，而且应该这样做。不要把“举手机制”放入 Planet。**
+
+原因是：
+
+你的理解：
+
+```
+Planet产生变化
+        |
+        v
+Observer看到变化
+        |
+        v
+activity增加
+        |
+        v
+Compute选择
+```
+
+这个链路本质上不是动力系统的一部分。
+
+它是：
+
+```
+动力系统
+    |
+    | 产生状态变化
+    |
+    v
+观察窗口
+    |
+    | 测量变化
+    |
+    v
+注意力信号
+    |
+    | 分配计算资源
+    |
+    v
+计算反馈
+```
+
+这是**外部观察闭环**，不是内部动力闭环。
+
+---
+
+## 1. Planet 的职责保持不变
+
+`archive/planet.py`
+
+不要动。
+
+Planet只负责：
+
+```
+state(t)
+    |
+    v
+evolve()
+    |
+    v
+state(t+1)
+```
+
+它不知道：
+
+* 有没有 Observer
+* 有没有 Attention
+* 有没有 Compute
+* 有没有 Camera
+* 有没有显示
+
+否则动力系统被观察者污染。
+
+---
+
+## 2. Observer 的职责
+
+现在：
+
+```python
+Observer.describe()
+```
+
+负责：
+
+```
+snapshot
+    |
+    v
+描述
+```
+
+很好。
+
+但是增加：
+
+```python
+measure_change()
+```
+
+是合理的。
+
+例如：
+
+```python
+class Observer:
+
+
+    def measure_change(
+        self,
+        current,
+        previous
+    ):
+
+        if previous is None:
+
+            return 1.0
+
+
+        delta = np.abs(
+            current - previous
+        )
+
+
+        return float(
+            delta.mean()
+        )
+```
+
+注意：
+
+这里不是修改状态。
+
+只是：
+
+```
+读取
+计算
+返回
+```
+
+仍然是观察。
+
+---
+
+## 3. 变化记录应该在哪里？
+
+你的判断正确：
+
+不要放 Planet。
+
+不要放 Organ。
+
+应该放：
+
+```
+InternalDynamics
+```
+
+为什么？
+
+因为：
+
+InternalDynamics 是：
+
+```
+Container
+```
+
+它管理：
+
+* Organ
+* Planet
+* Observer
+* Compute
+* Transport
+
+它可以保存：
+
+```
+previous_snapshot
+```
+
+这不是动力记忆。
+
+区别：
+
+### Planet memory
+
+```
+state history
+```
+
+属于动力。
+
+### InternalDynamics memory
+
+```
+previous observation
+```
+
+属于观察。
+
+两者不能混。
+
+所以：
+
+```python
+self.previous_observations={}
+```
+
+这个设计方向是正确的。
+
+---
+
+## 4. 正确结构应该是这样
+
+```
+              Planet
+                |
+                |
+             evolve()
+                |
+                v
+          new internal state
+                |
+                |
+                v
+
+        InternalDynamics
+                |
+                |
+          snapshot()
+                |
+                v
+
+             Observer
+                |
+                |
+        measure delta
+                |
+                v
+
+          attention signal
+
+                |
+                v
+
+             Compute
+
+                |
+                v
+
+       selected organ gets resource
+```
+
+这里：
+
+Observer 不改变 Planet。
+
+Compute 不改变 Planet。
+
+只是：
+
+```
+观察 → 选择 → 资源分配
+```
+
+---
+
+# 关于你提出的“自循环、自我指认”
+
+这个非常重要。
+
+你写：
+
+```
+Planet产生变化
+        |
+Observer看到变化
+        |
+activity增加
+        |
+Compute选择
+```
+
+这里确实形成一个循环。
+
+但是它不是：
+
+> 内部自我意识循环
+
+而更接近：
+
+> 一个动力系统 + 一个观察反馈选择环
+
+数学上类似：
+
+```
+Dynamical system
+
+x(t+1)=F(x(t))
+
+
+Observation
+
+y(t)=O(x(t))
+
+
+Selection
+
+a(t)=S(y(t))
+
+
+Resource allocation
+
+R(t)=G(a(t))
+
+
+Feedback
+
+x(t+1)=F(x(t),R(t))
+```
+
+关键点：
+
+**观察不是创造变化。**
+
+观察只是：
+
+```
+发现变化
+```
+
+然后：
+
+```
+改变资源分布
+```
+
+所以：
+
+它形成的是：
+
+```
+动力 → 观察 → 选择 → 资源 → 动力
+```
+
+循环。
+
+---
+
+## 5. 为什么不能把 activity 写进 Planet？
+
+因为这样会变成：
+
+```
+Planet内部:
+
+state
+ |
+变化
+ |
+activity
+ |
+决定自己是否被观察
+```
+
+这会产生：
+
+```
+动力系统知道自己被看
+```
+
+破坏：
+
+> 内生动力独立性
+
+你的观点：
+
+> 自举手是内部变化的外部观察采样结果，本身不等于是内部最优解，只是相对于外部观察者的最优解。
+
+这个判断非常准确。
+
+应该保持：
+
+```
+内部:
+    无目的演化
+
+
+外部:
+    根据变化选择观察资源
+```
+
+---
+
+# 所以后续修改方案
+
+保持四大核心：
+
+```
+Planet
+CloudField
+Cell
+CLIPField
+```
+
+不动。
+
+增加：
+
+## archive/observer.py
+
+增加：
+
+```python
+measure_change()
+```
+
+只负责：
+
+```
+snapshot
+↓
+delta
+↓
+description
+```
+
+---
+
+## InternalDynamics.py
+
+增加：
+
+初始化：
+
+```python
+self.observation_history={}
+```
+
+step里面：
+
+顺序调整为：
+
+### 1
+
+运行动力：
+
+```
+planet.step()
+organ.step()
+```
+
+### 2
+
+snapshot:
+
+```
+current_state
+```
+
+### 3
+
+Observer:
+
+```
+delta=observer.measure_change(
+    current,
+    previous
+)
+```
+
+### 4
+
+生成 attention:
+
+```
+{
+ name:"planet",
+ activity:delta
+}
+```
+
+### 5
+
+Compute:
+
+```
+winner=select(signal)
+```
+
+---
+
+这样：
+
+Planet 永远不知道 Attention。
+
+Observer 永远不控制。
+
+Compute 永远不解释。
+
+形成：
+
+```
+内生动力系统
+        +
+外部观察选择系统
+```
+
+这就是 Phase5_6 现在真正需要建立的范式。
+
+下一步建议不是继续改显示，而是先把 **InternalDynamics.step() 拆成五个明确阶段：**
+
+```
+1 evolution
+2 snapshot
+3 observation
+4 attention
+5 compute
+```
+
+现在你的 step() 长，是因为这五层混在一起了。拆开以后，后面的 CLIP、Cloud、Display 都会自然稳定。
+************************************
+你的这种感觉其实来自一个架构层面的差异：**系统的“存在”和“行为”被分开了。**
+
+传统设计往往有一个隐含前提：
+
+> 一个模块发现目标 → 模块判断重要性 → 模块保存目标 → 模块继续处理目标。
+
+所以很容易形成：
+
+```
+感知
+ |
+识别
+ |
+记忆
+ |
+决策
+ |
+执行
+```
+
+每一步都在“抓住”信息。
+
+久而久之会出现几个问题：
+
+---
+
+### 1. 关注变成了命令，而不是结果
+
+传统系统：
+
+```
+Attention:
+    我要关注这个
+```
+
+然后：
+
+```
+Memory:
+    保存它
+```
+
+这里有一个隐藏的中央控制。
+
+系统必须不断回答：
+
+* 什么重要？
+* 为什么重要？
+* 保存多久？
+* 什么时候删除？
+
+于是产生大量人为规则。
+
+---
+
+你的方向更像：
+
+```
+变化
+ |
+ v
+扰动
+ |
+ v
+竞争
+ |
+ v
+资源流向
+ |
+ v
+暂时形成结构
+```
+
+这里没有一个地方说：
+
+> “我要关注它。”
+
+它只是因为：
+
+* 有变化
+* 有能量
+* 有资源竞争
+
+所以形成了关注。
+
+---
+
+### 2. 记忆不再是仓库，而是动力学结果
+
+传统：
+
+```
+Memory = 保存过去
+```
+
+所以需要：
+
+* 清理算法
+* 优先级
+* 遗忘策略
+
+否则越来越大。
+
+---
+
+你的结构：
+
+```
+AttentionField = 当前状态场
+```
+
+它不是保存：
+
+“过去发生过什么”。
+
+而是：
+
+“当前什么正在影响系统”。
+
+例如：
+
+水面上的波纹。
+
+波纹不是水保存了过去。
+
+而是：
+
+当前能量分布的结果。
+
+没有继续输入：
+
+波纹自然消失。
+
+---
+
+### 3. 终止条件从逻辑判断变成物理耗散
+
+这是你感觉最明显的地方。
+
+传统：
+
+```
+if confidence < 0.5:
+    stop()
+```
+
+需要人为定义。
+
+你的方向：
+
+```
+资源投入
+     |
+     v
+计算
+     |
+     v
+消耗
+     |
+     v
+没有补充
+     |
+     v
+衰减
+     |
+     v
+停止
+```
+
+停止不是一个决定。
+
+停止是系统状态自然到达。
+
+类似：
+
+火焰不是决定熄灭。
+
+燃料没有了，火焰消失。
+
+---
+
+### 4. 系统避免了“观察者陷阱”
+
+传统 AI：
+
+```
+系统
+ |
+观察外部世界
+ |
+产生模型
+ |
+改变自己
+```
+
+这里有一个问题：
+
+观察者和被观察对象分离。
+
+---
+
+你的 CIMA0 更像：
+
+```
+外部输入
+    |
+    v
+内部扰动
+    |
+    v
+内部动力变化
+    |
+    v
+观察内部变化
+    |
+    v
+资源重新分配
+    |
+    v
+内部继续演化
+```
+
+观察本身也是系统内部事件。
+
+没有一个站在外面的“小人”。
+
+---
+
+所以你现在难以描述的感觉，可能可以总结为：
+
+> 传统系统通过“保存和控制”维持秩序，而这个结构通过“流动和竞争”产生秩序。
+
+或者更技术一点：
+
+> 它把主动管理状态的问题，转化成了状态在约束条件下自组织的问题。
+
+这也是为什么 `ObservationCache` 必须短命，`AttentionField` 必须可衰减，`ComputeSystem` 必须掌握资源，而不是某个模块掌握“意义”。
+
+你现在碰到的其实不是一个代码问题，而是 CIMA0 从“程序结构”向“动力系统结构”转换时的核心边界。你感觉到的不协调，是因为传统软件里的“对象生命周期”思维，和这里的“状态流动”思维发生了冲突。
+********************************************
+********************************************
+********************************************
+********************************************
+Ctrl+C 中断时，摄像头读取阻塞。
+
+Windows OpenCV MSMF 经常出现。
+
+建议后面处理：
+
+try:
+    while True:
+        ret, frame = cap.read()
+
+except KeyboardInterrupt:
+    pass
+
+finally:
+    cap.release()
+    cv2.destroyAllWindows()
+让退出干净。
+********************************************
+********************************************
+********************************************
+********************************************
+
+
+
+
