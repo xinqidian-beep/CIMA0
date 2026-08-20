@@ -9,7 +9,7 @@ class CLIPField:
     """
     CIMA0 Phase5_4
 
-    Internal organ.
+    Internal organ organ.
 
     No knowledge:
 
@@ -32,14 +32,40 @@ class CLIPField:
         weight_path,
         device="cpu"
     ):
-
+        print(
+            "LOAD CLIP:",
+            __file__
+        )
         self.device = device
+        
+        #
+        # state field
+        #
         
         self.cloud = None
         
         self.previous_cloud = None
+
+        self.dynamic = False
+                
+        #
+        # measurement cache
+        # remove previous_cloud
+        #
         
         self.input_packet = None
+        
+        #
+        # state invalidation
+        #
+
+        self.dirty = False
+        
+        #
+        # accumulated disturbance
+        #
+
+        self.disturbance = 0.0
         
         #
         # external input activity
@@ -100,9 +126,8 @@ class CLIPField:
         self.layer_activity = {}
 
         self.structure = {}
-
-
-
+        
+        
         model, _, preprocess = (
             open_clip
             .create_model_and_transforms(
@@ -174,17 +199,21 @@ class CLIPField:
 
 
         self.input_packet = packet
+       
         
-        
+        self.previous_input = None
         #
-        # initial attention signal
+        # invalidate current state
         #
 
-        self.input_activity = (
-            len(packet.data)
-            /
-            1000000.0
-        )
+        self.dirty = True
+
+
+        #
+        # state age reset
+        #
+
+        self.age = 0
         
     #
     # attention signal
@@ -193,44 +222,44 @@ class CLIPField:
     def activity(
         self
     ):
-
+        
         if self.cloud is None:
-            
+
             if self.input_packet is not None:
 
                 return {
 
-                    "activity":
-                        1.0,
+                    "activity":1.0,
 
-                    "age":
-                        self.age,
-
-                    "delta":
-                        1.0
+                    "delta":1.0
 
                 }
 
             return None
-                              
+        
+        print(
+            "CLIP ACTIVITY:",
+        )
+        
+        if self.cloud is None:
+
+            return None
+        
+        if self.internal_activity <= 0:
+
+            return None
+
         return {
 
             "activity":
-                float(
-                    self.internal_activity
-                ),    
+                self.internal_activity,
 
-            "age": 
+            "age":
                 self.age,
 
-            "delta": 
-                float(
-                    self.internal_activity
-                )
-
+            "delta":
+                self.internal_activity
         }
-
-
 
     #
     # compute allocation
@@ -242,23 +271,12 @@ class CLIPField:
     ):
 
         self.compute_budget = amount
+        
 
-
-
-    #
-    # evolution step
-    #
-
-    def step(
+    def update(
         self
     ):
-        
-        self.age += 1
 
-
-        #
-        # no resource
-        #
 
         if self.compute_budget <= 0:
 
@@ -266,8 +284,14 @@ class CLIPField:
 
 
 
+        if not self.dirty:
+
+            return
+
+
+
         if self.input_packet is None:
-            
+
             return
 
 
@@ -276,9 +300,30 @@ class CLIPField:
             self.input_packet
         )
         
+        current = tensor.detach().cpu().numpy()
+
+
+        if self.previous_input is None:
+
+            self.disturbance = 1.0
+
+
+        else:
+
+            self.disturbance = float(
+                np.mean(
+                    np.abs(
+                        current -
+                        self.previous_input
+                    )
+                )
+            )
+
+
+        self.previous_input = current
+        
         if tensor is None:
-            
-            
+
             return
 
 
@@ -287,15 +332,34 @@ class CLIPField:
             tensor
         )
         
+        success = self._forward(
+            tensor
+        )
 
+
+        if not success:
+
+            return
+        
         #
-        # consume budget
+        # consume resource
         #
 
         self.compute_budget = 0
 
 
 
+        #
+        # state becomes valid 
+        #
+
+        self.dirty = False
+        
+        #
+        # accumulated disturbance consumed
+        #
+
+        self.disturbance = 0.0
 
     #
     # decode
@@ -453,11 +517,11 @@ class CLIPField:
 
             self.cloud=None
 
-            return
+            return False
 
 
 
-        self.cloud=np.stack(
+        new_cloud = np.stack(
 
             [
                 self.layers[i]
@@ -472,25 +536,32 @@ class CLIPField:
             np.float32
         )
         
-        if self.previous_cloud is not None:
+        #
+        # compare with previous state
+        #
 
-            delta = np.mean(
-                np.abs(
-                    self.cloud - self.previous_cloud
-                )
-            )
-            self.internal_activity = float(delta)
+        if self.cloud is None:
 
-            print(
-                "CLOUD DELTA:",
-                self.internal_activity
-            )
+            self.internal_activity = 1.0
+
+
         else:
 
-            self.internal_activity = 0.0    
+            self.internal_activity = float(
+                np.mean(
+                    np.abs(
+                        new_cloud -
+                        self.cloud
+                    ) 
+                )
+            )
 
 
-        self.previous_cloud = self.cloud.copy()
+        #
+        # replace state
+        #
+
+        self.cloud = new_cloud
                 
         self.structure={
 
@@ -520,21 +591,15 @@ class CLIPField:
         
         state = self.snapshot()
         
-        if self is None:
+        if self.cloud is None:
 
             return None
-
-
-
-        field = np.asarray(
-            state
-        )
-
-
+            
+        field = self.cloud
 
         return BitPacket(
 
-            source="planet",
+            source="clip",
 
             tag="visual",
 
@@ -549,7 +614,7 @@ class CLIPField:
             meta={
 
                 "representation":
-                    "planetfield"
+                    "multilevel_cloud"
 
             }
 
