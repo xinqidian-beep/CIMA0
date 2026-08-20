@@ -108,15 +108,6 @@ class InternalDynamics:
         self.internal_fields = {}
 
 
-
-        #
-        # observer context
-        #
-
-        self.previous_observations = {}
-
-
-
     #
     # register organ
     #
@@ -160,34 +151,61 @@ class InternalDynamics:
 
 
         signals = self._observe()
-
-
+        
+        #
+        # attention update
+        #
+        
         if self.attention_field:
 
             for signal in signals:
 
-                self.attention_field.receive(
-                    signal["state"].get(
-                        "change"
-                    )
+                change = (
+                    signal["state"]
+                    .get("change")
                 )
+                
+                if change is not None:
 
+                    self.attention_field.receive(
+                        change
+                    )
+        
+        #
+        # read attention state
+        #
+        
+        attention = None
+       
+        if self.attention_field:
 
-        attention = (
-            self.attention_field.snapshot()
-            if self.attention_field
-            else None
-        )
+            attention = (
+                self.attention_field.snapshot()
+            )
 
 
         self.last_signals = attention
+        
+        print(
+            "========== ATTENTION =========="
+        )
 
 
+        for signal in signals:
+
+            print(
+                signal["name"],
+                signal["state"]
+            )
+
+
+        print(
+            "==============================="
+        )
 
         self._compute(
             signals
         )
-
 
         self._evolve()
 
@@ -239,11 +257,16 @@ class InternalDynamics:
     #
     # observation stage
     #
-
-    def _observe(self):
+    def _observe(
+        self
+    ):
 
         signals = []
 
+
+        #
+        # planet observation
+        #
 
         if (
             self.observer is not None
@@ -253,12 +276,20 @@ class InternalDynamics:
             )
         ):
 
-            snapshot = self.planet.snapshot()
 
-
-            observation = self.observer.describe(
-                snapshot
+            snapshot = (
+                self.planet.snapshot()
             )
+
+
+            observation = (
+                self.observer.describe(
+                    snapshot
+                )
+            )
+
+
+            change = None
 
 
             if self.observation_cache:
@@ -270,38 +301,62 @@ class InternalDynamics:
                 )
 
 
-            else:
-
-                change = None
-
-
-
-            signal = {
-
-                "name":"planet",
-
-                "organ":self.planet,
-
-                "state":{
-
-                    "observation":
-                        observation,
-
-                    "change":
-                        change
-
-                }
-
-            }
-
 
             signals.append(
-                signal
+                {
+                    "name":
+                        "planet",
+
+                    "organ":
+                        self.planet,
+
+                    "state":
+                        {
+                            "observation":
+                                observation,
+
+                            "change":
+                                change
+                        }
+                }
             )
 
 
-        return signals
+        #
+        # organs observation
+        #
 
+        for name, organ in self.organs.items():
+
+
+            if hasattr(
+                organ,
+                "activity"
+            ):
+
+
+                state = organ.activity()
+
+
+                if state is not None:
+
+
+                    signals.append(
+                        {
+                            "name":
+                                name,
+
+                            "organ":
+                                organ,
+
+                            "state":
+                                state
+                        }
+                    )
+
+
+        return signals
+    
     #
     # compute stage
     #
@@ -310,8 +365,18 @@ class InternalDynamics:
         self,
         signals
     ):
-
-
+        
+        print(
+            "COMPUTE INPUT:",
+            [
+                (
+                    s["name"],
+                    s["state"]
+                )
+                for s in signals
+            ]
+        )
+        
         if self.compute is None:
 
             return None
@@ -348,15 +413,11 @@ class InternalDynamics:
 
             if hasattr(
                 organ,
-                "apply_compute"
+                "update"
             ):
 
-                organ.apply_compute(
-                    1
-                )
-
-
-
+                organ.update()
+                
             self.compute.consume(
                 1
             )
@@ -384,16 +445,16 @@ class InternalDynamics:
         for organ in self.organs.values():
 
 
-            if hasattr(
+            if getattr(
                 organ,
-                "step"
+                "dynamic",
+                True
             ):
-
-
-                organ.step()
-
-
-
+                if hasattr(
+                    organ,
+                    "step"
+                ):                
+                    organ.step()
 
     #
     # packet sampling
