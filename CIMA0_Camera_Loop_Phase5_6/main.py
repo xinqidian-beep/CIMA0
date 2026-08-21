@@ -212,9 +212,22 @@ def main():
     )
 
 
-
     #
     # Transport route
+    # external visual field enters dynamics
+    #
+
+    transport.subscribe(
+
+        "visual",
+
+        dynamics
+
+    )
+
+
+    #
+    # output visual field to display
     #
 
     transport.subscribe(
