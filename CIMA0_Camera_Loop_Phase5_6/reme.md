@@ -4505,3 +4505,699 @@ InternalDynamics.observe()
 *******************************************
 ******************************************
 *******************************************
+后续修改原则：
+
+不要删除模块。
+
+每次修改只检查三个东西：
+
+1. 谁产生数据？
+
+2. 谁接收数据？
+
+3. 谁消费数据？
+也就是：
+
+producer
+    |
+    |
+receiver
+    |
+    |
+consumer
+*******************************************
+******************************************
+*******************************************
+## 当前状态总结（2026-08-21 16:xx）
+
+这次 Phase5_6 的核心链路已经恢复，而且比之前更接近设计目标。
+
+先确认几个关键点：
+
+---
+
+# 一、已经修复的核心问题
+
+## 1. InternalDynamics 接线完成 ✅
+
+现在：
+
+```python
+dynamics = InternalDynamics(
+
+    planet=planet,
+
+    compute=compute,
+
+    observer=observer,
+
+    observation_cache=observation_cache,
+
+    attention_field=attention_field,
+
+    transport=transport
+)
+```
+
+四个外围模块已经进入动力系统：
+
+```
+Observer
+    |
+    v
+ObservationCache
+    |
+    v
+AttentionField
+    |
+    v
+Transport
+```
+
+这一步是 Phase5_5 → Phase5_6 的主要目标。
+
+---
+
+# 二、Observer / Cache / Signal 分离方向正确 ✅
+
+现在日志：
+
+```
+planet {
+ 'observation':
+ {
+    'planet':
+    {
+       'shape': (128,128),
+       'mean': ...
+       'energy': ...
+    }
+ },
+
+ 'activity': 1.27e-06,
+
+ 'changed': True,
+
+ 'signal':1.27e-06
+}
+```
+
+说明：
+
+现在进入 Compute 的是：
+
+```
+轻量 signal
+```
+
+而不是：
+
+```
+128*128 delta field
+```
+
+这是正确方向。
+
+以前：
+
+```
+Compute
+ |
+ |
+16384 float array
+```
+
+现在：
+
+```
+Compute
+
+planet
+ |
+ activity
+ signal
+ changed
+```
+
+高维数据已经分离。
+
+---
+
+# 三、internal_fields 保留成功 ✅
+
+这个非常重要。
+
+之前讨论过：
+
+> 不能为了轻量化，把高阶功能模块废掉。
+
+现在代码：
+
+```python
+if isinstance(delta, dict):
+
+    self.internal_fields.update(
+        delta
+    )
+```
+
+保留：
+
+```
+ObservationCache
+        |
+        |
+        +---- signal ----> Compute
+
+        |
+        |
+        +---- delta field ----> internal_fields
+```
+
+这是正确架构。
+
+不是删除功能。
+
+而是：
+
+## 信号通道
+
+负责：
+
+```
+选择
+调度
+竞争
+```
+
+## 数据通道
+
+负责：
+
+```
+空间场
+连续场
+显示
+演化
+```
+
+两个通道分离。
+
+---
+
+# 四、CLIPField 恢复工作 ✅
+
+日志：
+
+```
+CLIP RECEIVE (307200,3)
+```
+
+证明：
+
+摄像头：
+
+```
+CameraIO
+
+   |
+
+Transport
+
+   |
+
+InternalDynamics
+
+   |
+
+CLIPField.receive()
+```
+
+恢复。
+
+随后：
+
+```
+clip {'activity':1.0,'delta':1.0}
+```
+
+进入：
+
+```
+Attention
+    |
+Compute
+```
+
+说明 organ 没有被废弃。
+
+之前的问题确实是：
+
+不是 CLIP坏了。
+
+而是：
+
+```
+transport.subscribe()
+```
+
+断掉。
+
+---
+
+# 五、Planet 输出链路成功 ✅
+
+现在：
+
+```
+COMPUTE WINNER: clip
+
+PLANET PACKET CREATED
+
+ROUTER:
+planet visual continuous_field
+
+DISPLAY RECEIVE:
+planet visual continuous_field
+```
+
+说明：
+
+完整链路：
+
+```
+Camera
+ |
+ v
+CLIPField
+ |
+ v
+Attention
+ |
+ v
+Compute
+ |
+ v
+PlanetField
+ |
+ v
+packet
+ |
+ v
+Display
+```
+
+已经闭环。
+
+---
+
+# 六、当前还有几个问题，但不是结构问题
+
+## 问题1：camera packet 同时给 display
+
+现在：
+
+```
+ROUTER: camera visual media.bgr
+CLIP RECEIVE
+DISPLAY RECEIVE
+```
+
+意味着：
+
+摄像头原始画面仍然直接显示。
+
+也就是说：
+
+Display现在收到两个来源：
+
+```
+camera media.bgr
+
+planet continuous_field
+```
+
+这会产生竞争。
+
+目前显示层可能出现：
+
+* 摄像头覆盖 Planet
+* Planet 覆盖摄像头
+* 闪烁
+
+后面需要明确：
+
+Display 的唯一输入应该是什么。
+
+建议：
+
+Phase5_6 保持：
+
+```
+Display
+
+只显示内部状态
+
+不要显示外部输入
+```
+
+即：
+
+```
+camera
+   |
+   v
+CLIP
+   |
+   v
+InternalDynamics
+   |
+   v
+Planet
+   |
+   v
+Display
+```
+
+Camera 不直接进入 Display。
+
+但现在不要改。
+
+先稳定。
+
+---
+
+## 问题2：AttentionField 还没有真正参与选择
+
+现在：
+
+```
+attention_field.receive()
+```
+
+已经存在。
+
+但是：
+
+Compute 使用：
+
+```
+signals
+```
+
+不是：
+
+```
+attention_field.snapshot()
+```
+
+也就是说：
+
+当前：
+
+```
+AttentionField
+
+只是接收变化
+
+没有成为资源场
+```
+
+这是下一阶段。
+
+---
+
+## 问题3：CLIP 权重警告
+
+```
+WARNING:
+No pretrained weights loaded
+Model initialized randomly
+```
+
+这个以前已经发现。
+
+不是 Phase5_6 问题。
+
+现在：
+
+CLIP 是：
+
+```
+随机视觉动力 organ
+```
+
+不是：
+
+```
+语义 CLIP
+```
+
+按照 CIMA0 设计：
+
+其实暂时可以接受。
+
+因为现在需要的是：
+
+```
+内部器官
+```
+
+不是：
+
+```
+分类器
+```
+
+---
+
+# 下一步工作计划
+
+不要继续大改。
+
+现在进入稳定阶段。
+
+---
+
+# Phase5_6.1  数据边界整理
+
+目标：
+
+固定三条通道。
+
+## 1. Signal Channel
+
+保持：
+
+```
+Observer
+
+ ↓
+
+ObservationCache
+
+ ↓
+
+InternalDynamics._observe()
+
+ ↓
+
+Compute
+```
+
+内容：
+
+只允许：
+
+```python
+{
+ activity,
+ changed,
+ signal
+}
+```
+
+禁止：
+
+```
+array
+bytes
+field
+```
+
+---
+
+## 2. Field Channel
+
+保持：
+
+```
+ObservationCache
+
+ ↓
+
+internal_fields
+
+ ↓
+
+packet
+
+ ↓
+
+Display
+```
+
+允许：
+
+```
+numpy field
+```
+
+---
+
+## 3. Media Channel
+
+暂时保留：
+
+```
+Camera
+
+ ↓
+
+CLIP
+```
+
+但准备断开：
+
+```
+Camera -> Display
+```
+
+---
+
+# Phase5_6.2 删除残留代码
+
+清理：
+
+## internal_dynamics.py
+
+检查删除：
+
+* `_measure_change`
+* 旧 observer 逻辑
+* 重复 `_observe`
+* 未使用变量
+
+特别检查：
+
+不要再次出现：
+
+```python
+change
+```
+
+在：
+
+```python
+__init__
+```
+
+里面。
+
+---
+
+# Phase5_6.3 接入 AttentionField
+
+下一步：
+
+不是修改 Planet。
+
+而是：
+
+让：
+
+```
+AttentionField
+```
+
+成为：
+
+```
+Compute
+```
+
+之前的一层。
+
+结构：
+
+现在：
+
+```
+Observer
+ |
+ signals
+ |
+ Compute
+```
+
+未来：
+
+```
+Observer
+ |
+ AttentionField
+ |
+ weighted signals
+ |
+ Compute
+```
+
+---
+
+# 当前版本判断
+
+现在的状态：
+
+```
+Camera
+        |
+        v
+Transport
+        |
+        +------> CLIPField
+        |
+        +------> Display(暂时)
+
+CLIPField
+        |
+        v
+Attention signals
+
+PlanetField
+        |
+        v
+Compute winner
+
+Planet packet
+        |
+        v
+Display
+```
+
+已经从：
+
+> "模块存在"
+
+进入：
+
+> "模块真实交换数据"
+
+这是 Phase5_6 一个重要节点。
+
+下一步建议不要继续扩展功能，先做：
+
+**锁定数据边界 + 清理旧代码 + 确认 Display 单一来源。**
+
+*******************************************
+******************************************
+*******************************************

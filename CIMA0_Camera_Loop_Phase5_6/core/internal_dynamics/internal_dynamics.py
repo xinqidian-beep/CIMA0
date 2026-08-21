@@ -106,8 +106,7 @@ class InternalDynamics:
         #
 
         self.internal_fields = {}
-
-
+        
     #
     # register organ
     #
@@ -297,44 +296,7 @@ class InternalDynamics:
 
         return change
         
-    def _measure_change(
-        self,
-        name,
-        current
-    ):
-
-
-        previous = (
-            self.previous_observations
-            .get(name)
-        )
-
-
-        if previous is None:
-
-            delta = 0.0
-
-
-        else:
-
-            delta = float(
-                np.mean(
-                    np.abs(
-                        current
-                        -
-                        previous
-                    )
-                )
-            )
-
-
-        self.previous_observations[name] = (
-            current.copy()
-        )
-
-
-        return delta
-                
+  
     #
     # observation stage
     #
@@ -359,58 +321,144 @@ class InternalDynamics:
 
 
             snapshot = {
-    
+
                 "planet":
                     self.planet.snapshot()
 
             }
+ 
 
+            #
+            # readonly description
+            #
 
             observation = self.observer.describe(
                 snapshot
             )
 
 
+            #
+            # observation cache
+            #
+
             change = None
 
 
             if self.observation_cache is not None:
 
-                change =( 
+                change = (
                     self.observation_cache.step(
                         snapshot
                     )
                 )
 
 
+            #
+            # preserve high dimensional field
+            #
+            # NOT for compute
+            #
+
+            if change is not None:
+ 
+                if not hasattr(
+                    self,
+                    "internal_fields"
+                ):
+
+                    self.internal_fields = {}
+
+
+                delta = change.get(
+                    "delta"
+                )
+
+
+                if isinstance(
+                    delta,
+                    dict
+                ):
+
+                    self.internal_fields.update(
+                        delta
+                    )
+
+
+
+            #
+            # lightweight attention signal
+            #
+
+            activity = 0.0
+
+
+            if change is not None:
+
+                activity = change.get(
+                    "signal",
+                    0.0
+                )
+
+
 
             signal = {
-              
-                    "name":
-                        "planet",
 
-                    "organ":
-                        self.planet,
+                "name":
+                    "planet",
 
-                    "state":
-                        {
-                            "observation":
-                                observation,
 
-                            "change":
-                                change,
-                                
-                            "activity":
-                                change.get(
-                                    "signal",
-                                    0.0
-                                )   
-                        }
+                "organ":
+                    self.planet,
+
+
+                "state":
+                    {
+
+                        #
+                        # readonly description
+                        #
+
+                        "observation":
+                            observation,
+
+
+                        #
+                        # scalar only
+                        #
+
+
+                        "activity":
+                            activity,
+
+
+                        #
+                        # keep small change info
+                        #
+
+                        "changed":
+                            False
+                            if change is None
+                            else change.get(
+                                "changed",
+                                False
+                            ),
+
+
+                        "signal":
+                            activity
+
+                    }
             }
-            signals.append(signal)
-          
+
+
+            signals.append(
+                signal
+            )
+
+
+
         #
-        # organs observation
+        # organ observation
         #
 
         for name, organ in self.organs.items():
@@ -429,16 +477,22 @@ class InternalDynamics:
 
 
                     signals.append(
+
                         {
+
                             "name":
                                 name,
+
 
                             "organ":
                                 organ,
 
+
                             "state":
                                 state
+
                         }
+
                     )
 
 

@@ -192,7 +192,12 @@ class CLIPField:
         self,
         packet
     ):
-
+        
+        print(
+            "CLIP RECEIVE",
+            packet.shape
+        )
+        
         if packet.tag != "visual":
 
             return
