@@ -47,9 +47,9 @@ class InternalDynamics:
         planet,
         compute=None,
         observer=None,
-        transport=None,
         observation_cache=None,
-        attention_field=None
+        attention_field=None,
+        transport=None
     ):
 
 
@@ -277,24 +277,25 @@ class InternalDynamics:
         ):
 
 
-            snapshot = (
-                self.planet.snapshot()
-            )
+            snapshot = {
+    
+                "planet":
+                    self.planet.snapshot()
+
+            }
 
 
-            observation = (
-                self.observer.describe(
-                    snapshot
-                )
+            observation = self.observer.describe(
+                snapshot
             )
 
 
             change = None
 
 
-            if self.observation_cache:
+            if self.observation_cache is not None:
 
-                change = (
+                change =( 
                     self.observation_cache.step(
                         snapshot
                     )
@@ -302,8 +303,8 @@ class InternalDynamics:
 
 
 
-            signals.append(
-                {
+            signal = {
+              
                     "name":
                         "planet",
 
@@ -316,12 +317,14 @@ class InternalDynamics:
                                 observation,
 
                             "change":
-                                change
+                                change,
+                                
+                            "activity":
+                                0.0 if change is None else 1.0    
                         }
-                }
-            )
-
-
+            }
+            signals.append(signal)
+          
         #
         # organs observation
         #

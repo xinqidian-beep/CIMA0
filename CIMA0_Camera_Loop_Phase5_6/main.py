@@ -1,6 +1,7 @@
 import os
 import cv2
-import time
+
+
 BASE_DIR = os.path.abspath(
     os.path.join(
         os.path.dirname(__file__),
@@ -14,47 +15,95 @@ CLIP_WEIGHT = os.path.join(
     "models",
     "open_clip_pytorch_model.bin"
 )
+
+
 from archive.planet import Planet
+
 from core.internal_dynamics.cloud import PlanetField
 
 from core.internal_dynamics.internal_dynamics import (
     InternalDynamics
 )
 
+
+#
+# readonly observer
+#
+
 from core.observer.internal_dynamics_observer import (
     InternalDynamicsObserver
 )
+
+
+#
+# observation system
+#
+
+from core.internal_dynamics.cache.observation_cache import (
+    ObservationCache
+)
+
+from core.internal_dynamics.attention.attention_field import (
+    AttentionField
+)
+
+
+#
+# compute
+#
 
 from core.compute_system.compute_system import (
     ComputeSystem
 )
 
+
+#
+# io
+#
+
 from core.io.display_io import (
     DisplayIO
 )
+
 
 from core.io.transport import (
     TransportRouter
 )
 
+
+#
+# camera
+#
+
 from core.terminal.camera import (
     CameraPlanet
 )
+
+
 from core.terminal.camera.camera_io import (
     CameraIO
 )
+
+
+#
+# organ
+#
 
 from core.internal_dynamics.organs.clip_field import (
     CLIPField
 )
 
+
+
 def main():
 
 
     print("=" * 60)
+
     print(
-        "CIMA0 Phase5_5 Internal Dynamics Loop"
+        "CIMA0 Phase5_6 Internal Dynamics Loop"
     )
+
     print("=" * 60)
 
 
@@ -62,21 +111,20 @@ def main():
     #
     # Planet
     #
-    # base internal dynamical space
-    #
 
     planet_rule = Planet(
         size=128
     )
-    
+
+
     planet = PlanetField(
         planet_rule
     )
-    
+
+
+
     #
-    # Compute system
-    #
-    # independent resource allocator
+    # Compute
     #
 
     compute = ComputeSystem(
@@ -86,18 +134,7 @@ def main():
 
 
     #
-    # Internal Dynamics
-    #
-
-    dynamics = InternalDynamics(
-        planet=planet,
-        compute=compute
-    )
-
-
-    
-    #
-    # readonly observer
+    # Observer
     #
 
     observer = InternalDynamicsObserver()
@@ -105,28 +142,67 @@ def main():
 
 
     #
-    # display port
+    # Observation cache
     #
 
-    display = DisplayIO()
-    
+    observation_cache = ObservationCache()
+
+
+
     #
-    # information transport
+    # Attention
+    #
+
+    attention_field = AttentionField()
+
+
+
+    #
+    # Transport
     #
 
     transport = TransportRouter()
-    
+
+
+
     #
-    # Internal organ
+    # Internal Dynamics
     #
-    # CLIPField is not vision here.
+
+    dynamics = InternalDynamics(
+
+        planet=planet,
+
+        compute=compute,
+
+        observer=observer,
+
+        observation_cache=observation_cache,
+
+        attention_field=attention_field,
+
+        transport=transport
+
+    )
+
+
+
     #
-    # It is an evolved internal organ.
+    # Display
+    #
+
+    display = DisplayIO()
+
+
+
+    #
+    # CLIP organ
     #
 
     clip_field = CLIPField(
-        weight_path=
-        CLIP_WEIGHT
+
+        weight_path=CLIP_WEIGHT
+
     )
 
 
@@ -134,25 +210,30 @@ def main():
         "clip",
         clip_field
     )
-    
+
+
+
     #
-    # transport connection
+    # Transport route
     #
 
     transport.subscribe(
+
         "visual",
-        dynamics
+
+        display
+
     )
-    
+
+
+
     #
-    # camera io adapter
+    # Camera IO
     #
 
     camera_io = CameraIO()
-    
-    #
-    # external boundary
-    #
+
+
 
     camera_planet = CameraPlanet()
 
@@ -163,8 +244,11 @@ def main():
     #
 
     cap = cv2.VideoCapture(
+
         0,
+
         cv2.CAP_DSHOW
+
     )
 
 
@@ -179,6 +263,10 @@ def main():
         )
 
 
+
+    #
+    # main loop
+    #
 
     while True:
 
@@ -199,7 +287,7 @@ def main():
 
 
         #
-        # external packet
+        # external input
         #
 
         if camera_available:
@@ -208,40 +296,30 @@ def main():
             ret, frame = cap.read()
 
 
-            if not ret or frame is None:
 
-                print(
-                    "camera frame unavailable"
-                )
+            if ret and frame is not None:
 
-            else:
-
-                #
-                # camera state
-                #
 
                 camera_state = {
-                    "field": frame.reshape(
-                        -1,
-                        3
-                    )
+
+                    "field":
+                        frame.reshape(
+                            -1,
+                            3
+                        )
+
                 }
 
 
-                #
-                # camera local io
-                #
 
                 packet = camera_io.encode(
                     camera_state
                 )
 
 
-                #
-                # publish information
-                #
 
                 if packet is not None:
+
 
                     transport.publish(
                         packet
@@ -250,7 +328,7 @@ def main():
 
 
         #
-        # internal clock
+        # internal evolution
         #
 
         dynamics.step()
@@ -258,27 +336,31 @@ def main():
 
 
         #
-        # snapshot
+        # display
         #
 
         snapshot = dynamics.snapshot()
-        
-        #
-        # observer
-        #
 
-        read_state = observer.observe(
-            snapshot
-        )
-        
-        
-        
-        
-            
-        
+
+        if snapshot is not None:
+
+            if display.frame is not None:
+
+                cv2.imshow(
+                    "CIMA0",
+                    display.frame
+                )
+
+
+
+    #
+    # shutdown
+    #
+
     if camera_available:
 
         cap.release()
+
 
 
     cv2.destroyAllWindows()

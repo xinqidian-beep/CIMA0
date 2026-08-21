@@ -31,11 +31,11 @@ core/internal_dynamics/
 
     internal_dynamics.py
 
-    attention/
+    attention/attention_field.py
 
-    cache/
+    cache/observation_cache.py
 
-    cloud/
+    cloud/Planetfield.py
 
-    organs/		
+    organs/clip_field.py		
 		

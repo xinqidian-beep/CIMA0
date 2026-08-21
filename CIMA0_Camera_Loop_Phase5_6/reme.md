@@ -3716,7 +3716,792 @@ compute allocation
 4. 再抽离 ObservationCache 和 AttentionField。
 
 目前 Phase5_6 的核心方向已经基本确定。你现在是在修最后的生命周期细节。
+***************************************************************
+**************************************************************
+**************************************************************
+***************************************************************
+## Phase5_6 当前架构复核结论（2026-08-21 14:05）
 
+这次复核非常重要。
 
+结论：
 
+**方向正确，但实现处于“半迁移状态”。**
 
+也就是说：
+
+旧架构：
+
+```
+main.py
+ |
+ |-- InternalDynamicsObserver
+ |
+ |-- 单独观察
+ |
+ |-- 单独输出
+```
+
+和新架构：
+
+```
+InternalDynamics
+ |
+ |-- Observer
+ |-- ObservationCache
+ |-- AttentionField
+ |-- Transport
+ |
+ |-- observation
+ |-- attention
+ |-- compute
+ |-- sampling
+```
+
+目前同时存在。
+
+所以系统可以运行，但是：
+
+> 新设计的权力结构没有真正接管执行链。
+
+---
+
+# 当前主要问题排序
+
+## P0：先完成接线（最高优先级）
+
+目标：
+
+让新的内部观察链真正运行。
+
+当前：
+
+```python
+dynamics = InternalDynamics(
+    planet=planet,
+    compute=compute
+)
+```
+
+改成：
+
+```python
+dynamics = InternalDynamics(
+    planet=planet,
+    compute=compute,
+    observer=observer,
+    observation_cache=observation_cache,
+    attention_field=attention_field,
+    transport=transport
+)
+```
+
+---
+
+但是这里需要注意：
+
+不是简单传进去。
+
+需要先确认：
+
+## 1. InternalDynamics.**init**
+
+目前：
+
+```python
+def __init__(
+    self,
+    planet,
+    compute=None,
+    observer=None,
+    transport=None
+):
+```
+
+需要扩展：
+
+```python
+def __init__(
+    self,
+    planet,
+    compute=None,
+    observer=None,
+    observation_cache=None,
+    attention_field=None,
+    transport=None
+):
+```
+
+增加：
+
+```python
+self.observation_cache = observation_cache
+
+self.attention_field = attention_field
+```
+
+---
+
+完成后验证：
+
+运行时：
+
+应该看到：
+
+```
+ATTENTION SIGNALS:
+
+planet {...}
+
+clip {...}
+```
+
+而不是只有：
+
+```
+clip
+```
+
+---
+
+# P1：清理 Observer 双轨制
+
+现在：
+
+存在：
+
+```
+core/observer/InternalDynamicsObserver
+```
+
+和：
+
+```
+archive/observer.py
+```
+
+两个观察体系。
+
+必须停止双轨。
+
+目标结构：
+
+```
+Planet
+ |
+ |
+snapshot()
+ |
+ v
+Observer
+ |
+ v
+Observation
+ |
+ v
+ObservationCache
+ |
+ v
+change
+ |
+ v
+AttentionField
+```
+
+---
+
+动作：
+
+## main.py 删除：
+
+类似：
+
+```python
+observer.observe(snapshot)
+```
+
+这种循环外观察。
+
+原因：
+
+观察权应该属于：
+
+```python
+InternalDynamics
+```
+
+不是 main loop。
+
+---
+
+main.py 只负责：
+
+```
+输入
+运行
+显示
+```
+
+不要参与认知链。
+
+---
+
+# P2：删除旧观察残留代码
+
+## 删除或冻结：
+
+```python
+_measure_change()
+```
+
+原因：
+
+现在职责已经迁移：
+
+以前：
+
+```
+InternalDynamics
+ |
+ previous_observations
+ |
+ compare
+```
+
+现在：
+
+```
+ObservationCache
+ |
+ compare
+```
+
+所以：
+
+删除：
+
+```python
+self.previous_observations
+```
+
+以及：
+
+```python
+_measure_change()
+```
+
+避免未来误调用。
+
+---
+
+# P3：统一 Signal 协议
+
+现在：
+
+Planet:
+
+```python
+{
+ "change":xxx
+}
+```
+
+CLIP:
+
+```python
+{
+ "delta":xxx
+}
+```
+
+这是架构问题。
+
+必须统一。
+
+建议：
+
+所有内部实体输出：
+
+```
+Signal
+```
+
+统一：
+
+```python
+{
+    "name":"clip",
+
+    "organ":clip,
+
+    "state":
+    {
+        "activity":0.02,
+
+        "change":0.02
+    }
+}
+```
+
+也就是：
+
+取消：
+
+```
+delta
+```
+
+统一：
+
+```
+change
+```
+
+原因：
+
+AttentionField 不应该知道：
+
+* Planet叫什么
+* CLIP叫什么
+
+它只接受：
+
+```
+变化量
+```
+
+---
+
+# P4：AttentionField接入
+
+现在先不要设计复杂算法。
+
+第一版：
+
+纯竞争。
+
+输入：
+
+```
+signals
+```
+
+输出：
+
+```
+winner
+```
+
+规则：
+
+```python
+max(change)
+```
+
+即可。
+
+不要加入：
+
+* 学习
+* 权重
+* 长期记忆
+
+因为现在验证的是：
+
+```
+注意力产生机制
+```
+
+不是智能。
+
+---
+
+# P5：重新定义 ObservationCache
+
+这里非常关键。
+
+你的理解：
+
+> 用后即弃，避免长期演化为唯一来源。
+
+保留。
+
+所以：
+
+ObservationCache:
+
+不是：
+
+```
+memory
+```
+
+而是：
+
+```
+measurement window
+```
+
+职责：
+
+```
+snapshot(t)
+
+保存
+
+snapshot(t+1)
+
+compare
+
+return change
+
+discard
+```
+
+不能：
+
+* 控制动力
+* 修改状态
+* 保存历史轨迹
+
+---
+
+# P6：重新整理 InternalDynamics.step()
+
+目标顺序：
+
+现在文档和代码不一致。
+
+最终：
+
+应该：
+
+```
+step()
+
+1.
+collect observation
+
+2.
+cache compare
+
+3.
+generate attention signals
+
+4.
+attention selection
+
+5.
+compute allocation
+
+6.
+organ update
+
+7.
+planet evolve
+
+8.
+sample output
+```
+
+也就是：
+
+观察发生在演化之前。
+
+---
+
+目前代码：
+
+```
+observe
+
+compute
+
+organ evolve
+
+sample
+
+planet step
+```
+
+基本正确。
+
+但是缺：
+
+```
+attention_field
+observation_cache
+```
+
+---
+
+# P7：CLIPField生命周期确认
+
+这个方向已经明确。
+
+最终：
+
+CLIPField：
+
+不是：
+
+```
+camera processor
+```
+
+而是：
+
+```
+visual state organ
+```
+
+生命周期：
+
+```
+receive disturbance
+
+↓
+
+wait
+
+↓
+
+request compute
+
+↓
+
+generate state
+
+↓
+
+compare old/new
+
+↓
+
+produce activity
+
+↓
+
+rest
+```
+
+没有自己的周期。
+
+---
+
+# 推荐执行顺序
+
+不要同时改。
+
+按照：
+
+## 第一步（现在）
+
+### 接线
+
+完成：
+
+* observer
+* observation_cache
+* attention_field
+* transport
+
+进入 InternalDynamics。
+
+---
+
+## 第二步
+
+验证：
+
+输出：
+
+```
+planet signal
+
+clip signal
+
+attention winner
+```
+
+---
+
+## 第三步
+
+清理：
+
+删除：
+
+* main.py旧observer
+* _measure_change
+* previous_observations
+
+---
+
+## 第四步
+
+统一：
+
+Signal协议：
+
+全部：
+
+```python
+change
+```
+
+---
+
+## 第五步
+
+完善 AttentionField。
+
+---
+
+## 第六步
+
+继续观察：
+
+CLIPField 是否：
+
+静止：
+
+```
+无attention
+```
+
+变化：
+
+```
+重新竞争compute
+```
+
+---
+
+# 当前阶段判断
+
+Phase5_6 已经不是算法问题。
+
+现在主要是：
+
+**架构迁移问题。**
+
+核心思想已经稳定：
+
+```
+动力系统
+    ↓
+产生状态
+
+观察系统
+    ↓
+测量变化
+
+注意力系统
+    ↓
+请求资源
+
+计算系统
+    ↓
+给予机会
+
+状态器官
+    ↓
+更新自身
+```
+
+下一步不要继续增加模块。
+
+先完成这次“权力迁移”的接线，让新架构真正接管运行。
+********************************************************************
+********************************************************************
+********************************************************************
+********************************************************************
+固定三个协议
+1. Observation Snapshot
+给：
+
+Observer
+ObservationCache
+Attention
+格式：
+
+{
+ "planet":
+ {
+    "state": ndarray
+ },
+
+ "organs":
+ {
+    "clip":
+    {
+       "activity":,
+       "delta":
+    }
+ }
+}
+只描述。
+
+2. State Packet
+给：
+
+Transport
+Display
+External
+格式：
+
+BitPacket(
+    tag,
+    data,
+    shape,
+    dtype
+)
+只传输。
+
+3. Internal State
+器官内部：
+
+CLIPField
+PlanetField
+CloudField
+自己管理。
+
+现在混乱的原因：
+
+Planet.snapshot()
+
+和：
+
+InternalDynamics.snapshot()
+
+名字一样。
+
+但是意义不同。
+
+应该以后改名：
+
+例如：
+
+PlanetField.observe_state()
+和：
+
+InternalDynamics.observe()
+避免误用。
+
+所以现在不要砍 ObservationCache。
+
+正确路线：
+
+保留当前 ObservationCache 高阶能力
+
+增加递归 diff
+
+增加递归 magnitude
+
+固定 snapshot 协议
+
+最后再整理 Display packet
+*******************************************
+******************************************
+*******************************************

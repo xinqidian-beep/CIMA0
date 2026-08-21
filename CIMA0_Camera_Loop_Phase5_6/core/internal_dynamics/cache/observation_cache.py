@@ -139,10 +139,8 @@ class ObservationCache:
 
 
 
-        signal = float(
-            np.mean(
-                np.abs(delta)
-            )
+        signal = self._magnitude(
+            delta
         )
 
 
@@ -244,6 +242,39 @@ class ObservationCache:
 
 
         for key in keys:
+            
+            old = a[key]
+
+            new = b[key]
+
+
+            #
+            # recursive structure
+            #
+
+            if (
+                isinstance(old, dict)
+                and
+                isinstance(new, dict)
+            ):
+
+                sub = self._dict_difference(
+                    old,
+                    new
+                )
+
+                if len(sub)>0:
+
+                    result[key]=sub
+
+
+                continue
+
+
+
+            #
+            # numeric field
+            #
 
             try:
 
@@ -259,9 +290,44 @@ class ObservationCache:
 
 
         return result
+        
+    def _magnitude(
+        self,
+        value
+    ):
+
+        if isinstance(
+            value,
+            dict
+        ):
+
+            values=[]
+
+            for v in value.values():
+
+                values.append(
+                    self._magnitude(v)
+                )
+
+            if len(values)==0:
+
+                return 0.0
+
+            return max(values)
 
 
+        try:
 
+            return float(
+                np.mean(
+                    np.abs(value)
+                )
+            )
+
+        except Exception:
+
+            return 0.0    
+        
     def _copy(
         self,
         data
