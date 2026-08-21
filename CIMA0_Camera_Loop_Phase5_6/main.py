@@ -214,12 +214,12 @@ def main():
 
     #
     # Transport route
-    # external visual field enters dynamics
+    # external camera_raw field enters dynamics
     #
 
     transport.subscribe(
 
-        "visual",
+        "camera_raw",
 
         dynamics
 

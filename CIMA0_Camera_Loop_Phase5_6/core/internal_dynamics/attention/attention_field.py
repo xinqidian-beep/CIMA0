@@ -48,16 +48,15 @@ class AttentionField:
         self.threshold = threshold
 
 
+        self.fields = {}
+
+
         if shape is not None:
 
-            self.field = np.zeros(
+            self.fields["default"] = np.zeros(
                 shape,
                 dtype=np.float32
             )
-
-        else:
-
-            self.field = None
 
 
 
@@ -83,31 +82,51 @@ class AttentionField:
             return
 
 
+        source = signal.get(
+            "source",
+            "unknown"
+        )
+        
+        #
+        # old spatial mode
+        #
+
         delta = signal.get(
             "delta"
         )
-
-
+        
         if delta is None:
 
-            self.decay()
+            intensity = self._extract_intensity(
+                delta
+            )
+
+
+            self._update_source(
+                source,
+                intensity
+            )
+
+            return
+
+        #
+        # new envelope mode
+        #
+
+        activity = signal.get(
+            "signal",
+            0.0
+        )
+
+
+        if activity <= 0:
 
             return
 
 
-
-        intensity = self._extract_intensity(
-            delta
-        )
-
-
-        self._ensure_shape(
-            intensity.shape
-        )
-
-
-        self._update(
-            intensity
+        self._update_scalar(
+            source,
+            activity
         )
 
 
@@ -130,14 +149,15 @@ class AttentionField:
         Read-only output.
         """
 
-        if self.field is None:
+        result = {}
 
-            return None
+        for name, field in self.fields.items():
 
+            result[name] = np.copy(
+                field
+            )
 
-        return np.copy(
-            self.field
-        )
+        return result
 
 
 
@@ -157,12 +177,22 @@ class AttentionField:
     # internal
     #
 
-    def _update(
+    def _update_source(
         self,
+        source,
         intensity
     ):
 
-        self.field *= self.decay_rate
+        self._ensure_shape(
+            source,
+            intensity.shape
+        )
+
+
+        field = self.fields[source]
+
+
+        field *= self.decay_rate
 
 
         active = (
@@ -170,35 +200,60 @@ class AttentionField:
             >
             self.threshold
         )
-
-
-        self.field[active] += (
+        
+        field[active] += (
             intensity[active]
             *
             self.growth_rate
         )
-
-
-        self.field = np.clip(
-            self.field,
+        
+        self.field[source] = np.clip(
+            field,
             0.0,
             1.0
         )
+        
+    def _update_scalar(
+        self,
+        source,
+        value
+    ):
+
+        if source not in self.fields:
+
+            self.fields[source] = np.zeros(
+                1,
+                dtype=np.float32
+            )
 
 
+        field = self.fields[source]
+
+
+        field *= self.decay_rate
+
+
+        field[0] += (
+            value *
+            self.growth_rate
+        )
+
+
+        self.fields[source] = np.clip(
+            field,
+            0.0,
+            1.0
+        )    
 
     def decay(
         self
     ):
 
-        if self.field is None:
+        for source in self.fields:
 
-            return
-
-
-        self.field *= (
-            self.decay_rate
-        )
+            self.field[source] *= (
+                self.decay_rate
+            )
 
 
 
@@ -241,20 +296,26 @@ class AttentionField:
 
     def _ensure_shape(
         self,
+        source,
         shape
     ):
 
-        if self.field is None:
+        if source not in self.fields:
 
-            self.field = np.zeros(
+            self.field[source] = np.zeros(
                 shape,
                 dtype=np.float32
             )
 
 
-        elif self.field.shape != shape:
+        elif self.field[source].shape != shape:
+            
+            #
+            # source changed shape
+            # recreate only this source
+            #
 
-            self.field = np.zeros(
+            self.field[source] = np.zeros(
                 shape,
                 dtype=np.float32
             )

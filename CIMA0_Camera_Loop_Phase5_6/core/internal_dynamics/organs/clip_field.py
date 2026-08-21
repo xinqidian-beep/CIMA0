@@ -193,12 +193,7 @@ class CLIPField:
         packet
     ):
         
-        print(
-            "CLIP RECEIVE",
-            packet.shape
-        )
-        
-        if packet.tag != "visual":
+        if packet.source != "camera":
 
             return
 
@@ -206,7 +201,6 @@ class CLIPField:
         self.input_packet = packet
        
         
-        self.previous_input = None
         #
         # invalidate current state
         #
@@ -227,29 +221,47 @@ class CLIPField:
     def activity(
         self
     ):
-        
+        """
+        Unified organ signal envelope.
+
+        Lightweight only.
+
+        No visual field.
+        No embedding.
+        No tensor.
+
+        """
         if self.cloud is None:
 
             if self.input_packet is not None:
 
                 return {
 
-                    "activity":1.0,
+                    "activity":
+                        1.0,
 
-                    "delta":1.0
+                    "signal":
+                        1.0,
+
+                    "changed":
+                        True,
+
+                    "source":
+                        "clip"
 
                 }
-
+                                
             return None
+        
+        #
+        # debug
+        #
         
         print(
             "CLIP ACTIVITY:",
+            self.internal_activity
         )
-        
-        if self.cloud is None:
-
-            return None
-        
+                
         if self.internal_activity <= 0:
 
             return None
@@ -258,12 +270,20 @@ class CLIPField:
 
             "activity":
                 self.internal_activity,
+                
+            "signal":
+                self.internal_activity,    
+                
+            "changed":
+                True,
 
+
+            "source":
+                "clip",
+            
             "age":
                 self.age,
-
-            "delta":
-                self.internal_activity
+            
         }
 
     #
