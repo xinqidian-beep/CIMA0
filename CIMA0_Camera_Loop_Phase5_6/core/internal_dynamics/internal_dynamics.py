@@ -167,9 +167,14 @@ class InternalDynamics:
                 
                 if change is not None:
 
-                    self.attention_field.receive(
+                    attention_signal = self._extract_attention_signal(
                         change
                     )
+                    if attention_signal is not None:
+
+                        self.attention_field.receive(
+                            attention_signal
+                        )
         
         #
         # read attention state
@@ -214,8 +219,84 @@ class InternalDynamics:
 
 
         self._planet_step()
-    
-    
+
+    def _extract_attention_signal(
+        self,
+        change
+    ):
+
+        if change is None:
+
+            return None
+
+
+        if not isinstance(
+            change,
+            dict
+        ):
+
+            return None
+
+
+
+        delta = change.get(
+            "delta"
+        )
+
+
+        if delta is None:
+
+            return None
+
+
+
+        #
+        # higher level structure
+        #
+
+        if isinstance(
+            delta,
+            dict
+        ):
+
+            #
+            # choose active field
+            #
+            for key,value in delta.items():
+
+                if isinstance(
+                    value,
+                    np.ndarray
+                ):
+
+                    return {
+
+                        "changed":
+                            True,
+
+                        "delta":
+                            value,
+
+                        "signal":
+                            float(
+                                np.mean(
+                                    np.abs(value)
+                                )
+                            )
+
+                    }
+
+
+            return None
+
+
+
+        #
+        # already field
+        #
+
+        return change
+        
     def _measure_change(
         self,
         name,
@@ -320,7 +401,10 @@ class InternalDynamics:
                                 change,
                                 
                             "activity":
-                                0.0 if change is None else 1.0    
+                                change.get(
+                                    "signal",
+                                    0.0
+                                )   
                         }
             }
             signals.append(signal)
