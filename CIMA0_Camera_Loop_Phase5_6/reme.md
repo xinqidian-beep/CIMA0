@@ -5201,3 +5201,667 @@ Display
 *******************************************
 ******************************************
 *******************************************
+## Phase5_6 当前总结
+
+这一次迭代是一个比较关键的阶段，主要不是增加功能，而是**把之前被误连、误混的数据通道重新整理清楚**。目前整体状态：
+
+---
+
+# 一、已经完成的关键修复
+
+## 1. Camera → CLIPField 数据链恢复 ✅
+
+之前的问题：
+
+```
+Camera
+  |
+  v
+Transport
+  |
+  v
+Display
+
+(CLIP断开)
+```
+
+现在恢复为：
+
+```
+Camera
+   |
+   v
+camera_raw
+   |
+   +----------------+
+   |                |
+   v                v
+CLIPField        Display(可选)
+```
+
+日志确认：
+
+```
+ROUTER: camera camera_raw media.bgr
+CLIP RECEIVE (307200, 3)
+```
+
+说明：
+
+* CameraIO 正常编码
+* TransportRouter 正常路由
+* CLIPField.receive() 正常触发
+
+这是一个真正的数据链恢复。
+
+---
+
+# 二、Planet 内部动力链已经打通 ✅
+
+当前链路：
+
+```
+Planet
+  |
+snapshot
+  |
+InternalDynamicsObserver
+  |
+ObservationCache
+  |
+change signal
+  |
+ComputeSystem
+  |
+Planet winner
+  |
+PlanetField evolve
+  |
+packet
+  |
+Display
+```
+
+日志：
+
+```
+COMPUTE WINNER: planet
+
+PLANET PACKET CREATED
+
+ROUTER: planet visual continuous_field
+
+DISPLAY RECEIVE: planet visual continuous_field
+```
+
+说明：
+
+Planet 不再只是内部变量。
+
+它已经：
+
+* 被观察
+* 被计算
+* 被采样
+* 被输出
+
+---
+
+# 三、显示效果确认
+
+现在显示：
+
+> 黑白灰渐变地形 / 云层 / 缓慢变化 / 有深度感
+
+这个现象非常重要。
+
+说明：
+
+不是摄像头直接显示。
+
+而是：
+
+```
+camera disturbance
+
+        ↓
+
+PlanetField dynamics
+
+        ↓
+
+continuous_field packet
+
+        ↓
+
+Display
+```
+
+产生了内部场演化。
+
+换句话说：
+
+Phase5_6 已经第一次出现：
+
+**外部扰动 → 内部动力 → 自主连续场 → 可观察输出**
+
+这是架构目标。
+
+---
+
+# 四、这次重构过程中确认没有废弃的模块
+
+之前担心：
+
+> 是不是把扩展功能模块慢慢改没了？
+
+检查结果：
+
+没有。
+
+目前：
+
+## ObservationCache
+
+保留：
+
+```
+snapshot
+ |
+cache
+ |
+compare
+ |
+change signal
+```
+
+职责清晰。
+
+## AttentionField
+
+保留：
+
+```
+signal
+ |
+attention
+ |
+decay
+ |
+field
+```
+
+没有被删除。
+
+## CLIPField
+
+保留：
+
+```
+camera
+ |
+receive
+ |
+internal state
+ |
+activity
+```
+
+只是 envelope 需要统一。
+
+## PlanetField
+
+没有改变核心：
+
+仍然：
+
+```
+Planet rule
+       +
+disturbance
+       |
+       v
+PlanetField
+```
+
+---
+
+# 五、当前剩余问题
+
+## 1. Organ signal envelope 还需要完成
+
+现在：
+
+Planet:
+
+```python
+{
+ activity,
+ signal,
+ changed
+}
+```
+
+CLIP:
+
+还存在：
+
+```python
+{
+ activity,
+ delta
+}
+```
+
+需要统一：
+
+最终：
+
+```python
+{
+    "activity": float,
+
+    "signal": float,
+
+    "changed": bool,
+
+    "source": str
+}
+```
+
+注意：
+
+这不是降低功能。
+
+只是统一接口。
+
+高维数据：
+
+继续放：
+
+```
+internal_fields
+```
+
+不要进入 attention / compute。
+
+---
+
+# 2. AttentionField 多源化未完成
+
+现在：
+
+```
+AttentionField
+
+    |
+    planet
+```
+
+目标：
+
+```
+              planet
+                 |
+clip ---- AttentionField ---- organs
+                 |
+                 v
+          attention state
+```
+
+保持：
+
+```
+receive()
+step()
+```
+
+不要增加：
+
+```
+update()
+```
+
+因为：
+
+AttentionField 自己负责演化。
+
+---
+
+# 3. AttentionField shape 问题未修
+
+当前：
+
+```python
+elif self.field.shape != shape:
+
+    self.field=np.zeros(shape)
+```
+
+问题：
+
+如果：
+
+Planet:
+
+```
+128x128
+```
+
+CLIP:
+
+```
+其它尺寸
+```
+
+切换：
+
+会清空 attention。
+
+应该改成：
+
+保留原功能：
+
+不是删除机制。
+
+方向：
+
+增加多源 storage：
+
+例如：
+
+```python
+self.fields = {
+
+    "planet": ndarray,
+
+    "clip": ndarray
+
+}
+```
+
+而不是：
+
+一个 field 强行承载所有来源。
+
+这样：
+
+原来的：
+
+* decay
+* growth
+* threshold
+
+全部保留。
+
+---
+
+# 4. Camera tag 已完成分离
+
+现在：
+
+以前：
+
+```
+visual
+```
+
+混合：
+
+```
+camera
+planet
+clip
+```
+
+现在：
+
+```
+camera_raw
+
+visual
+```
+
+更合理。
+
+避免：
+
+Display收到：
+
+摄像头
+
+和
+
+内部状态
+
+混在一起。
+
+---
+
+# 5. _measure_change 删除
+
+计划：
+
+删除：
+
+```python
+_measure_change()
+```
+
+删除：
+
+```python
+previous_observations
+```
+
+如果无引用。
+
+唯一变化源：
+
+```
+ObservationCache
+```
+
+---
+
+# 六、下一阶段计划
+
+按照风险最低顺序：
+
+---
+
+## Phase5_6.1
+
+### 1. 完成 Organ Envelope
+
+修改：
+
+```
+clip_field.py
+```
+
+只改：
+
+```python
+activity()
+```
+
+输出：
+
+```python
+{
+ activity,
+ signal,
+ changed,
+ source
+}
+```
+
+不动：
+
+* receive
+* cloud
+* visual processing
+
+---
+
+## Phase5_6.2
+
+### 2. AttentionField 多源化
+
+目标：
+
+保持：
+
+```
+receive()
+step()
+snapshot()
+```
+
+增加：
+
+内部：
+
+```python
+self.fields={}
+```
+
+来源隔离：
+
+```
+planet_attention
+
+clip_attention
+
+other_attention
+```
+
+不破坏原逻辑。
+
+---
+
+## Phase5_6.3
+
+### 3. InternalDynamics.step整理
+
+最终：
+
+```
+step()
+
+ |
+ +-- observe()
+ |
+ +-- attention.receive()
+ |
+ +-- attention.step()
+ |
+ +-- compute.allocate()
+ |
+ +-- evolve()
+ |
+ +-- packet()
+```
+
+职责分离。
+
+---
+
+## Phase5_6.4
+
+### 4. 清理日志
+
+删除：
+
+高频：
+
+```
+CLIP RECEIVE
+DISPLAY RECEIVE
+PLANETFIELD DELTA
+COMPUTE INPUT
+```
+
+保留：
+
+```
+COMPUTE WINNER
+camera error
+startup
+```
+
+后续换 logging。
+
+---
+
+# 七、当前阶段评价
+
+Phase5_6 目前已经跨过一个重要节点：
+
+以前：
+
+```
+camera
+ |
+ |
+模块堆叠
+ |
+显示
+```
+
+现在：
+
+```
+external field
+
+      ↓
+
+transport
+
+      ↓
+
+organ system
+
+      ↓
+
+observation
+
+      ↓
+
+attention
+
+      ↓
+
+compute
+
+      ↓
+
+internal dynamics
+
+      ↓
+
+emergent field
+
+      ↓
+
+observation output
+```
+
+最重要的是：
+
+**现在显示出来的不是输入，而是系统状态。**
+
+下一步不要继续扩功能，应该完成：
+
+1. signal envelope统一
+2. AttentionField多源化
+3. 清理旧路径
+
+然后重新观察 Phase5_6 的长期演化。
+
+目前架构方向是稳定的。下一阶段重点是保护已有涌现行为，不要因为接口整理破坏动力核心。
+
+*******************************************
+******************************************
+*******************************************

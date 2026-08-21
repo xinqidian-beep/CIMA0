@@ -303,7 +303,32 @@ class InternalDynamics:
     def _observe(
         self
     ):
+        
+        """
+        Collect internal observations.
 
+        Responsibility:
+
+            planet snapshot
+            organ snapshot
+
+            |
+            v
+
+            observer description
+            observation cache
+            activity signal
+
+
+        Does NOT:
+
+            - compute
+            - select
+            - route
+            - display
+
+        """
+        
         signals = []
 
 
@@ -332,13 +357,14 @@ class InternalDynamics:
             # readonly description
             #
 
-            observation = self.observer.describe(
-                snapshot
+            observation = (
+                self.observer.describe(
+                    snapshot
+                )    
             )
-
-
+            
             #
-            # observation cache
+            # observation cache short-lived cache
             #
 
             change = None
@@ -361,14 +387,6 @@ class InternalDynamics:
 
             if change is not None:
  
-                if not hasattr(
-                    self,
-                    "internal_fields"
-                ):
-
-                    self.internal_fields = {}
-
-
                 delta = change.get(
                     "delta"
                 )
@@ -401,66 +419,55 @@ class InternalDynamics:
 
 
 
-            signal = {
-
-                "name":
-                    "planet",
-
-
-                "organ":
-                    self.planet,
-
-
-                "state":
-                    {
-
-                        #
-                        # readonly description
-                        #
-
-                        "observation":
-                            observation,
-
-
-                        #
-                        # scalar only
-                        #
-
-
-                        "activity":
-                            activity,
-
-
-                        #
-                        # keep small change info
-                        #
-
-                        "changed":
-                            False
-                            if change is None
-                            else change.get(
-                                "changed",
-                                False
-                            ),
-
-
-                        "signal":
-                            activity
-
-                    }
-            }
-
-
             signals.append(
-                signal
-            )
+                {
+                    "name":
+                        "planet",
 
 
+                    "organ":
+                        self.planet,
 
+
+                    "state":
+                        {
+
+                            #
+                            # readonly description
+                            #
+
+                            "observation":
+                                observation,
+
+
+                            #
+                            # attention / compute signal
+                            #
+
+
+                            "activity":
+                                float(activity),
+                                
+                            "changed":
+                                False
+                                if change is None
+                                else change.get(
+                                    "changed",
+                                    False
+                                ),
+
+
+                            "signal":
+                                "planet"
+
+                        }
+                }
+            )    
+                
         #
         # organ observation
         #
-
+        
         for name, organ in self.organs.items():
 
 
@@ -486,8 +493,7 @@ class InternalDynamics:
 
                             "organ":
                                 organ,
-
-
+                                
                             "state":
                                 state
 
@@ -507,16 +513,6 @@ class InternalDynamics:
         signals
     ):
         
-        print(
-            "COMPUTE INPUT:",
-            [
-                (
-                    s["name"],
-                    s["state"]
-                )
-                for s in signals
-            ]
-        )
         
         if self.compute is None:
 

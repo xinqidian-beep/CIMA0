@@ -59,8 +59,11 @@ class CameraIO:
         packet = BitPacket(
 
             source="camera",
-
-            tag="visual",
+            
+            #
+            # external camera stream
+            #
+            tag="camera_raw",
 
             data=
                 field.astype(
