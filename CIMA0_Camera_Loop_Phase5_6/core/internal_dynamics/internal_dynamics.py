@@ -159,22 +159,21 @@ class InternalDynamics:
 
             for signal in signals:
 
-                change = (
-                    signal["state"]
-                    .get("change")
+                state = signal.get(
+                    "state",
+                    {}
                 )
-                
-                if change is not None:
 
-                    attention_signal = self._extract_attention_signal(
-                        change
-                    )
-                    if attention_signal is not None:
+                if state is None:
+                    continue
 
-                        self.attention_field.receive(
-                            attention_signal
-                        )
-        
+
+                self.attention_field.receive(
+                    state
+                )
+            self.attention_field.step()
+            
+            
         #
         # read attention state
         #
@@ -219,83 +218,7 @@ class InternalDynamics:
 
         self._planet_step()
 
-    def _extract_attention_signal(
-        self,
-        change
-    ):
-
-        if change is None:
-
-            return None
-
-
-        if not isinstance(
-            change,
-            dict
-        ):
-
-            return None
-
-
-
-        delta = change.get(
-            "delta"
-        )
-
-
-        if delta is None:
-
-            return None
-
-
-
-        #
-        # higher level structure
-        #
-
-        if isinstance(
-            delta,
-            dict
-        ):
-
-            #
-            # choose active field
-            #
-            for key,value in delta.items():
-
-                if isinstance(
-                    value,
-                    np.ndarray
-                ):
-
-                    return {
-
-                        "changed":
-                            True,
-
-                        "delta":
-                            value,
-
-                        "signal":
-                            float(
-                                np.mean(
-                                    np.abs(value)
-                                )
-                            )
-
-                    }
-
-
-            return None
-
-
-
-        #
-        # already field
-        #
-
-        return change
-        
+ 
   
     #
     # observation stage
@@ -331,7 +254,7 @@ class InternalDynamics:
         
         signals = []
 
-
+        print(self.organs.keys())
         #
         # planet observation
         #
@@ -457,7 +380,7 @@ class InternalDynamics:
                                 ),
 
 
-                            "signal":
+                            "source":
                                 "planet"
 
                         }

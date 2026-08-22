@@ -95,7 +95,7 @@ class AttentionField:
             "delta"
         )
         
-        if delta is None:
+        if delta is not None:
 
             intensity = self._extract_intensity(
                 delta
@@ -165,9 +165,9 @@ class AttentionField:
         self
     ):
 
-        if self.field is not None:
+        for field in self.fields.values():
 
-            self.field.fill(
+            field.fill(
                 0.0
             )
 
@@ -207,7 +207,7 @@ class AttentionField:
             self.growth_rate
         )
         
-        self.field[source] = np.clip(
+        self.fields[source] = np.clip(
             field,
             0.0,
             1.0
@@ -251,7 +251,7 @@ class AttentionField:
 
         for source in self.fields:
 
-            self.field[source] *= (
+            self.fields[source] *= (
                 self.decay_rate
             )
 
@@ -302,7 +302,7 @@ class AttentionField:
 
         if source not in self.fields:
 
-            self.field[source] = np.zeros(
+            self.fields[source] = np.zeros(
                 shape,
                 dtype=np.float32
             )
