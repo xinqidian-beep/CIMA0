@@ -54,6 +54,7 @@ class CLIPField:
         #
         
         self.input_packet = None
+        self.previous_input = None
         
         #
         # state invalidation
@@ -256,11 +257,6 @@ class CLIPField:
         #
         # debug
         #
-        
-        print(
-            "CLIP ACTIVITY:",
-            self.internal_activity
-        )
                 
         if self.internal_activity <= 0:
 
@@ -351,12 +347,6 @@ class CLIPField:
 
             return
 
-
-
-        self._forward(
-            tensor
-        )
-        
         success = self._forward(
             tensor
         )
