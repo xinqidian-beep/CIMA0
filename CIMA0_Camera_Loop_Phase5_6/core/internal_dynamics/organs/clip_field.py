@@ -116,7 +116,8 @@ class CLIPField:
         # internal evolution activity
         #
 
-        self.internal_activity = 0.0   
+        self.internal_activity = 0.0 
+        self.initialized = False        
 
         #
         # internal states
@@ -225,63 +226,54 @@ class CLIPField:
         """
         Unified organ signal envelope.
 
-        Lightweight only.
+        Activity comes from internal state change.
 
-        No visual field.
-        No embedding.
-        No tensor.
-
+        No external input weight.
         """
+        print(
+            "CLIP STATE:",
+            "cloud=",
+            self.cloud is not None,
+            "dirty=",
+            self.dirty,
+            "budget=",
+            self.compute_budget,
+            "activity=",
+            self.internal_activity
+        )
         if self.cloud is None:
 
-            if self.input_packet is not None:
-
-                return {
-
-                    "activity":
-                        1.0,
-
-                    "signal":
-                        1.0,
-
-                    "changed":
-                        True,
-
-                    "source":
-                        "clip"
-
-                }
-                                
             return None
-        
-        #
-        # debug
-        #
-                
+
+
         if self.internal_activity <= 0:
 
             return None
 
+
         return {
 
             "activity":
-                self.internal_activity,
-                
+                float(self.internal_activity),
+
             "signal":
-                self.internal_activity,    
-                
+                float(self.internal_activity),
+
             "changed":
                 True,
 
-
             "source":
                 "clip",
-            
-            "age":
-                self.age,
-            
-        }
 
+            "age":
+                self.age
+
+        }   
+        print(
+            "CLIP ACTIVITY:",
+            self.internal_activity
+        )
+        
     #
     # compute allocation
     #
@@ -513,7 +505,11 @@ class CLIPField:
         self,
         tensor
     ):
-
+        print(
+            "CLIP FORWARD:",
+            "old_cloud=",
+            self.cloud is not None
+        )
 
         self.layers.clear()
 
@@ -570,13 +566,24 @@ class CLIPField:
                     ) 
                 )
             )
-
-
+            
+        print(
+            "CLIP CLOUD DELTA:",
+            self.internal_activity
+        )
+            
         #
         # replace state
         #
 
         self.cloud = new_cloud
+        
+        print(
+            "CLIP CLOUD CREATED:",
+            self.cloud.shape
+        )
+        
+        self.initialized = True
                 
         self.structure={
 

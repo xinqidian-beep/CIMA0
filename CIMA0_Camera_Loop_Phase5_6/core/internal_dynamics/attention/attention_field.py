@@ -308,14 +308,14 @@ class AttentionField:
             )
 
 
-        elif self.field[source].shape != shape:
+        elif self.fields[source].shape != shape:
             
             #
             # source changed shape
             # recreate only this source
             #
 
-            self.field[source] = np.zeros(
+            self.fields[source] = np.zeros(
                 shape,
                 dtype=np.float32
             )
