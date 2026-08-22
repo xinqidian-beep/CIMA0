@@ -6337,4 +6337,995 @@ planet/clip
 ******************
 *******************
 ******************
+## CIMA0 Phase5_6 当前状态总结（2026-08-22）
+
+这一次运行结果非常关键。
+
+之前的问题：
+
+> CLIP 有输入，但是无法进入内部竞争。
+
+已经解决。
+
+现在链路已经从：
+
+```
+camera
+ |
+ CLIP receive
+ |
+ dirty
+ |
+ activity=人工权重
+ |
+ compute
+```
+
+变成：
+
+```
+camera
+ |
+ CLIP receive
+ |
+ dirty
+ |
+ CLIP内部状态变化
+ |
+ internal_activity
+ |
+ activity signal
+ |
+ attention
+ |
+ compute竞争
+```
+
+这是一次结构上的变化。
+
+---
+
+# 一、Phase5_6 已完成部分
+
+---
+
+## 1. Camera → Organ 输入链路 ✅
+
+当前：
+
+```
+CameraIO
+
+source="camera"
+tag="visual"
+schema="media.bgr"
+
+        |
+
+Router
+
+        |
+
+CLIPField.receive()
+```
+
+已经稳定。
+
+CLIP：
+
+```text
+CLIP RECEIVE
+```
+
+不再依赖外部判断。
+
+---
+
+## 2. Organ Signal Envelope ✅
+
+现在统一：
+
+```python
+{
+    "activity": float,
+
+    "signal": float,
+
+    "changed": bool,
+
+    "source": name
+}
+```
+
+目前：
+
+Planet：
+
+```text
+activity:
+1e-6 ~ 1e-5
+```
+
+CLIP：
+
+动态：
+
+```text
+0.063
+```
+
+静态：
+
+```text
+0.031
+```
+
+说明：
+
+CLIP 已经开始产生自己的内部变化量。
+
+---
+
+## 3. AttentionField 多源化 ✅
+
+现在：
+
+```
+             planet
+                |
+                |
+clip ---- AttentionField
+                |
+                |
+          attention state
+```
+
+已经成立。
+
+内部：
+
+```python
+self.fields
+```
+
+现在：
+
+```python
+{
+    "planet": ...,
+
+    "clip": ...
+}
+```
+
+不会互相覆盖。
+
+---
+
+## 4. CLIP 内部状态闭环 ✅
+
+现在最重要：
+
+日志：
+
+```
+CLIP STATE:
+cloud=True
+dirty=True
+budget=1
+activity=0.070
+```
+
+然后：
+
+```
+COMPUTE WINNER: clip
+```
+
+随后：
+
+```
+CLIP FORWARD:
+old_cloud=True
+
+CLIP CLOUD DELTA:
+0.0638
+
+CLIP CLOUD CREATED:
+(12,50,768)
+```
+
+说明：
+
+完整闭环已经形成：
+
+```
+camera
+ |
+receive
+ |
+dirty
+ |
+activity
+ |
+compute allocation
+ |
+forward
+ |
+new cloud
+ |
+delta
+ |
+new activity
+```
+
+---
+
+# 二、当前实验观察结果
+
+## 动态视频输入
+
+例如美剧：
+
+```
+CLIP CLOUD DELTA:
+0.031
+```
+
+## 静态画面：
+
+同样：
+
+```
+CLIP CLOUD DELTA:
+0.063
+```
+
+目前差异还不稳定。
+
+原因：
+
+CLIP 当前比较的是：
+
+```python
+new_cloud - self.cloud
+```
+
+也就是视觉编码空间变化。
+
+但是：
+
+摄像头：
+
+* 动态视频
+* 静态屏幕
+
+都会产生：
+
+* 摄像头噪声
+* 光照变化
+* 编码微扰
+* resize变化
+
+所以目前 activity 反映的是：
+
+```
+视觉场变化
++
+编码扰动
+```
+
+还不是纯粹语义变化。
+
+这是正常阶段。
+
+---
+
+# 三、发现的下一阶段问题
+
+## 问题1：Compute竞争已经出现，但是需要观察稳定性
+
+现在：
+
+```
+COMPUTE WINNER: clip
+```
+
+已经出现。
+
+下一步观察：
+
+是否出现：
+
+```
+clip
+planet
+clip
+planet
+```
+
+而不是：
+
+```
+clip永久占用
+```
+
+或者：
+
+```
+planet永久占用
+```
+
+---
+
+## 问题2：CLIP activity 仍然偏高
+
+现在：
+
+Planet:
+
+```
+10^-6
+```
+
+CLIP:
+
+```
+10^-2
+```
+
+差距：
+
+约10000倍。
+
+所以目前竞争实际上：
+
+CLIP拥有明显优势。
+
+不是错误。
+
+但是后面需要观察：
+
+如果：
+
+```
+CLIP长期占据compute
+```
+
+需要考虑：
+
+activity normalization。
+
+不是调权重。
+
+而是：
+
+不同器官的尺度归一化。
+
+例如：
+
+```
+raw_activity
+
+        |
+
+normalizer
+
+        |
+
+competition_signal
+```
+
+---
+
+## 问题3：AttentionField旧空间模式
+
+目前审核指出：
+
+旧：
+
+```python
+delta ndarray
+```
+
+路径：
+
+```python
+_extract_intensity()
+_update_source()
+```
+
+已经基本不用。
+
+现在主要：
+
+```python
+signal scalar
+```
+
+路径。
+
+建议：
+
+暂时不要删除。
+
+原因：
+
+CLIP未来可能产生：
+
+```
+layer attention map
+token field
+spatial activation
+```
+
+那时候空间attention可能重新回来。
+
+建议改成：
+
+注释：
+
+```
+legacy spatial attention mode
+reserved for future field organs
+```
+
+而不是删除。
+
+---
+
+# 四、下一阶段计划
+
+---
+
+# Phase5_6.7  调试稳定阶段
+
+目标：
+
+确认内部竞争是否自然形成。
+
+---
+
+## Step 1：停止结构修改
+
+暂时冻结：
+
+不要改：
+
+* Organ envelope
+* AttentionField
+* InternalDynamics
+* ComputeSystem
+
+观察：
+
+至少运行几分钟。
+
+记录：
+
+```
+winner distribution
+```
+
+例如：
+
+```
+clip: 70%
+planet:30%
+```
+
+---
+
+## Step 2：清理 debug print
+
+删除：
+
+高频：
+
+```python
+dict_keys(['clip'])
+
+CLIP STATE
+
+PLANET ACTIVITY
+
+CLIP CLOUD CREATED
+
+PLANETFIELD DELTA
+```
+
+保留：
+
+```
+COMPUTE WINNER
+```
+
+或者换 logging。
+
+---
+
+## Step 3：增加观察窗口
+
+增加一个简单统计：
+
+例如：
+
+```
+last 100 steps
+
+clip wins:
+planet wins:
+```
+
+不要改变系统。
+
+只是观察。
+
+---
+
+## Step 4：观察 Planet 是否被压制
+
+重点：
+
+现在 Planet：
+
+```
+activity 1e-6
+```
+
+如果长期：
+
+```
+clip wins 100%
+```
+
+说明：
+
+不是生命竞争。
+
+只是尺度问题。
+
+下一步设计：
+
+```
+activity normalization layer
+```
+
+而不是修改 organ。
+
+---
+
+## Step 5：验证 AttentionField
+
+检查：
+
+snapshot：
+
+应该出现：
+
+```python
+{
+    "planet": array,
+
+    "clip": array
+}
+```
+
+确认两个来源同时存在。
+
+---
+
+# 五、目前 Phase5_6 状态评价
+
+目前架构：
+
+```
+Camera
+  |
+Transport
+  |
+Router
+  |
+Organ
+  |
+Internal state
+  |
+Activity
+  |
+Attention
+  |
+Compute
+  |
+Evolution
+  |
+Field output
+```
+
+已经闭环。
+
+最重要的变化：
+
+以前：
+
+```
+输入决定行为
+```
+
+现在：
+
+```
+内部状态变化决定竞争
+```
+
+这符合 CIMA0 当前阶段目标。
+
+---
+
+下一步建议：
+
+**不要继续增加功能。**
+
+进入：
+
+> Phase5_6.7 长时间运行观察阶段
+
+重点看三个现象：
+
+1. CLIP 是否会自然衰减/恢复
+2. Planet 是否还能获得资源
+3. Attention 是否形成稳定多源结构
+
+这三个结果会决定下一步是进入：
+
+* activity normalization
+
+还是：
+
+* organ self-regulation
+
+阶段。
+这个判断很关键。我认为这里**不能简单把 Planet 的 `10^-6` 和 CLIP 的 `10^-2` 放在同一尺度直接比较**。
+
+因为两个 organ 当前产生的不是同一种动力学量。
+
+---
+
+现在实际上是：
+
+## Planet
+
+```text
+稀疏矩阵动力系统
+
+state:
+128 x 128
+
+activity:
+Δstate
+
+≈ 10^-6
+```
+
+它代表：
+
+> 连续演化中的微小扰动。
+
+特点：
+
+* 高频
+* 小幅度
+* 持续存在
+* 局部传播
+* 慢积累
+
+类似：
+
+```text
+微风
+地质变化
+热扩散
+```
+
+---
+
+## CLIP
+
+```text
+ViT internal cloud
+
+shape:
+
+(12,50,768)
+
+activity:
+
+mean(abs(new_cloud-old_cloud))
+
+≈10^-2
+```
+
+它代表：
+
+> 高维表示空间重新组织程度。
+
+特点：
+
+* 低频
+* 大范围
+* 块状变化
+* 突然跳变
+
+类似：
+
+```text
+云团形成
+地形盆地变化
+相变
+```
+
+---
+
+所以现在：
+
+```
+Planet 10^-6
+CLIP   10^-2
+```
+
+不能解释为：
+
+```
+CLIP > Planet 10000倍
+```
+
+更准确：
+
+```
+Planet:
+微分尺度
+
+CLIP:
+状态重构尺度
+```
+
+---
+
+这其实和你之前观察显示窗口：
+
+> 黑白灰渐变地形，有深度，缓慢变化，像云层和盆地
+
+是一致的。
+
+因为 Display 当前看到的是：
+
+* Planet continuous_field
+* CLIP continuous_field
+
+它们本身就是不同时间尺度的场。
+
+---
+
+所以 Compute 竞争这里可能需要重新理解。
+
+现在：
+
+```text
+Compute
+ |
+ activity
+```
+
+实际上把：
+
+```
+快变量
++
+慢变量
++
+结构变量
+```
+
+混在一起。
+
+未来可能需要：
+
+不是：
+
+```python
+winner=max(activity)
+```
+
+而是：
+
+类似：
+
+```
+organ signal envelope
+
+{
+    activity,
+    timescale,
+    persistence,
+    novelty
+}
+```
+
+例如：
+
+Planet：
+
+```python
+{
+ activity:1e-6,
+ timescale:"slow",
+ persistence:high
+}
+```
+
+CLIP：
+
+```python
+{
+ activity:1e-2,
+ timescale:"event",
+ persistence:medium
+}
+```
+
+---
+
+但是现在 Phase5_6 不建议改。
+
+原因：
+
+当前实验目标是确认：
+
+```
+organ
+ |
+signal
+ |
+attention
+ |
+compute
+```
+
+链路是否成立。
+
+这个已经成立。
+
+---
+
+下一阶段更值得做的是观察：
+
+## 1. Planet 长时间积累
+
+例如：
+
+运行 10 分钟：
+
+看：
+
+```
+10^-6
+是否持续增长
+```
+
+或者：
+
+```
+区域是否形成稳定结构
+```
+
+---
+
+## 2. CLIP 是否产生自己的节律
+
+现在：
+
+```
+camera frame
+    |
+CLIP cloud delta
+```
+
+需要观察：
+
+静止：
+
+```
+delta下降？
+```
+
+动态：
+
+```
+delta升高？
+```
+
+---
+
+## 3. AttentionField 是否成为时间滤波器
+
+这是关键。
+
+现在 AttentionField 的意义不是判断谁大。
+
+而是：
+
+把：
+
+```
+瞬时activity
+```
+
+变成：
+
+```
+历史注意状态
+```
+
+例如：
+
+Planet：
+
+连续微小变化：
+
+```
+1e-6
+1e-6
+1e-6
+...
+```
+
+经过 accumulation：
+
+可能形成：
+
+```
+稳定注意区域
+```
+
+CLIP：
+
+一次大变化：
+
+```
+1e-2
+```
+
+然后 decay：
+
+形成：
+
+```
+短暂注意峰
+```
+
+---
+
+所以我同意你的方向：
+
+**不要现在处理 Planet / CLIP 数值差异。**
+
+应该先把它们看成两个不同时间尺度的内部器官：
+
+```
+Planet
+slow sparse field
+
+
+CLIP
+fast dense cloud
+```
+
+Phase5_6 当前最重要的实验不是“谁赢”，而是观察：
+
+> 不同时间尺度的内部动力系统，经过 AttentionField 和 Compute 后，是否会形成稳定共存。
+
+这比简单归一化更符合目前架构。
+**************************************
+****************************************
+************************************
+*******************************************
 

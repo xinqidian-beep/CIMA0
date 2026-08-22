@@ -61,6 +61,7 @@ class CLIPField:
         #
 
         self.dirty = False
+        self.need_initialization = True
         
         #
         # accumulated disturbance
@@ -241,10 +242,32 @@ class CLIPField:
             "activity=",
             self.internal_activity
         )
+        #
+        # initialization request
+        #
         if self.cloud is None:
+            
+            if self.need_initialization:
+            
+                return {
+
+                    "activity":0.0,
+
+                    "signal":0.0,
+
+                    "changed":False,
+
+                    "source":"clip",
+    
+                    "request":
+                        "initialize"
+
+                }            
 
             return None
-
+        #
+        # internal evolution signal
+        #
 
         if self.internal_activity <= 0:
 
@@ -264,9 +287,6 @@ class CLIPField:
 
             "source":
                 "clip",
-
-            "age":
-                self.age
 
         }   
         print(
@@ -361,7 +381,7 @@ class CLIPField:
         #
 
         self.dirty = False
-        
+        self.need_initialization = False
         #
         # accumulated disturbance consumed
         #
