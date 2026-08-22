@@ -5865,3 +5865,476 @@ observation output
 *******************************************
 ******************************************
 *******************************************
+继续 Phase5_6。
+
+根据上一阶段状态，当前不应该再大改核心动力，而是进入**结构收敛阶段**。重点是：**统一接口，但保护已经出现的内部场演化。**
+
+当前优先级建议如下：
+
+---
+
+# Phase5_6.1 先完成 Organ Signal Envelope
+
+目标：
+
+让所有 organ 输出统一。
+
+现在：
+
+## Planet
+
+已经接近：
+
+```python
+{
+    "activity": float,
+    "signal": float,
+    "changed": bool
+}
+```
+
+## CLIP
+
+仍然：
+
+```python
+{
+    "activity": 1.0,
+    "delta": 1.0
+}
+```
+
+需要改成：
+
+```python
+{
+    "activity": 1.0,
+
+    "signal": 1.0,
+
+    "changed": True,
+
+    "source": "clip"
+}
+```
+
+注意：
+
+只改：
+
+```python
+CLIPField.activity()
+```
+
+不要碰：
+
+```python
+receive()
+step()
+cloud
+```
+
+原因：
+
+现在日志已经证明：
+
+```
+camera_raw
+    |
+    v
+CLIP RECEIVE
+```
+
+输入链正常。
+
+不要动输入。
+
+---
+
+# Phase5_6.2 AttentionField 多源化
+
+当前 AttentionField 设计：
+
+```text
+delta
+ |
+attention field
+```
+
+但是未来：
+
+```
+planet delta
+clip activity
+other organs
+```
+
+都会进入。
+
+所以需要改内部结构。
+
+不是：
+
+```python
+self.field
+```
+
+而是：
+
+```python
+self.fields
+```
+
+例如：
+
+```python
+self.fields = {
+
+}
+```
+
+接收：
+
+```python
+{
+    source:"planet",
+    activity,
+    signal,
+    changed
+}
+```
+
+或者：
+
+高维：
+
+```python
+{
+    source:"planet",
+    delta: ndarray
+}
+```
+
+然后：
+
+内部：
+
+```
+planet
+ |
+attention field
+
+
+clip
+ |
+attention field
+```
+
+各自保持。
+
+最后：
+
+snapshot:
+
+可以提供：
+
+```python
+{
+    "planet": field,
+
+    "clip": field
+}
+```
+
+---
+
+# Phase5_6.3 修 AttentionField shape 问题
+
+这个问题现在还没有爆。
+
+但是必须提前处理。
+
+目前：
+
+```python
+elif self.field.shape != shape:
+
+    self.field=np.zeros(shape)
+```
+
+风险：
+
+来源切换：
+
+```
+planet 128x128
+
+↓
+
+clip 480x640
+
+↓
+
+planet
+```
+
+会：
+
+```
+clear
+clear
+clear
+```
+
+导致：
+
+decay/growth失效。
+
+正确方向：
+
+不是保留一个 field。
+
+而是：
+
+```python
+self.fields[source]
+```
+
+例如：
+
+```python
+self.fields["planet"]
+
+self.fields["clip"]
+```
+
+这样：
+
+原功能全部保留：
+
+* decay
+* growth
+* threshold
+* accumulation
+
+只是从单场变多场。
+
+---
+
+# Phase5_6.4 InternalDynamics.step整理
+
+目标结构：
+
+现在：
+
+```python
+step()
+
+里面混很多事情
+```
+
+整理成：
+
+```python
+def step(self):
+
+
+    signals = self._observe()
+
+
+    self._update_attention(
+        signals
+    )
+
+
+    winner = self._compute(
+        signals
+    )
+
+
+    self._evolve(
+        winner
+    )
+
+
+    self._publish()
+```
+
+这样以后增加 organ 不会继续膨胀。
+
+---
+
+# Phase5_6.5 删除旧路径
+
+确认：
+
+删除：
+
+```python
+_measure_change()
+```
+
+以及：
+
+```python
+previous_observations
+```
+
+因为现在唯一变化来源：
+
+```
+ObservationCache
+```
+
+保持单一观察源。
+
+---
+
+# Phase5_6.6 调试观察阶段
+
+完成上述后，不马上增加能力。
+
+观察：
+
+至少运行：
+
+30分钟～数小时。
+
+关注：
+
+## 1.
+
+PlanetField：
+
+是否继续：
+
+* 缓慢变化
+* 形成稳定区域
+* 局部扰动传播
+
+## 2.
+
+CLIP：
+
+是否：
+
+```
+activity
+|
+attention
+|
+compute
+```
+
+开始参与竞争。
+
+## 3.
+
+Compute：
+
+现在：
+
+```
+COMPUTE WINNER: planet
+```
+
+未来可能：
+
+```
+planet
+clip
+planet
+clip
+```
+
+交替。
+
+这比强行让 CLIP 赢重要。
+
+---
+
+# 当前不要做的事情
+
+暂缓：
+
+❌ 增加更多 organ
+❌ 改 Planet 规则
+❌ 改采样算法
+❌ 加学习机制
+❌ 加 STDP/LTP
+❌ 加语义理解
+
+因为现在第一次出现：
+
+```
+输入
+ ↓
+扰动
+ ↓
+内部动力
+ ↓
+连续场
+```
+
+这个闭环。
+
+下一阶段任务是保护这个闭环。
+
+---
+
+## 下一步具体编码顺序
+
+建议：
+
+1. `clip_field.py`
+
+   * 修改 `activity()` envelope
+
+↓
+
+2. `internal_dynamics.py`
+
+   * 检查 `_observe()`
+   * 保留 observation 原始层
+   * 不再混入 attention/compute逻辑
+
+↓
+
+3. `attention_field.py`
+
+   * 改多源 storage
+   * 保留原 decay/growth
+
+↓
+
+4. 跑测试
+
+观察日志：
+
+目标：
+
+```
+ATTENTION
+
+planet {...}
+
+clip {...}
+
+
+COMPUTE INPUT
+
+[
+ planet,
+ clip
+]
+
+
+COMPUTE WINNER:
+planet/clip
+```
+
+如果这个重新稳定出现，Phase5_6 的结构就基本定型。
+******************
+*******************
+******************
+

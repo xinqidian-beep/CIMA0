@@ -140,81 +140,93 @@ class InternalDynamics:
                 organ.receive(
                     packet
                 )
-
-
-
     #
     # main evolution cycle
     #
-    def step(self):
 
+    def step(
+        self
+    ):
+
+        #
+        # observation
+        #
 
         signals = self._observe()
-        
+
         #
         # attention update
         #
-        
-        if self.attention_field:
+        # all organs use same envelope
+        #
+
+        if self.attention_field is not None:
+
 
             for signal in signals:
+
 
                 state = signal.get(
                     "state",
                     {}
                 )
 
+
                 if state is None:
+
                     continue
 
 
                 self.attention_field.receive(
                     state
                 )
-            self.attention_field.step()
-            
-            
-        #
-        # read attention state
-        #
-        
-        attention = None
-       
-        if self.attention_field:
 
-            attention = (
+
+            self.attention_field.step()
+
+
+
+        #
+        # save attention snapshot
+        #
+
+        if self.attention_field is not None:
+
+            self.last_signals = (
                 self.attention_field.snapshot()
             )
 
 
-        self.last_signals = attention
-        
-        print(
-            "========== ATTENTION =========="
-        )
 
-
-        for signal in signals:
-
-            print(
-                signal["name"],
-                signal["state"]
-            )
-
-
-        print(
-            "==============================="
-        )
+        #
+        # compute competition
+        #
 
         self._compute(
             signals
         )
 
+
+
+        #
+        # internal organs evolution
+        #
+
         self._evolve()
 
 
+
+        #
+        # output internal fields
+        #
+
         self._sample()
 
+
+
+        #
+        # planet evolution
+        #
 
         self._planet_step()
 
@@ -339,8 +351,12 @@ class InternalDynamics:
                     "signal",
                     0.0
                 )
-
-
+                
+            print(
+                "PLANET ACTIVITY:",
+                activity
+            )
+                
 
             signals.append(
                 {
@@ -371,6 +387,9 @@ class InternalDynamics:
                             "activity":
                                 float(activity),
                                 
+                            "signal":
+                                float(activity),    
+                                
                             "changed":
                                 False
                                 if change is None
@@ -378,8 +397,7 @@ class InternalDynamics:
                                     "changed",
                                     False
                                 ),
-
-
+                            
                             "source":
                                 "planet"
 
@@ -473,10 +491,19 @@ class InternalDynamics:
 
             if hasattr(
                 organ,
+                "apply_compute"
+            ):
+
+                organ.apply_compute(
+                    1
+                )
+                
+            if hasattr(
+                organ,
                 "update"
             ):
 
-                organ.update()
+                organ.update()    
                 
             self.compute.consume(
                 1
