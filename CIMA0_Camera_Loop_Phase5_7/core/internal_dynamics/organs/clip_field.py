@@ -2,29 +2,58 @@ import cv2
 import torch
 import numpy as np
 import open_clip
+
 from core.io.transport.packet import BitPacket
 
+
 class CLIPField:
-
     """
-    CIMA0 Phase5_4
+    CIMA0 Phase5_7
 
-    Internal organ organ.
+    Internal organ.
 
-    No knowledge:
+    Responsibility:
 
-        Planet
-        CloudField
-        InternalDynamics
-        Display
-
-    Responsible:
+        camera packet
+            |
+            v
 
         decode
-        feature formation
-        layer state
-        activity request
+
+            |
+            v
+
+        CLIP visual field
+
+            |
+            v
+
+        cloud representation
+
+
+    Does NOT know:
+
+        Planet
+
+        CloudCollision
+
+        Attention
+
+        Display
+
+        Compute policy
+
+
+    Provides:
+
+        activity()
+
+        packet()
+
+        collision_projection()
+
     """
+
 
 
     def __init__(
@@ -32,51 +61,70 @@ class CLIPField:
         weight_path,
         device="cpu"
     ):
+
+
         print(
             "LOAD CLIP:",
             __file__
         )
+
+
         self.device = device
-        
+
+
         #
-        # state field
+        # internal cloud state
         #
-        
+
         self.cloud = None
-        
+
+
         self.previous_cloud = None
 
-        self.dynamic = False
-                
+
+
         #
-        # measurement cache
-        # remove previous_cloud
+        # input cache
         #
-        
+
         self.input_packet = None
+
+
         self.previous_input = None
-        
+
+
+
         #
-        # state invalidation
+        # state status
         #
 
         self.dirty = False
+
         self.need_initialization = True
-        
+
+
+        self.age = 0
+
+
+
         #
-        # accumulated disturbance
+        # activity
         #
 
-        self.disturbance = 0.0
-        
+        self.internal_activity = 0.0
+
+
+
         #
-        # external input activity
+        # compute
         #
 
-        self.input_activity = 0.0
-        
+        self.compute_budget = 0
+
+
+
         #
-        # CLIP input normalization
+        # normalization
         #
 
         self.mean = torch.tensor(
@@ -103,25 +151,11 @@ class CLIPField:
             1,
             1
         )
-                
-        self.age = 0
 
 
-        #
-        # compute allocation
-        #
-
-        self.compute_budget = 0
 
         #
-        # internal evolution activity
-        #
-
-        self.internal_activity = 0.0 
-        self.initialized = False        
-
-        #
-        # internal states
+        # layer storage
         #
 
         self.layers = {}
@@ -129,8 +163,13 @@ class CLIPField:
         self.layer_activity = {}
 
         self.structure = {}
-        
-        
+
+
+
+        #
+        # load model
+        #
+
         model, _, preprocess = (
             open_clip
             .create_model_and_transforms(
@@ -138,6 +177,7 @@ class CLIPField:
                 pretrained=None
             )
         )
+
 
 
         checkpoint = torch.load(
@@ -149,10 +189,12 @@ class CLIPField:
         state_dict = checkpoint["state_dict"]
 
 
+
         visual_state = {}
 
 
         for k,v in state_dict.items():
+
 
             if k.startswith(
                 "module.visual."
@@ -163,7 +205,8 @@ class CLIPField:
                     ""
                 )
 
-                visual_state[name] = v
+
+                visual_state[name]=v
 
 
 
@@ -175,80 +218,66 @@ class CLIPField:
 
         self.model = model.visual
 
+
         self.model.eval()
 
 
         self.preprocess = preprocess
 
 
+
         self.handles=[]
+
 
         self._register_hooks()
 
 
 
+
+
     #
-    # input
+    # receive camera packet
     #
 
     def receive(
         self,
         packet
     ):
-        
+
+
         if packet.source != "camera":
 
             return
 
 
+
         self.input_packet = packet
-       
-        
-        #
-        # invalidate current state
-        #
+
 
         self.dirty = True
 
 
-        #
-        # state age reset
-        #
-
         self.age = 0
-        
+
+
+
+
+
     #
-    # attention signal
+    # activity signal
     #
 
     def activity(
         self
     ):
-        """
-        Unified organ signal envelope.
 
-        Activity comes from internal state change.
 
-        No external input weight.
-        """
-        print(
-            "CLIP STATE:",
-            "cloud=",
-            self.cloud is not None,
-            "dirty=",
-            self.dirty,
-            "budget=",
-            self.compute_budget,
-            "activity=",
-            self.internal_activity
-        )
-        #
-        # initialization request
-        #
         if self.cloud is None:
-            
+
+
             if self.need_initialization:
-            
+
+
                 return {
 
                     "activity":0.0,
@@ -258,42 +287,52 @@ class CLIPField:
                     "changed":False,
 
                     "source":"clip",
-    
+
                     "request":
                         "initialize"
 
-                }            
+                }
+
 
             return None
-        #
-        # internal evolution signal
-        #
+
+
+
 
         if self.internal_activity <= 0:
 
             return None
 
 
+
         return {
 
+
             "activity":
-                float(self.internal_activity),
+                float(
+                    self.internal_activity
+                ),
+
 
             "signal":
-                float(self.internal_activity),
+                float(
+                    self.internal_activity
+                ),
+
 
             "changed":
                 True,
 
-            "source":
-                "clip",
 
-        }   
-        print(
-            "CLIP ACTIVITY:",
-            self.internal_activity
-        )
-        
+            "source":
+                "clip"
+
+        }
+
+
+
+
+
     #
     # compute allocation
     #
@@ -304,9 +343,16 @@ class CLIPField:
     ):
 
         self.compute_budget = amount
-        
 
-    def update(
+
+
+
+
+    #
+    # update cloud
+    #
+
+    def step(
         self
     ):
 
@@ -316,11 +362,9 @@ class CLIPField:
             return
 
 
-
         if not self.dirty:
 
             return
-
 
 
         if self.input_packet is None:
@@ -332,32 +376,13 @@ class CLIPField:
         tensor = self._decode(
             self.input_packet
         )
-        
-        current = tensor.detach().cpu().numpy()
 
 
-        if self.previous_input is None:
-
-            self.disturbance = 1.0
-
-
-        else:
-
-            self.disturbance = float(
-                np.mean(
-                    np.abs(
-                        current -
-                        self.previous_input
-                    )
-                )
-            )
-
-
-        self.previous_input = current
-        
         if tensor is None:
 
             return
+
+
 
         success = self._forward(
             tensor
@@ -367,26 +392,24 @@ class CLIPField:
         if not success:
 
             return
-        
-        #
-        # consume resource
-        #
+
+
 
         self.compute_budget = 0
 
 
-
-        #
-        # state becomes valid 
-        #
-
         self.dirty = False
-        self.need_initialization = False
-        #
-        # accumulated disturbance consumed
-        #
 
-        self.disturbance = 0.0
+
+        self.need_initialization=False
+
+
+
+        self.age += 1
+
+
+
+
 
     #
     # decode
@@ -400,6 +423,7 @@ class CLIPField:
 
         try:
 
+
             frame=np.frombuffer(
                 packet.data,
                 dtype=np.uint8
@@ -411,10 +435,12 @@ class CLIPField:
             )
 
 
+
             frame=cv2.cvtColor(
                 frame,
                 cv2.COLOR_BGR2RGB
             )
+
 
 
             frame=cv2.resize(
@@ -423,9 +449,11 @@ class CLIPField:
             )
 
 
+
             tensor=torch.from_numpy(
                 frame
             )
+
 
 
             tensor=tensor.permute(
@@ -434,13 +462,27 @@ class CLIPField:
                 1
             )
 
+
             tensor=tensor.float()/255.0
-            
-            tensor=(tensor-self.mean.to(tensor.device))/self.std.to(tensor.device)
+
+
+
+            tensor=(
+
+                tensor
+
+                -
+
+                self.mean
+
+            ) / self.std
+
+
 
             tensor=tensor.unsqueeze(
                 0
             )
+
 
             return tensor.to(
                 self.device
@@ -449,7 +491,11 @@ class CLIPField:
 
         except Exception:
 
+
             return None
+
+
+
 
 
 
@@ -460,6 +506,7 @@ class CLIPField:
     def _register_hooks(
         self
     ):
+
 
         blocks=(
 
@@ -472,11 +519,17 @@ class CLIPField:
 
         for i,block in enumerate(blocks):
 
+
             h=block.register_forward_hook(
+
                 self._make_hook(i)
+
             )
 
+
             self.handles.append(h)
+
+
 
 
 
@@ -507,9 +560,11 @@ class CLIPField:
 
 
             self.layer_activity[index]=float(
+
                 np.mean(
                     np.abs(data)
                 )
+
             )
 
 
@@ -517,26 +572,27 @@ class CLIPField:
 
 
 
+
+
+
     #
-    # forward
+    # CLIP forward
     #
 
     def _forward(
         self,
         tensor
     ):
-        print(
-            "CLIP FORWARD:",
-            "old_cloud=",
-            self.cloud is not None
-        )
+
 
         self.layers.clear()
 
         self.layer_activity.clear()
 
 
+
         with torch.no_grad():
+
 
             self.model(
                 tensor
@@ -546,19 +602,22 @@ class CLIPField:
 
         if len(self.layers)!=12:
 
-            self.cloud=None
 
             return False
 
 
 
-        new_cloud = np.stack(
+
+        new_cloud=np.stack(
 
             [
+
                 self.layers[i]
+
                 for i in sorted(
                     self.layers.keys()
                 )
+
             ],
 
             axis=0
@@ -566,96 +625,207 @@ class CLIPField:
         ).astype(
             np.float32
         )
-        
-        #
-        # compare with previous state
-        #
+
+
 
         if self.cloud is None:
 
-            self.internal_activity = 1.0
+
+            self.internal_activity=1.0
 
 
         else:
 
-            self.internal_activity = float(
+
+            self.internal_activity=float(
+
                 np.mean(
+
                     np.abs(
-                        new_cloud -
+
+                        new_cloud
+
+                        -
+
                         self.cloud
-                    ) 
+
+                    )
+
                 )
+
             )
-            
+
+
+
         print(
             "CLIP CLOUD DELTA:",
             self.internal_activity
         )
-            
-        #
-        # replace state
-        #
 
-        self.cloud = new_cloud
-        
-        print(
-            "CLIP CLOUD CREATED:",
-            self.cloud.shape
-        )
-        
-        self.initialized = True
-                
+
+
+        self.previous_cloud=self.cloud
+
+
+        self.cloud=new_cloud
+
+
+
         self.structure={
 
+
             "representation":
+
                 "multilevel_cloud",
 
+
             "levels":
+
                 12,
 
+
             "tokens":
+
                 50,
 
+
             "dimension":
+
                 768
 
         }
 
 
 
+        return True
+
+
+
+
+
     #
-    # output
+    # collision interface
+    #
+
+    def collision_projection(
+        self
+    ):
+        """
+        Export CLIP cloud.
+
+        Read only.
+
+        Used by CloudCollision.
+
+        No modification.
+        """
+
+
+        if self.cloud is None:
+
+            return None
+
+
+
+        field=self.cloud.copy()
+
+
+
+        return {
+
+
+            "source":
+
+                "clip",
+
+
+
+            "representation":
+
+                "multilevel_cloud",
+
+
+
+            "field":
+
+                field,
+
+
+
+            "shape":
+
+                field.shape,
+                
+                
+            "dtype":
+                str(field.dtype),    
+
+            "activity":
+
+                float(
+
+                    np.mean(
+
+                        np.abs(field)
+
+                    )
+
+                )
+
+        }
+
+
+
+
+
+
+
+    #
+    # output packet
     #
 
     def packet(
         self
     ):
-        
-        state = self.snapshot()
-        
+
+
         if self.cloud is None:
 
             return None
-            
-        field = self.cloud
+
+
+
+        field=self.cloud.astype(
+            np.float32
+        )
+
+
 
         return BitPacket(
 
+
             source="clip",
+
 
             tag="visual",
 
+
             data=field.tobytes(),
+
 
             shape=field.shape,
 
+
             dtype=str(field.dtype),
 
+
             schema="continuous_field",
+
 
             meta={
 
                 "representation":
+
                     "multilevel_cloud"
 
             }
@@ -664,31 +834,50 @@ class CLIPField:
 
 
 
+
+
+
+    #
+    # snapshot
+    #
+
     def snapshot(
         self
     ):
 
+
         return {
 
+
             "age":
+
                 self.age,
 
+
             "cloud":
+
                 self.cloud,
 
+
             "activity":
+
                 self.layer_activity,
 
+
             "structure":
+
                 self.structure
 
         }
 
 
 
+
+
     def close(
         self
     ):
+
 
         for h in self.handles:
 
