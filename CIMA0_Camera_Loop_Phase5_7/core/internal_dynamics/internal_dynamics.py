@@ -257,26 +257,36 @@ class InternalDynamics:
     ):
 
         clouds = {}
-
+        #
+        # organs
+        #
 
         for name, organ in self.organs.items():
 
             if hasattr(
                 organ,
-                "cloud"
+                "collision_projection"
             ):
 
-                clouds[name] = organ.cloud
-
-
+                clouds[name] =(
+                    organ
+                    .collision_projection()
+                )
+                
+                            
+        #
+        # PlanetField
+        #    
+                
         if hasattr(
             self.planet,
-            "cloud"
+            "collision_projection"
         ):
 
-            clouds["planet"] = self.planet.cloud
-
-
+            clouds["planet"] =(
+                self.planet
+                .collision_projection()
+            )
         return clouds 
   
     #

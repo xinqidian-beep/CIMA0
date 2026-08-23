@@ -5,29 +5,56 @@ class CloudCollision:
     """
     CIMA0 Phase5_7
 
-    Interaction field between clouds.
+
+    Heterogeneous cloud collision.
 
 
     Input:
 
-        planet cloud
-        clip cloud
+
+        PlanetField
+
+            |
+
+            v
+
+        planet_cloud
 
 
-    Output:
+        CLIPField
 
-        collision response
+            |
+
+            v
+
+        clip_cloud
+
+
+
+    Collision is not:
+
+        field matching
+
+
+    Collision is:
+
+        state relationship comparison
+
 
 
     Does NOT:
 
+
         modify cloud
+
+
+        select winner
+
 
         allocate compute
 
-        decide winner
 
-        understand meaning
+        interpret meaning
 
     """
 
@@ -39,7 +66,6 @@ class CloudCollision:
     ):
 
         self.threshold = threshold
-
 
         self.last_result = None
 
@@ -63,30 +89,34 @@ class CloudCollision:
 
 
 
-        planet_values = self._extract(
-            planet_cloud
-        )
-
-
-        clip_values = self._extract(
-            clip_cloud
-        )
-
-
-        if len(planet_values)==0:
+        if (
+            "cloud" not in planet_cloud
+            or
+            "cloud" not in clip_cloud
+        ):
 
             return None
 
 
-        if len(clip_values)==0:
 
-            return None
+        planet_state = (
+            planet_cloud["cloud"]
+        )
 
 
+        clip_state = (
+            clip_cloud["cloud"]
+        )
+
+
+
+        #
+        # three-state collision
+        #
 
         result = self._compare(
-            planet_values,
-            clip_values
+            planet_state,
+            clip_state
         )
 
 
@@ -97,79 +127,180 @@ class CloudCollision:
 
 
 
-    def _extract(
+
+    def _compare(
         self,
-        cloud
+        planet,
+        clip
     ):
 
-        values=[]
+
+        keys = (
+
+            "mean",
+
+            "energy",
+
+            "variance",
+
+            "density"
+
+        )
 
 
-        for cell in cloud.cells:
 
-            if cell.empty:
+        distance = {}
+
+        collision_score = 0.0
+
+
+
+        valid = 0
+
+
+
+        for key in keys:
+
+
+            if (
+                key not in planet
+                or
+                key not in clip
+            ):
 
                 continue
 
 
-            values.append(
-                cell.value
+
+            a = float(
+                planet[key]
             )
 
 
-        return np.asarray(
-            values,
-            dtype=np.float32
+            b = float(
+                clip[key]
+            )
+
+
+
+            d = abs(
+                a-b
+            )
+
+
+            distance[key] = d
+
+
+            collision_score += d
+
+
+            valid += 1
+
+
+
+        if valid == 0:
+
+            return None
+
+
+
+        collision_score /= valid
+
+
+
+        collision = (
+
+            collision_score
+            <
+            self.threshold
+
         )
 
 
 
-    def _compare(
-        self,
-        a,
-        b
-    ):
+        #
+        # three value state
+        #
 
+        empty_state = self._match(
 
-        distance = abs(
-            np.mean(a)
-            -
-            np.mean(b)
+            planet.get(
+                "density",
+                0.0
+            ),
+
+            clip.get(
+                "density",
+                0.0
+            ),
+
+            0.0
+
         )
 
 
-        if distance < self.threshold:
+
+        zero_state = self._match(
+
+            planet.get(
+                "energy",
+                0.0
+            ),
+
+            clip.get(
+                "energy",
+                0.0
+            ),
+
+            0.0
+
+        )
+
+
+
+        negative_state = (
+
+            np.sign(
+                planet.get(
+                    "mean",
+                    0.0
+                )
+            )
+
+            ==
+            
+            np.sign(
+                clip.get(
+                    "mean",
+                    0.0
+                )
+            )
+
+        )
+
+
+
+        interaction = 0.0
+
+
+        if collision:
 
 
             interaction = (
-                np.mean(a)
+
+                planet.get(
+                    "energy",
+                    0.0
+                )
+
                 +
-                np.mean(b)
+
+                clip.get(
+                    "energy",
+                    0.0
+                )
+
             ) / 2.0
-
-
-            return {
-
-                "collision":
-                    True,
-
-
-                "distance":
-                    float(distance),
-
-
-                "interaction":
-                    float(interaction),
-
-
-                "planet":
-                    float(np.mean(a)),
-
-
-                "clip":
-                    float(np.mean(b))
-
-            }
 
 
 
@@ -177,22 +308,108 @@ class CloudCollision:
 
 
             "collision":
-                False,
+
+                collision,
+
 
 
             "distance":
-                float(distance),
+
+                distance,
+
+
+
+            "collision_score":
+
+                float(
+                    collision_score
+                ),
+
+
+
+            "planet_activity":
+
+                float(
+                    planet.get(
+                        "energy",
+                        0.0
+                    )
+                ),
+
+
+
+            "clip_activity":
+
+                float(
+                    clip.get(
+                        "energy",
+                        0.0
+                    )
+                ),
+
+
+
+            "empty_match":
+
+                bool(
+                    empty_state
+                ),
+
+
+
+            "zero_match":
+
+                bool(
+                    zero_state
+                ),
+
+
+
+            "negative_match":
+
+                bool(
+                    negative_state
+                ),
+
 
 
             "interaction":
-                0.0,
 
-
-            "planet":
-                float(np.mean(a)),
-
-
-            "clip":
-                float(np.mean(b))
+                float(
+                    interaction
+                )
 
         }
+
+
+
+
+    def _match(
+        self,
+        a,
+        b,
+        target
+    ):
+
+
+        return (
+
+            abs(
+                float(a)
+                -
+                target
+            )
+            <
+            self.threshold
+
+            and
+
+            abs(
+                float(b)
+                -
+                target
+            )
+            <
+            self.threshold
+
+        )

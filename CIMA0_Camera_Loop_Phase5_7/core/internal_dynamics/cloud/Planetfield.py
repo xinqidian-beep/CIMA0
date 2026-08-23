@@ -1,9 +1,9 @@
 """
-CIMA0 Phase5_6
+CIMA0 Phase5_7
 
 PlanetField
 
-Internal organ.
+Local continuous evolution field.
 
 Responsibility:
 
@@ -15,7 +15,7 @@ Responsibility:
 
     provide activity signal
 
-    expose snapshot
+    export collision projection
 
 
 Does NOT know:
@@ -27,50 +27,63 @@ Does NOT know:
     CLIP
     display
     compute policy
+    CloudField
 
 
 Architecture:
 
 
-    external disturbance
+external disturbance
 
-            |
+        |
 
-            v
-
-
-    PlanetField.receive()
+        v
 
 
-            |
-
-            v
+PlanetField.receive()
 
 
-    pending disturbance
+        |
+
+        v
 
 
-            |
-
-            v
+pending disturbance
 
 
-    Planet.evolve()
+        |
+
+        v
 
 
-            |
-
-            v
+Planet.evolve()
 
 
-    local planetary state
+        |
+
+        v
+
+
+PlanetField state
+
+
+        |
+
+        v
+
+
+collision projection
 
 
 """
 
 
+
 import numpy as np
+
 from core.io.transport.packet import BitPacket
+
+
 
 
 class PlanetField:
@@ -85,6 +98,7 @@ class PlanetField:
 
 
         self.planet = planet
+
 
 
         if initial_state is not None:
@@ -115,8 +129,9 @@ class PlanetField:
             )
 
 
+
         #
-        # pending external disturbance
+        # external disturbance buffer
         #
 
         self.pending_disturbance = None
@@ -124,7 +139,7 @@ class PlanetField:
 
 
         #
-        # organ state
+        # history
         #
 
         self.previous_state = None
@@ -132,8 +147,9 @@ class PlanetField:
         self.age = 0
 
 
+
         #
-        # compute allocation
+        # compute
         #
 
         self.compute_budget = 0
@@ -143,7 +159,7 @@ class PlanetField:
 
 
     #
-    # receive external disturbance
+    # external input
     #
 
     def receive(
@@ -168,12 +184,15 @@ class PlanetField:
 
 
         self.pending_disturbance = (
+
             disturbance
             .astype(
                 np.float32,
                 copy=True
             )
+
         )
+
 
 
 
@@ -181,8 +200,6 @@ class PlanetField:
 
     #
     # attention signal
-    #
-    # self evaluation
     #
 
     def activity(
@@ -195,42 +212,78 @@ class PlanetField:
 
             return {
 
+
                 "activity":
-                    0.0,
+                    float(
+                        np.mean(
+                            np.abs(
+                                self.state
+                            )
+                        )
+                    ),
+
+
+                "signal":
+                    1.0,
+
+
+                "changed":
+                    True,
+
+
+                "source":
+                    "planet",
+
 
                 "age":
-                    self.age,
-
-                "delta":
-                    0.0
+                    self.age
 
             }
 
 
 
+
         delta = np.mean(
+
             np.abs(
+
                 self.state
+
                 -
+
                 self.previous_state
+
             )
+
         )
 
 
 
         return {
 
+
             "activity":
                 float(delta),
 
-            "age":
-                self.age,
 
-            "delta":
-                float(delta)
+            "signal":
+                float(delta),
+
+
+            "changed":
+                bool(
+                    delta > 0
+                ),
+
+
+            "source":
+                "planet",
+
+
+            "age":
+                self.age
 
         }
-
 
 
 
@@ -245,8 +298,8 @@ class PlanetField:
         amount
     ):
 
-        self.compute_budget = amount
 
+        self.compute_budget = amount
 
 
 
@@ -267,57 +320,93 @@ class PlanetField:
 
 
 
-        #
-        # preserve previous state
-        #
-
         old_state = (
+
             self.state
             .copy()
+
         )
 
 
 
         #
-        # delegate to pure Planet rule
+        # Planet owns evolution
         #
 
-        self.planet.step()
+        if hasattr(
+            self.planet,
+            "evolve"
+        ):
 
 
-        self.state = (
-            self.planet
-            .snapshot()
-            .astype(
+            self.state = (
+
+                self.planet.evolve(
+
+                    self.state,
+
+                    self.pending_disturbance
+
+                )
+
+            ).astype(
+
                 np.float32,
+
                 copy=True
+
             )
-        )
 
 
-        #
-        # observe local change
-        #
+
+        else:
+
+
+            #
+            # compatibility fallback
+            #
+
+            self.planet.step()
+
+
+            self.state = (
+
+                self.planet
+                .snapshot()
+                .astype(
+                    np.float32,
+                    copy=True
+                )
+
+            )
+
+
 
         delta = np.mean(
+
             np.abs(
+
                 self.state
+
                 -
+
                 old_state
+
             )
+
         )
+
 
 
         print(
+
             "PLANETFIELD DELTA:",
+
             float(delta)
+
         )
 
 
-
-        #
-        # update history
-        #
 
         self.previous_state = old_state
 
@@ -327,16 +416,12 @@ class PlanetField:
 
 
         #
-        # consume disturbance
+        # disturbance consumed
         #
 
         self.pending_disturbance = None
 
 
-
-        #
-        # consume compute
-        #
 
         self.compute_budget = 0
 
@@ -352,29 +437,50 @@ class PlanetField:
     def packet(
         self
     ):
+
+
         print(
             "PLANET PACKET CREATED"
         )
-        field = self.state.astype(
-            np.float32
+
+
+        field = (
+
+            self.state
+            .astype(
+                np.float32
+            )
+
         )
-        
+
+
+
         return BitPacket(
+
 
             source="planet",
 
+
             tag="visual",
+
 
             data=field.tobytes(),
 
+
             shape=field.shape,
+
 
             dtype="float32",
 
+
             schema="continuous_field",
 
+
             meta={
-                "age": self.age
+
+                "age":
+                    self.age
+
             }
 
         )
@@ -383,8 +489,117 @@ class PlanetField:
 
 
 
+
     #
-    # observer interface
+    # collision projection
+    #
+
+    def collision_projection(
+        self
+    ):
+        """
+        PlanetField state
+
+                |
+
+                v
+
+        planet cloud representation
+
+
+        Read only.
+        Used by CloudCollision.
+        No modification.
+
+        No activity evaluation.
+
+        """
+
+
+
+        field = self.state.copy()
+
+
+
+        cloud = {
+
+
+            "mean":
+
+                float(
+                    np.mean(field)
+                ),
+
+
+
+            "energy":
+
+                float(
+                    np.mean(
+                        np.abs(field)
+                    )
+                ),
+
+
+
+            "variance":
+
+                float(
+                    np.var(field)
+                ),
+
+
+
+            "density":
+
+                float(
+
+                    np.count_nonzero(field)
+
+                    /
+
+                    field.size
+
+                )
+
+        }
+
+
+
+        return {
+
+
+            "source":
+
+                "planet",
+
+
+
+            "representation":
+
+                "planet_cloud",
+
+
+
+            "cloud":
+
+                cloud,
+
+
+
+            "shape":
+
+                field.shape
+
+        }
+
+
+
+
+
+
+    #
+    # observer
     #
 
     def snapshot(

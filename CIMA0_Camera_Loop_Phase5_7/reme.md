@@ -1187,3 +1187,564 @@ compute
 ********************
 ***********************
 **************************
+继续沿着 Phase5_7 的设计往下推。
+
+现在目录已经稳定，下一步不是写大量代码，而是先**确定数据流和接口**。否则又会回到 Phase5_6 的问题：模块都有，但中间缺少真正的动力连接。
+
+---
+
+# Phase5_7 核心变化
+
+Phase5_6：
+
+```text
+organ.activity()
+
+        ↓
+
+attention
+
+        ↓
+
+compute winner
+```
+
+这是：
+
+> 谁变化大，谁获得机会。
+
+Phase5_7：
+
+改成：
+
+```text
+organ state
+
+        ↓
+
+cloud reconstruction
+
+        ↓
+
+cloud collision
+
+        ↓
+
+collision result
+
+        ↓
+
+attention
+
+        ↓
+
+compute
+```
+
+这是：
+
+> 谁与内部状态产生有效耦合，谁获得机会。
+
+---
+
+# 一、InternalDynamics.step() 重新定位
+
+以前：
+
+```python
+signals = []
+
+for organ:
+    activity()
+
+compute.select(signals)
+
+organ.apply_compute()
+
+organ.step()
+
+planet.step()
+```
+
+这里的问题：
+
+`compute` 在动力之前。
+
+Phase5_7 应该变成：
+
+```text
+1. 收集状态
+
+2. 云碰撞
+
+3. 产生竞争信号
+
+4. 分配计算
+
+5. 执行演化
+```
+
+顺序：
+
+```python
+def step(self):
+
+    states = self._collect_states()
+
+
+    collision = self.cloud_collision.step(
+        states
+    )
+
+
+    attention = self.attention_field.receive(
+        collision
+    )
+
+
+    winner = self.compute.select(
+        attention
+    )
+
+
+    self._apply_compute(
+        winner
+    )
+
+
+    self._evolve()
+```
+
+---
+
+# 二、两个 cloud 从哪里来？
+
+这里需要区分：
+
+## Planet
+
+已有：
+
+```text
+Planet
+ |
+ v
+PlanetField.state
+```
+
+例如：
+
+```python
+planet.state
+
+shape=(128,128)
+```
+
+这是连续场。
+
+---
+
+## CLIP
+
+已有：
+
+```text
+CLIPField
+
+ |
+ v
+
+internal cloud
+```
+
+例如：
+
+```
+(12,50,768)
+```
+
+这是表示空间。
+
+---
+
+所以 CloudCollision 不直接碰：
+
+```
+PlanetField
++
+CLIPField
+```
+
+而应该碰：
+
+```
+PlanetCloud
++
+CLIPCloud
+```
+
+也就是增加一个转换层。
+
+---
+
+# 三、建议新增：
+
+```text
+internal_dynamics/cloud/
+```
+
+变成：
+
+```text
+cloud/
+
+    cell.py
+
+    cloud_field.py
+
+    Planetfield.py
+
+    cloud_adapter.py   <-- 新
+```
+
+---
+
+为什么需要 adapter？
+
+因为：
+
+Planet：
+
+```text
+128×128
+```
+
+CLIP：
+
+```text
+12×50×768
+```
+
+维度不同。
+
+不能直接：
+
+```python
+planet - clip
+```
+
+。
+
+---
+
+Adapter职责：
+
+只做：
+
+```
+state
+ |
+ v
+cloud slots
+```
+
+不做：
+
+* 语义
+* 分类
+* 特征
+* 判断
+
+例如：
+
+```python
+PlanetField
+       |
+       v
+PlanetCloudAdapter
+       |
+       v
+cells
+```
+
+---
+
+# 四、CloudCollision 第一版不要复杂
+
+不要马上做复杂空间匹配。
+
+第一版只验证：
+
+> 两个云有没有相互影响。
+
+接口：
+
+```python
+class CloudCollision:
+
+
+    def collide(
+        self,
+        a,
+        b
+    ):
+
+        return result
+```
+
+输入：
+
+```python
+planet_cloud
+
+clip_cloud
+```
+
+输出：
+
+```python
+{
+    "planet_change":0.02,
+
+    "clip_change":0.04,
+
+    "interaction":0.01
+}
+```
+
+---
+
+# 五、Phase5_2 的 collision 可以直接复用吗？
+
+可以。
+
+但是要升级。
+
+原来：
+
+```python
+Cell.value
+```
+
+是一维：
+
+```
+0.5
+```
+
+现在：
+
+可能：
+
+```
+cell.value = vector
+```
+
+或者：
+
+```
+cell.value = small field
+```
+
+所以：
+
+Phase5_2：
+
+```python
+abs(a.value-b.value)
+```
+
+升级：
+
+```python
+distance(
+    a.value,
+    b.value
+)
+```
+
+距离规则以后替换。
+
+第一版：
+
+```python
+np.mean(
+    abs(a-b)
+)
+```
+
+即可。
+
+---
+
+# 六、最重要：不要让 CLIP 赢
+
+现在：
+
+```
+CLIP activity = 0.06
+
+Planet activity = 0.000001
+```
+
+这是错误竞争。
+
+Phase5_7：
+
+变成：
+
+```
+Planet-CLIP collision:
+
+planet response = ?
+
+clip response = ?
+
+interaction = ?
+```
+
+可能：
+
+结果：
+
+```
+planet 0.001
+
+clip 0.0002
+```
+
+也可能：
+
+```
+planet 0.00001
+
+clip 0.03
+```
+
+由碰撞决定。
+
+---
+
+# 七、Phase5_7 最小开发顺序
+
+建议严格按这个顺序：
+
+---
+
+## Step 1
+
+复制：
+
+```
+Phase5_6
+→
+Phase5_7
+```
+
+冻结。
+
+---
+
+## Step 2
+
+整理目录：
+
+删除：
+
+```
+core/internal_dynamics.py
+```
+
+保留：
+
+```
+core/internal_dynamics/
+```
+
+---
+
+## Step 3
+
+迁移：
+
+```
+cell.py
+cloud_field.py
+```
+
+不要改逻辑。
+
+先让旧 cloud 活起来。
+
+---
+
+## Step 4
+
+新增：
+
+```
+cloud_collision.py
+```
+
+只实现：
+
+```python
+collide()
+```
+
+不要接 attention。
+
+---
+
+## Step 5
+
+写一个单独测试：
+
+不是跑摄像头。
+
+而是：
+
+```python
+planet_cloud = ...
+
+clip_cloud = ...
+
+
+result = collision.collide(
+    planet_cloud,
+    clip_cloud
+)
+
+
+print(result)
+```
+
+先证明：
+
+碰撞存在。
+
+---
+
+## Step 6
+
+再接回：
+
+```
+InternalDynamics.step()
+```
+
+---
+
+现在最关键的判断：
+
+Phase5_7 不是继续优化 Phase5_6。
+
+而是把：
+
+**“举手机制”降级为结果显示，把“碰撞机制”提升为真正的选择源。**
+
+下一步我建议先看 Phase5_2 的 `cloud_field.py` 在 Phase5_6 中是否已经完全不存在，然后决定是直接复制还是重新抽象。你刚才贴的代码已经足够说明：**原始碰撞代码还在，只是被新的 activity/compute 链路绕过去了。**
+**************************
+**********************
+***************************
+***************************
