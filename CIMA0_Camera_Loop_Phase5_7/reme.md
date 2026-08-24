@@ -1748,3 +1748,47 @@ Phase5_7 不是继续优化 Phase5_6。
 **********************
 ***************************
 ***************************
+现在 Phase5_7 的结构应该变成
+core/internal_dynamics/
+
+    internal_dynamics.py
+
+    cloud_state.py        <--- transient state
+
+    cloud_collision.py    <--- relationship
+
+    attention/
+        attention_field.py
+
+    cache/
+        observation_cache.py
+
+    cloud/
+
+        Planetfield.py     <--- dynamical system
+        cell.py
+        cloud_field.py
+
+    organs/
+
+        clip_field.py
+职责：
+
+Camera
+ |
+ v
+CLIPField
+ |
+ +----------+
+            |
+            v
+       PlanetField
+
+同时：
+
+temporary events
+        |
+        v
+   CloudState
+*************************************
+*************************************   
