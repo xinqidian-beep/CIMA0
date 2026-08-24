@@ -217,22 +217,6 @@ class InternalDynamics:
     ):
         self.step_count += 1
         clouds = self._collect_clouds()
-        print(
-            "STEP:",
-            self.step_count
-        )
-        print(
-            "PLANET INTERNAL:",
-            type(self.planet),
-            self.planet.state.shape
-        )
-
-
-        print(
-            "CLOUD SOURCES:",
-            clouds.keys()
-        )
-        
         
         
         collision_result = None
@@ -254,16 +238,8 @@ class InternalDynamics:
                 clouds.get("planet"),
                 clouds.get("clip")
             )
-            
-        print(
-            "COLLISION TYPE:",
-            type(collision_result)
-        )    
-            
-        print(
-            "COLLISION:",
-            collision_result
-        )
+        
+        
 
         #
         # observation
@@ -627,13 +603,6 @@ class InternalDynamics:
 
 
         if winner is not None:
-
-
-            print(
-                "COMPUTE WINNER:",
-                winner["name"]
-            )
-
 
 
             organ = winner["organ"]

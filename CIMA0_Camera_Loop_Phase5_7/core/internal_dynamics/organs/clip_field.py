@@ -762,9 +762,37 @@ class CLIPField:
 
 
 
-        field=self.cloud.copy()
+        field=self.cloud
+
+        cloud = {
+
+            "mean":
+                float(
+                    np.mean(field)
+                ),
 
 
+            "energy":
+                float(
+                    np.mean(
+                        np.abs(field)
+                    )
+                ),
+
+
+            "variance":
+                float(
+                    np.var(field)
+                ),
+
+
+            "density":
+                float(
+                    np.count_nonzero(field)
+                    /
+                    field.size
+                )
+        }
 
         return {
 
@@ -776,37 +804,20 @@ class CLIPField:
 
 
             "representation":
-
-                "multilevel_cloud",
-
+                "clip_cloud",
 
 
-            "field":
 
-                field,
+            "cloud":
+                cloud,
 
 
 
             "shape":
-
                 field.shape,
                 
                 
-            "dtype":
-                str(field.dtype),    
-
-            "activity":
-
-                float(
-
-                    np.mean(
-
-                        np.abs(field)
-
-                    )
-
-                )
-
+            
         }
 
 
