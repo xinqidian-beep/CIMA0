@@ -204,3 +204,501 @@ planet.py
     |
     | own time
     v
+	
+**************************************************
+明白。你重新开窗口是合理的，因为前面那个拓扑图讨论已经进入**架构可视化层**，不断生成图形、调整层级，会消耗很多上下文和点数。
+
+我把当前阶段的关键连续性整理一下，后面可以直接从这里继续，不需要重新解释。
+
+---
+
+## 当前拓扑图的核心目标
+
+不是画“模块连接图”，而是画：
+
+**CIMA0 从输入 → 扰动 → 内部演化 → 观察 → 输出 的多层生命结构拓扑。**
+
+重点不是代码调用关系，而是：
+
+* 数据主权
+* 动力来源
+* 时间尺度
+* 层级涌现
+* 信息流与控制流分离
+
+---
+
+## 第一层：物理输入层（External World）
+
+```
+              External World
+                    |
+                    |
+               Camera / IO
+                    |
+                    v
+
+          CameraPlanet Packet
+
+{
+ bytes,
+ shape,
+ dtype
+}
+```
+
+特点：
+
+* 只是输入源
+* 不理解内容
+* 不压缩
+* 不解释
+
+---
+
+## 第二层：扰动场层（Disturbance Field）
+
+```
+             CameraPlanet
+                  |
+                  v
+
+          Disturbance Transport
+
+                  |
+                  v
+
+          InternalDynamics.receive()
+```
+
+这里发生：
+
+```
+external signal
+        |
+        |
+        v
+
+internal perturbation
+```
+
+注意：
+
+不是：
+
+```
+camera -> intelligence
+```
+
+而是：
+
+```
+environment -> disturbance
+```
+
+---
+
+## 第三层：内部动力系统层（Internal Dynamics）
+
+这是核心。
+
+```
+              InternalDynamics
+                     |
+       --------------------------------
+       |              |               |
+       v              v               v
+
+
+     Planet        CloudField      Organs
+
+       |              |               |
+       |              |               |
+       v              v               v
+
+ self evolution   sparse memory    special organs
+
+```
+
+---
+
+## Planet层
+
+定位：
+
+> 自存在动力核心
+
+不是数据库。
+
+不是神经网络。
+
+不是观察缓存。
+
+结构：
+
+```
+Planet
+
+state(t)
+
+   |
+   |
+ evolve()
+
+   |
+   v
+
+state(t+1)
+
+```
+
+规则：
+
+* 不修改
+* 不优化
+* 不解释输入
+* 只响应扰动
+
+---
+
+## CloudField层
+
+这是最近发现的重要结构。
+
+以前误认为：
+
+```
+Cloud = memory
+```
+
+现在应该改成：
+
+```
+Cloud = transient internal state ecology
+```
+
+拓扑：
+
+```
+              CloudField
+
+        +----------------+
+
+        Cell Cell Cell Cell
+
+        Cell Cell Cell Cell
+
+        Cell Cell Cell Cell
+
+        +----------------+
+
+```
+
+每个：
+
+```
+Cell
+
+value
+age
+activity
+```
+
+生命周期：
+
+```
+birth
+ |
+ v
+active
+ |
+ v
+decay
+ |
+ v
+forget
+```
+
+所以它不是永久记忆。
+
+更像：
+
+> 内部气候。
+
+---
+
+## Organ层（器官层）
+
+现在：
+
+```
+InternalDynamics
+
+       |
+       |
+       +------ CLIPField
+       |
+       |
+       +------ future organs
+
+```
+
+器官不是控制中心。
+
+它们：
+
+* 接收扰动
+* 产生内部状态
+* 提供活动信号
+
+例如：
+
+```
+CLIPField
+
+camera packet
+
+       |
+       v
+
+visual latent field
+
+       |
+       v
+
+activity
+```
+
+---
+
+## 第四层：计算与选择层
+
+这里需要和之前区分。
+
+ComputeSystem不是大脑。
+
+它更像：
+
+```
+metabolism
+```
+
+负责：
+
+```
+资源分配
+容量限制
+碰撞计算
+采样机会
+```
+
+拓扑：
+
+```
+            InternalDynamics
+
+                  |
+                  v
+
+             ComputeSystem
+
+                  |
+        ---------------------
+
+        |         |         |
+
+      Cloud    Organ    Observer
+
+```
+
+---
+
+## 第五层：Observer层
+
+非常关键。
+
+Observer必须独立。
+
+```
+             Observer
+
+                |
+                |
+        snapshot(read only)
+
+                |
+                v
+
+          observation packet
+
+```
+
+它不能：
+
+```
+Observer
+    |
+    X
+ modify state
+```
+
+否则系统会退化为：
+
+```
+observer = controller
+```
+
+---
+
+## 第六层：Display / IO输出
+
+```
+Internal State
+
+      |
+      v
+
+DisplayIO
+
+      |
+      v
+
+Human perception
+
+```
+
+人看到的是：
+
+```
+projection
+```
+
+不是：
+
+```
+system reality
+```
+
+---
+
+# 最终大拓扑（文字版）
+
+```
+                         WORLD
+                           |
+                           |
+                       Camera IO
+                           |
+                           v
+
+                    Disturbance Field
+                           |
+                           |
+                           v
+
+
+================================================
+
+                 INTERNAL UNIVERSE
+
+
+                    InternalDynamics
+
+
+        +----------------+----------------+
+
+        |                |                |
+
+        v                v                v
+
+
+      Planet          CloudField        Organs
+
+
+        |                |                |
+
+        |                |                |
+
+        v                v                v
+
+
+   self evolve       transient       specialized
+                     ecology          dynamics
+
+
+        \                |               /
+
+         \               |              /
+
+          \              |             /
+
+
+                 ComputeSystem
+
+
+                       |
+
+                       v
+
+
+                 Observer
+
+
+                       |
+
+                       v
+
+
+                 DisplayIO
+
+
+                       |
+
+                       v
+
+
+                    HUMAN
+
+================================================
+```
+
+---
+
+我认为下一步不要继续画漂亮图，而应该做**拓扑图的第二版：带时间尺度和控制权标注**。
+
+因为现在CIMA0已经出现了一个很重要的现象：
+
+* Planet：慢变量、自演化
+* Cloud：中短期波动
+* Organ：专门化动态
+* Observer：瞬时读取
+* IO：外部交换
+
+这实际上已经不是普通软件架构，而接近“多时间尺度人工生命架构”。
+
+下一张图应该标：
+
+```
+fast dynamics
+     ↑
+
+organ
+
+cloud
+
+planet
+
+     ↓
+
+slow dynamics
+```
+
+以及：
+
+```
+information flow  ---->
+control flow       - - -X
+```
+
+这样才能真正追踪“演化后出现的多层结构”。
+	

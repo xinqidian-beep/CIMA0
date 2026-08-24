@@ -40,7 +40,33 @@ core/internal_dynamics/
     cloud/Planetfield.py
 	     cell.py                
          cloud_field.py 
-
+         cloud_state.py
     organs/clip_field.py		
 		
 core/observer/internal_dynamics_observer.py  
+
+
+
+******************************************
+                 +-------------+
+                 | PlanetField |
+                 +-------------+
+                       |
+                       |
+                 CloudState
+                       |
+                       |
++-------------+        |
+| CLIPField   |------+
++-------------+
+                       |
+                       v
+
+                CloudCollision
+
+                       |
+                       v
+
+              collision event
+			  
+			  

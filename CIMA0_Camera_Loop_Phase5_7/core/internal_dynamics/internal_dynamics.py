@@ -1,6 +1,8 @@
 import copy
 import numpy as np
 
+from .cloud.cloud_state import CloudState
+
 class InternalDynamics:
     """
     CIMA0 Phase5_6
@@ -52,15 +54,17 @@ class InternalDynamics:
         attention_field=None,
         transport=None
     ):
-
-
+        
+        self.step_count = 0
+        
         #
         # dynamical core
         #
 
         self.planet = planet
-
-
+        
+        self.cloud = CloudState()
+        
         #
         # computation system
         #
@@ -143,6 +147,67 @@ class InternalDynamics:
                 organ.receive(
                     packet
                 )
+                
+    def _collect_clouds(
+        self
+    ):
+    
+        clouds = {}
+        #
+        # planet
+        #
+
+        if self.planet is not None:
+
+            if hasattr(
+                self.planet,
+                "collision_projection"
+            ):
+
+                clouds["planet"] = (
+                    self.planet
+                    .collision_projection()
+                )
+
+            else:
+
+                clouds["planet"] = (
+                    self.planet.snapshot()
+                )
+        #
+        # organs
+        #
+
+        for name, organ in self.organs.items():
+
+            if hasattr(
+                organ,
+                "collision_projection"
+            ):
+
+                cloud =(
+                    organ
+                    .collision_projection()
+                )
+                
+                clouds[name] = cloud
+                
+                if hasattr(
+                    organ,
+                    "debug_state"
+                ):
+                    state = organ.debug_state()
+
+                    print(
+                        "CLOUD:",
+                        name,
+                        {
+                            "shape":state.get("shape"),
+                            "activity":state.get("activity")
+                        }
+                    )
+        return clouds            
+                                
     #
     # main evolution cycle
     #
@@ -150,21 +215,51 @@ class InternalDynamics:
     def step(
         self
     ):
-        
+        self.step_count += 1
         clouds = self._collect_clouds()
+        print(
+            "STEP:",
+            self.step_count
+        )
+        print(
+            "PLANET INTERNAL:",
+            type(self.planet),
+            self.planet.state.shape
+        )
 
 
+        print(
+            "CLOUD SOURCES:",
+            clouds.keys()
+        )
+        
+        
+        
         collision_result = None
 
 
         if self.collision:
+            
+            print(
+                "PLANET CLOUD:",
+                clouds.get("planet")
+            )
+
+            print(
+                "CLIP CLOUD:",
+                clouds.get("clip")
+            )
 
             collision_result = self.collision.collide(
                 clouds.get("planet"),
                 clouds.get("clip")
             )
-
-
+            
+        print(
+            "COLLISION TYPE:",
+            type(collision_result)
+        )    
+            
         print(
             "COLLISION:",
             collision_result
@@ -175,6 +270,32 @@ class InternalDynamics:
         #
 
         signals = self._observe()
+        
+        #
+        # collision signal
+        #
+
+        if collision_result is not None:
+
+            interaction = collision_result.get(
+                "interaction",
+                0.0
+            )
+
+
+            if interaction > 0:
+
+                signals.append(
+                    {
+                        "name": "collision",
+                        "organ": self.collision,
+                        "state":
+                        {
+                            "source": "collision",
+                            "signal": float(interaction)
+                        }
+                    }
+                )
 
         #
         # attention update
@@ -250,44 +371,17 @@ class InternalDynamics:
         # planet evolution
         #
 
-        self._planet_step()
-
-    def _collect_clouds(
-        self
-    ):
-
-        clouds = {}
+        planet_delta = self._planet_step()
+        
+        
         #
-        # organs
+        # cloud evolution
         #
+        
+        self.cloud.step()
+        
 
-        for name, organ in self.organs.items():
 
-            if hasattr(
-                organ,
-                "collision_projection"
-            ):
-
-                clouds[name] =(
-                    organ
-                    .collision_projection()
-                )
-                
-                            
-        #
-        # PlanetField
-        #    
-                
-        if hasattr(
-            self.planet,
-            "collision_projection"
-        ):
-
-            clouds["planet"] =(
-                self.planet
-                .collision_projection()
-            )
-        return clouds 
   
     #
     # observation stage
@@ -688,18 +782,21 @@ class InternalDynamics:
             self.planet,
             "step"
         ):
-
-
+           
+            
             print(
                 "PLANET OBJECT:",
                 type(self.planet)
             )
 
 
-            self.planet.step()
-
-
-
+            delta = self.planet.step()
+            print(
+                "PLANETFIELD DELTA:",
+                delta
+            )
+            
+            return delta
 
     #
     # external snapshot

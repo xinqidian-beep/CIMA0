@@ -345,8 +345,43 @@ class CLIPField:
         self.compute_budget = amount
 
 
+    def debug_state(self):
+
+        state = {
+            "source":"clip",
+            "shape":
+                None if self.cloud is None
+                else self.cloud.shape,
+            "activity":self.activity()
+        }
 
 
+        if self.cloud is not None:
+
+            if isinstance(
+                self.cloud,
+                dict
+            ):
+
+                if "field" in self.cloud:
+
+                    state["shape"] = (
+                        self.cloud["field"].shape
+                    )
+
+                else:
+
+                    state["shape"] = (
+                        self.cloud.shape
+                    )
+
+
+        else:
+
+            state["shape"] = None
+
+
+        return state
 
     #
     # update cloud
