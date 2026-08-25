@@ -2358,3 +2358,710 @@ PlanetField ---> CloudCollision
 ************************************
 ************************************
 ************************************
+进入：
+
+内部观察机制阶段
+当前完成：
+
+✅ PlanetField局部云
+✅ CLIP云
+✅ CloudCollision
+✅ Attention竞争
+✅ Compute winner
+✅ CloudState短期事件状态
+
+下一步：
+
+🔲 找ObservationMemory分散参数
+🔲 建立ObservationState接口
+🔲 接入Sampler
+🔲 验证采样是否影响内部演化
+
+***********************
+****************************
+*************************
+继续。
+
+现在我们把拓扑再细化一点。刚才只是第一层，现在需要把**状态所有权**和**信息流方向**固定下来。
+
+因为 CIMA0 到 Phase5_7 已经不是单纯的数据处理管线，而是在形成一个“内部生态”。
+
+---
+
+# 一、先重新定义几个核心对象
+
+现在容易混乱的地方：
+
+* PlanetField
+* Cloud
+* Observer
+* ObservationMemory
+* Sampler
+* Attention
+* Compute
+
+这些名字都带有“观察”“云”“状态”，如果边界不清楚，会互相侵入。
+
+重新定义：
+
+---
+
+## 1. PlanetField
+
+不是图像。
+
+不是数据库。
+
+不是memory。
+
+它是：
+
+```
+内部动力场
+```
+
+抽象：
+
+```
+PlanetField
+
+    |
+    |
+    v
+
+continuous evolving field
+
+```
+
+它自己演化。
+
+外界只能：
+
+```
+snapshot()
+```
+
+或者：
+
+```
+collision_projection()
+```
+
+读取。
+
+所以：
+
+```
+PlanetField
+      |
+      |
+      +---- Observer
+      |
+      +---- Collision
+```
+
+但是：
+
+```
+Observer
+不能修改 PlanetField
+```
+
+---
+
+# 2. Organ (CLIPField)
+
+CLIP现在的位置：
+
+```
+InternalDynamics
+        |
+        |
+       organs
+        |
+        |
+     CLIPField
+
+```
+
+它不是视觉理解器。
+
+现在正确：
+
+```
+camera bytes
+
+      |
+      v
+
+CLIPField
+
+      |
+      v
+
+visual continuous field
+
+```
+
+产生自己的内部云。
+
+所以：
+
+```
+CLIPField
+
+拥有:
+
+self.cloud
+
+self.internal_activity
+
+self.dirty
+
+```
+
+这是正确方向。
+
+---
+
+# 3. CloudCollision
+
+这里需要非常小心。
+
+CloudCollision不是云。
+
+它是：
+
+```
+关系计算器
+```
+
+即：
+
+```
+Planet cloud
+
+      \
+       \
+        Collision
+       /
+      /
+
+CLIP cloud
+
+```
+
+输出：
+
+```
+relationship state
+
+```
+
+例如：
+
+```
+distance
+
+interaction
+
+match
+
+```
+
+但是：
+
+不能：
+
+* 保存长期状态
+* 改变双方
+* 决定winner
+
+目前设计符合。
+
+---
+
+# 4. AttentionField
+
+位置：
+
+```
+signals
+
+   |
+   v
+
+AttentionField
+
+```
+
+作用：
+
+不是思考。
+
+不是理解。
+
+只是：
+
+```
+当前哪些信号值得进入计算
+
+```
+
+所以：
+
+```
+Attention
+=
+短期竞争场
+```
+
+---
+
+# 5. ComputeSystem
+
+这里以前容易误解。
+
+Compute不是“大脑”。
+
+它只是：
+
+```
+资源分配
+
+```
+
+输入：
+
+```
+signals
+
+```
+
+输出：
+
+```
+谁获得计算机会
+
+```
+
+例如现在：
+
+```
+COMPUTE WINNER: clip
+
+```
+
+意思不是：
+
+CLIP赢了。
+
+而是：
+
+这一轮：
+
+```
+CLIP获得更新预算
+```
+
+---
+
+# 6. Sampler
+
+这里是现在最大的缺口。
+
+现在：
+
+```
+Field
+
+ |
+ v
+
+Sampler
+
+ |
+ v
+
+selected point
+
+```
+
+但是缺少：
+
+```
+为什么选择这里？
+```
+
+目前答案：
+
+固定权重：
+
+```python
+age*0.25
+activity*0.35
+delta*0.40
+```
+
+所以它还是外部规则。
+
+---
+
+# 二、未来正确闭环
+
+应该变成：
+
+```
+             Internal Field
+                  |
+                  |
+              local state
+                  |
+                  v
+
+
+             Sampler
+
+                  |
+                  |
+          observation event
+
+                  |
+                  v
+
+
+          ObservationMemory
+
+                  |
+                  |
+        accumulated statistics
+
+                  |
+                  v
+
+
+          adaptive parameters
+
+                  |
+                  v
+
+
+             Sampler
+
+```
+
+这是第一个真正的内部循环。
+
+---
+
+# 三、ObservationMemory应该保存什么？
+
+不要保存图像。
+
+不要保存field。
+
+否则又变成第二个Planet。
+
+它应该保存：
+
+“观察行为”。
+
+例如：
+
+```python
+{
+    "position":x,
+
+    "age":20,
+
+    "activity":0.73,
+
+    "delta":0.12,
+
+    "selected":True,
+
+    "result":something
+}
+
+```
+
+重点：
+
+它记的是：
+
+> 哪些地方过去值得看。
+
+不是：
+
+> 那些地方是什么。
+
+---
+
+# 四、为什么 ObservationMemory 不属于 observer？
+
+现在可以更清楚：
+
+因为：
+
+Observer:
+
+```
+我看到了什么？
+```
+
+Memory:
+
+```
+我以前看过什么？
+```
+
+两个完全不同。
+
+---
+
+结构应该：
+
+```
+core
+
+├── observer
+│
+│    internal_dynamics_observer.py
+│
+│
+├── memory
+│
+│    observation_memory.py
+│
+│
+├── compute
+│
+│    sampler.py
+│
+│
+└── internal_dynamics
+
+```
+
+---
+
+# 五、现在 Phase5_7 的真实完成度
+
+我给一个状态图：
+
+```
+Camera
+ |
+ √
+Router
+ |
+ √
+InternalDynamics
+
+
+PlanetField
+ |
+ √
+ snapshot
+
+
+CLIPField
+ |
+ √
+ internal cloud
+
+
+Collision Projection
+ |
+ √
+ planet_cloud
+ clip_cloud
+
+
+CloudCollision
+ |
+ √
+ relationship
+
+
+Signal Bridge
+ |
+ √
+ attention + compute
+
+
+Sampler
+ |
+ ?
+存在
+
+但是:
+
+没有Memory闭环
+
+
+ObservationMemory
+ |
+ X
+不存在
+
+
+Adaptive Sampler
+ |
+ X
+不存在
+
+```
+
+---
+
+# 六、下一阶段建议顺序
+
+不要先改 sampler。
+
+顺序：
+
+---
+
+## Step 1
+
+建立拓扑文档：
+
+```
+PHASE5_7_ARCHITECTURE.md
+
+```
+
+写清：
+
+每个模块：
+
+* 输入
+* 输出
+* 拥有什么状态
+* 能不能修改别人
+
+---
+
+## Step 2
+
+建立：
+
+```
+core/memory/
+
+observation_memory.py
+
+```
+
+非常小：
+
+只做：
+
+```
+receive()
+
+store()
+
+decay()
+
+snapshot()
+
+```
+
+---
+
+## Step 3
+
+连接：
+
+```
+Sampler
+      |
+      v
+ObservationMemory
+
+```
+
+不是反过来。
+
+---
+
+## Step 4
+
+再让：
+
+```
+ObservationMemory
+
+慢慢影响：
+
+w_age
+w_activity
+w_delta
+
+```
+
+---
+
+# 七、关于你提出的“自然消耗”
+
+这是关键方向。
+
+未来不应该：
+
+```python
+self.w_age=0.25
+```
+
+而应该类似：
+
+```
+weight state
+
+受到:
+
+usage
+
+success
+
+decay
+
+competition
+
+影响
+
+```
+
+例如：
+
+长期没有因为 delta 选中的区域：
+
+delta权重下降。
+
+长期activity带来有效变化：
+
+activity权重增加。
+
+这才符合你之前提出的：
+
+> 三个变量互相制约，自然演化。
+
+---
+
+所以当前最准确的位置：
+
+**Phase5_7 已经完成“内部云之间可以发生关系”。**
+
+下一阶段：
+
+不是增加更多云。
+
+而是建立：
+
+> “观察如何影响未来观察”的内部记忆闭环。
+
+这也是从“有动力系统”走向“有适应性的动力系统”的分界点。
+**********************************
+**********************************
+**********************************

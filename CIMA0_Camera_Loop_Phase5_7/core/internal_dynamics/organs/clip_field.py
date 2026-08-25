@@ -746,33 +746,73 @@ class CLIPField:
         self
     ):
         """
-        Export CLIP cloud.
+        Export CLIP internal cloud state.
 
         Read only.
 
-        Used by CloudCollision.
+        Used by:
+            CloudCollision
 
-        No modification.
+        Does NOT:
+            modify self.cloud
+            evaluate winner
+            create activity
+            allocate compute
+
+        Output:
+
+            {
+                "source": "clip",
+                "representation": "clip_cloud",
+
+                "cloud":
+                {
+                    "mean": ...,
+                    "energy": ...,
+                    "variance": ...,
+                    "density": ...
+                },
+
+                "shape": ...
+            }
+
         """
 
+        #
+        # no cloud yet
+        #
 
         if self.cloud is None:
 
             return None
 
 
+        #
+        # read only snapshot
+        #
 
-        field=self.cloud
+        field = self.cloud.copy()
+
+
+        #
+        # heterogeneous cloud statistics
+        #
+        # keep same abstraction as PlanetField
+        #
 
         cloud = {
 
+
             "mean":
+
                 float(
                     np.mean(field)
                 ),
 
 
+
             "energy":
+
                 float(
                     np.mean(
                         np.abs(field)
@@ -780,19 +820,25 @@ class CLIPField:
                 ),
 
 
+
             "variance":
+
                 float(
                     np.var(field)
                 ),
 
 
+
             "density":
+
                 float(
                     np.count_nonzero(field)
                     /
                     field.size
                 )
+
         }
+
 
         return {
 
@@ -804,20 +850,28 @@ class CLIPField:
 
 
             "representation":
+
                 "clip_cloud",
 
 
 
             "cloud":
+
                 cloud,
 
 
 
             "shape":
+
                 field.shape,
-                
-                
-            
+
+
+            "dtype":
+
+                str(
+                    field.dtype
+                )
+
         }
 
 

@@ -1,5 +1,8 @@
 from .sampling.sampler import Sampler
 
+from .sampling.sampler import Sampler
+from core.memory.observation_memory import ObservationMemory
+
 class ComputeSystem:
     """
     CIMA0 Compute Field
@@ -22,8 +25,12 @@ class ComputeSystem:
         self.capacity = capacity
 
         self.available = capacity
-
+        
+        self.memory = ObservationMemory()
         self.sampler = Sampler()
+        self.sampler.attach_memory(
+            self.memory
+        )
     
     def step(self):
 
@@ -48,9 +55,14 @@ class ComputeSystem:
         if not signals:
 
             return None
-
-
-
+            
+        self.memory.receive(
+            {
+                "signals":signals,
+                "available":self.available
+            }
+        )    
+            
         index = self.sampler.select(
             [
                 s["state"]

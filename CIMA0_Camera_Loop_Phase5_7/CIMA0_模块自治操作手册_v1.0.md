@@ -701,4 +701,50 @@ control flow       - - -X
 ```
 
 这样才能真正追踪“演化后出现的多层结构”。
-	
+                age
+                 |
+                 |
+PlanetField ---> ObservationState
+                 |
+                 |
+CLIPField ------> ObservationState
+                 |
+                 |
+CloudState -----> ObservationState
+
+
+                         |
+                         v
+
+                      Sampler	
+					  
+
+External World
+        |
+        v
+IO
+        |
+        v
+InternalDynamics
+
+        |
+        |
+ -------------------------
+ |           |            |
+Planet    Organs     Memory
+Field      CLIP        |
+ |           |          |
+ --------Collision------
+              |
+              v
+          Attention
+              |
+              v
+           Compute
+              |
+              v
+          Sampler
+              |
+              v
+       ObservationMemory
+					  

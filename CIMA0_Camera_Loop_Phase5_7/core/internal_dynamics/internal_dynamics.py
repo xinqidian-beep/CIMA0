@@ -151,13 +151,23 @@ class InternalDynamics:
     def _collect_clouds(
         self
     ):
-    
+        print(
+            "PLANET COLLISION METHOD:",
+            hasattr(
+                self.planet,
+                "collision_projection"
+            )
+        )
         clouds = {}
         #
         # planet
         #
 
         if self.planet is not None:
+            print(
+                "PLANET FOR CLOUD:",
+                self.planet.collision_projection()
+            )
 
             if hasattr(
                 self.planet,
@@ -197,14 +207,10 @@ class InternalDynamics:
                     "debug_state"
                 ):
                     state = organ.debug_state()
-
                     print(
                         "CLOUD:",
                         name,
-                        {
-                            "shape":state.get("shape"),
-                            "activity":state.get("activity")
-                        }
+                        organ.debug_state()
                     )
         return clouds            
                                 
@@ -238,9 +244,11 @@ class InternalDynamics:
                 clouds.get("planet"),
                 clouds.get("clip")
             )
+            print(
+                "COLLISION RESULT:",
+                collision_result
+            )
         
-        
-
         #
         # observation
         #
@@ -261,16 +269,24 @@ class InternalDynamics:
 
             if interaction > 0:
 
+                collision_signal = {
+                    "source": "collision",
+                    "signal": float(interaction),
+                    "step": self.step_count
+                }
+
+
                 signals.append(
                     {
                         "name": "collision",
                         "organ": self.collision,
-                        "state":
-                        {
-                            "source": "collision",
-                            "signal": float(interaction)
-                        }
+                        "state": collision_signal
                     }
+                )
+
+
+                self.cloud.receive(
+                    collision_signal
                 )
 
         #
