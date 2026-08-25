@@ -3065,3 +3065,626 @@ activity权重增加。
 **********************************
 **********************************
 **********************************
+## Phase5_7 当前总结（2026-08-25）
+
+这一阶段最大的进展，是系统从“模块堆叠”进入了“状态链路形成”。
+
+之前很多模块的问题是：
+
+> 类存在 → 初始化 → step调用 → 但是没有真正进入系统动力学。
+
+现在已经解决了一批。
+
+---
+
+# 一、当前真实运行拓扑
+
+现在实际链路：
+
+```
+Camera
+  |
+  v
+CameraPlanet
+  |
+  v
+Router
+  |
+  v
+CLIPField
+  |
+  v
+CLIP cloud
+  |
+  |
+  +----------------+
+                   |
+                   v
+
+              CloudCollision
+
+                   ^
+                   |
+PlanetField -------+
+
+                   |
+                   v
+
+              collision event
+
+                   |
+                   v
+
+             InternalDynamics
+
+                   |
+                   v
+
+              signals
+
+                   |
+          +--------+--------+
+          |                 |
+          v                 v
+
+ AttentionField       ComputeSystem
+
+                            |
+                            v
+
+                         Sampler
+
+                            |
+                            v
+
+                    ObservationMemory
+
+                            |
+                            v
+
+                         history
+
+```
+
+这条链现在是真的存在。
+
+---
+
+# 二、已经完成的部分
+
+## 1. Planet 从“显示状态”变成“内部空间投影”
+
+之前：
+
+错误理解：
+
+```
+PlanetField.state
+=
+整个内部空间
+```
+
+现在修正：
+
+```
+内部空间
+=
+无限演化动态场域
+
+
+PlanetField.state
+=
+观察者当前可访问的局部切片
+```
+
+也就是说：
+
+PlanetField 是：
+
+> 内部空间的一次局部采样。
+
+不是宇宙本体。
+
+这个概念调整非常重要。
+
+---
+
+# 2. Planet cloud 已经产生
+
+现在：
+
+日志：
+
+```
+PLANET FOR CLOUD:
+
+{
+ mean,
+ energy,
+ variance,
+ density
+}
+
+shape:(128,128)
+```
+
+说明：
+
+PlanetField → collision_projection
+
+已经成立。
+
+但是这个 projection 只是：
+
+```
+局部统计云
+```
+
+不是：
+
+```
+完整Planet状态
+```
+
+这是正确方向。
+
+---
+
+# 3. CLIP cloud 已经产生
+
+现在：
+
+```
+CLIP CLOUD:
+
+shape:(12,50,768)
+activity
+```
+
+说明：
+
+CLIPField：
+
+```
+camera
+ |
+ v
+feature field
+ |
+ v
+cloud
+```
+
+成立。
+
+---
+
+# 4. CloudCollision 接口完成
+
+现在：
+
+```
+Planet cloud
+       |
+       |
+       v
+ CloudCollision
+       ^
+       |
+ CLIP cloud
+```
+
+已经可以比较两个异构云。
+
+注意：
+
+它不是比较：
+
+```
+128x128
+vs
+12x50x768
+```
+
+而是比较：
+
+```
+mean
+energy
+variance
+density
+```
+
+这符合设计。
+
+---
+
+# 5. ObservationMemory 已接入
+
+现在：
+
+```
+MEMORY:
+
+size:32
+capacity:32
+```
+
+说明：
+
+ComputeSystem:
+
+```
+signals
+ |
+ v
+ObservationMemory.receive()
+```
+
+已经运行。
+
+以前的问题：
+
+> 造出来但没有数据
+
+已经解决。
+
+---
+
+# 三、目前发现的问题
+
+## 问题1：Memory capacity还是人为值
+
+现在：
+
+```
+capacity=32
+```
+
+不是系统产生。
+
+目前：
+
+```
+Memory
+ |
+ v
+固定容量
+```
+
+不是：
+
+```
+Memory
+ |
+ v
+长期演化
+ |
+ v
+容量变化
+```
+
+但是：
+
+现在不要急着改。
+
+因为容量属于慢变量。
+
+---
+
+## 问题2：Sampler三个权重还是人工参数
+
+现在：
+
+```python
+w_age=0.25
+w_activity=0.35
+w_delta=0.40
+```
+
+这是目前最大的人工痕迹。
+
+现在：
+
+```
+priority =
+人工公式
+```
+
+未来目标：
+
+```
+历史竞争
+      |
+      v
+三个变量变化
+      |
+      v
+新的priority
+```
+
+---
+
+## 问题3：Memory pressure命名错误
+
+现在：
+
+```
+MEMORY PRESSURE:1.0
+```
+
+实际：
+
+```
+32/32
+```
+
+它是：
+
+```
+occupancy
+```
+
+不是压力。
+
+后续改：
+
+保留：
+
+```
+pressure()
+```
+
+兼容旧接口。
+
+增加：
+
+```
+occupancy()
+```
+
+---
+
+# 四、下一阶段计划
+
+## Phase5_7.1
+
+## ObservationMemory状态化
+
+目标：
+
+Memory 不只是保存。
+
+增加：
+
+```
+Memory statistics
+```
+
+输出：
+
+```
+{
+ age,
+ activity,
+ delta,
+ occupancy
+}
+```
+
+暂时只观察。
+
+不影响系统。
+
+---
+
+## Phase5_7.2
+
+## Sampler内部状态化
+
+现在：
+
+```
+Sampler
+
+w_age
+w_activity
+w_delta
+
+固定
+```
+
+改成：
+
+```
+Sampler
+
+w_age_state
+w_activity_state
+w_delta_state
+
+慢变量
+```
+
+例如：
+
+不是：
+
+```
+0.25
+```
+
+而是：
+
+```
+当前0.25
+历史慢慢变化
+```
+
+---
+
+## Phase5_7.3
+
+## 建立真正反馈
+
+目标：
+
+形成：
+
+```
+ObservationMemory
+
+      |
+      v
+
+Sampler adaptation
+
+      |
+      v
+
+priority
+
+      |
+      v
+
+winner
+
+      |
+      v
+
+organ evolution
+
+      |
+      v
+
+new observation
+
+      |
+      v
+
+Memory
+```
+
+这才是真正的：
+
+```
+内部动力学闭环
+```
+
+---
+
+# 五、暂时不要做的事情
+
+现在不要：
+
+## 1. 不继续改 collision_projection
+
+目前它已经完成职责：
+
+```
+field
+ |
+ v
+statistics cloud
+```
+
+足够。
+
+不要让它承担：
+
+* 对齐
+* 压缩
+* 解释
+* 决策
+
+---
+
+## 2. 不让Planet和CLIP强行同维度
+
+不要：
+
+```
+Planet 128x128
+
+压成
+
+CLIP 768
+```
+
+也不要：
+
+```
+CLIP
+
+压成
+
+Planet
+```
+
+它们应该保持异构。
+
+碰撞层负责关系。
+
+---
+
+## 3. 不马上动态修改capacity
+
+因为：
+
+容量变化应该是：
+
+长期生态变量。
+
+不是当前反馈变量。
+
+---
+
+# 六、当前阶段评价
+
+Phase5_7 已经完成：
+
+```
+外部输入
+        |
+        v
+内部云化
+        |
+        v
+异构碰撞
+        |
+        v
+注意力竞争
+        |
+        v
+计算选择
+        |
+        v
+记忆形成
+```
+
+下一步核心不是增加模块。
+
+而是：
+
+> 让已经存在的模块开始互相改变。
+
+也就是从：
+
+**结构形成**
+
+进入：
+
+**结构自演化。**
+
+下一步工作顺序建议：
+
+1. 完成 ObservationMemory.statistics()
+2. 打印真实历史状态
+3. 将 Sampler 三个权重变成慢变量
+4. 建立 Memory → Sampler → Compute 的反馈
+5. 再观察是否出现自然偏向（例如 Planet 与 CLIP 的竞争变化）
+
+目前架构方向是正确的。现在进入 CIMA0 真正困难的部分：**让系统开始自己形成行为，而不是继续人为设定行为。**
+*********************
+************************
+**************************

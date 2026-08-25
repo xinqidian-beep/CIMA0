@@ -26,12 +26,12 @@ class ComputeSystem:
 
         self.available = capacity
         
-        self.memory = ObservationMemory()
+        self.memory = ObservationMemory(capacity=32)
         self.sampler = Sampler()
         self.sampler.attach_memory(
             self.memory
         )
-    
+
     def step(self):
 
         self.available += (
@@ -58,10 +58,19 @@ class ComputeSystem:
             
         self.memory.receive(
             {
-                "signals":signals,
-                "available":self.available
+                "signals":
+                [
+                    {
+                        "name": s.get("name"),
+                        "state": s.get("state")
+                    }
+                    for s in signals
+                ],
+
+                "available":
+                    self.available
             }
-        )    
+        )
             
         index = self.sampler.select(
             [
@@ -99,4 +108,7 @@ class ComputeSystem:
 
         self.available-=amount
 
-
+        print(
+            "MEMORY:",
+            self.memory.debug_state()
+        )

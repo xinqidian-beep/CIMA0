@@ -63,8 +63,15 @@ class Sampler:
         self.w_activity = 0.35
 
         self.w_delta = 0.40
+        
+        self.memory = None
 
+    def attach_memory(
+        self,
+        memory
+    ):
 
+        self.memory = memory
 
     #
     # calculate priority
@@ -74,8 +81,19 @@ class Sampler:
         self,
         state
     ):
+        
+        memory_pressure = None
 
 
+        if self.memory is not None:
+
+            memory_pressure = (
+                self.memory.pressure()
+            )
+        print(
+            "MEMORY PRESSURE:",
+            memory_pressure
+        )
         if state is None:
 
             return None
@@ -139,7 +157,22 @@ class Sampler:
 
         return score
 
+    def adapt_weights(
+        self
+    ):
 
+        if self.memory is None:
+            return
+
+
+        pressure = self.memory.pressure()
+
+
+        if pressure > 0.8:
+
+            self.w_delta *= 0.99
+
+            self.w_activity *= 1.01
 
     #
     # select top priority
@@ -247,3 +280,4 @@ class Sampler:
 
 
         return index
+        
