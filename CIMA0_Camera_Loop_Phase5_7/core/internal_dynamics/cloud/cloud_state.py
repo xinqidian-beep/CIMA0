@@ -35,7 +35,9 @@ class CloudState:
         self.cells.append(
             {
                 "value": value,
-                "age": 0
+                "age": 0,
+                "source":"collision",
+                "step":self.step_count
             }
         )
 

@@ -69,4 +69,34 @@ core/observer/internal_dynamics_observer.py
 
               collision event
 			  
+Camera
+  |
+  v
+CLIPField
+  |
+  v
+CLIP Cloud
+       \
+        \
+         CloudCollision
+        /
+       /
+Planet Cloud
+  |
+PlanetField
+
+
+CollisionEvent
+
+   |
+   v
+
+Signals
+
+   |
+   +------ Attention
+
+   |
+   +------ Compute
+
 			  
