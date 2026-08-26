@@ -319,7 +319,30 @@ class Sampler:
             )[::-1]
         ]
 
+        print(
+            "SAMPLER CANDIDATES:",
+            len(candidates)
+        )
 
-
+        print(
+            "SAMPLER SCORE:",
+            [
+                {
+                    "index": i,
+                    "score": float(score)
+                }
+                for i, score in enumerate(scores)
+            ]
+        )
+        print(
+            "SAMPLER WEIGHTS:",
+            self.w_age,
+            self.w_activity,
+            self.w_delta
+        )
+        print(
+            "SAMPLER SCORE:",
+            scores
+        )
         return index
         

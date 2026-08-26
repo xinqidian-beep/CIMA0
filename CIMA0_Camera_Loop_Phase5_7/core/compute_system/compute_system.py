@@ -56,27 +56,46 @@ class ComputeSystem:
 
             return None
             
-        self.memory.receive(
-            {
-                "signals":
-                [
-                    {
-                        "name": s.get("name"),
-                        "state": s.get("state")
-                    }
-                    for s in signals
-                ],
+                
+        states = []
 
-                "available":
-                    self.available
-            }
-        )
-            
+
+        for s in signals:
+
+            state = s.get(
+                "state",
+                {}
+            )
+
+
+            states.append(
+                {
+
+                    "age":
+                        state.get(
+                            "age",
+                            0.0
+                        ),
+
+
+                   "activity":
+                        state.get(
+                            "activity",
+                            0.0
+                        ),
+
+
+                   "delta":
+                        state.get(
+                            "signal",
+                            0.0
+                        )
+
+                }
+            )
+        
         index = self.sampler.select(
-            [
-                s["state"]
-                for s in signals
-            ],
+            states,
             budget=1
         )
 
@@ -87,7 +106,59 @@ class ComputeSystem:
         winner_index=int(
             index[0]
         )
+        winner = signals[
+            winner_index
+        ]  
+
+        if self.memory is not None:
             
+            self.memory.receive(
+            {
+                "type":
+                    "selection_input",
+
+                "signals":
+                    [
+                        {
+                            "name":
+                                s.get("name"),
+
+                            "state":
+                                s.get("state")
+                        }
+
+                        for s in signals
+                    ],
+
+                "available":
+                    self.available
+            }
+            )
+            
+            self.memory.record_selection(
+                [
+                   {
+                        "name":s.get("name"),
+                        "state":s.get("state")
+                    }
+
+                    for s in signals
+                ],
+
+                {
+                    "index":
+                        winner_index,
+
+                    "name":
+                        winner["name"],
+
+                    "state":
+                        winner["state"]
+
+                }
+                
+            )
+        
         return signals[
             winner_index
         ]
