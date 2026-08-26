@@ -28,17 +28,24 @@ class ObservationMemory:
         )
         
         #
-        # current observation cycle
+        # current observation cycle(selection feedback state)
         #
 
         self.last_selection = None
 
         self.last_result = None
+        
+        self.last_evaluation = None
+        
+        self.pending_evaluation = None
+        
+        self.last_step = None
     
     def record_selection(
         self,
         candidates,
-        winner
+        result,
+        step=None
     ):
 
         self.last_selection = {
@@ -52,8 +59,116 @@ class ObservationMemory:
         }
 
 
-        self.last_result = winner
+        self.last_result = result
         
+        self.pending_evaluation = {
+
+            "winner":
+                result.get(
+                    "name"
+                ),
+
+            "before":
+                result.get(
+                    "state"
+                ),
+
+            "step":
+                self.last_step
+
+        }
+        
+    def evaluate_pending(
+        self,
+        current_state
+    ):
+
+        if self.pending_evaluation is None:
+
+            return None
+            
+        winner = (
+            self.pending_evaluation["winner"]
+        )    
+            
+        before = (
+            self.pending_evaluation
+            ["before"]
+        )
+                        
+        after = None
+        
+        for item in current_state:
+
+            if item.get("name") == winner:
+
+                after = item.get("state")
+                
+                break
+                
+        if after is None:
+
+            return None    
+
+        evaluation = {
+
+            "winner":
+                winner,
+
+            "before":
+                before,
+
+            "after":
+                after,
+
+            "gain":
+                after["activity"]
+                -
+                before["activity"]
+
+        }
+        
+        self.last_evaluation = evaluation
+
+
+        self.pending_evaluation = None
+        
+        return evaluation 
+
+    def _compare(
+        self,
+        before,
+        after
+    ):
+
+        if before is None or after is None:
+
+            return 0.0
+
+
+        b = before.get(
+            "signal",
+            0.0
+        )
+
+
+        a = after.get(
+            "signal",
+            0.0
+        )
+
+
+        return float(
+            a-b
+        )        
+        
+    def record_evaluation(
+        self,
+        evaluation
+    ):
+
+        self.last_evaluation = evaluation    
+                
     def statistics(self):
 
         if len(self.records)==0:
@@ -206,5 +321,15 @@ class ObservationMemory:
                 self.last_selection,
 
             "last_result":
-                self.last_result
+                self.last_result,
+                
+            "last_evaluation":
+                self.last_evaluation,
+
+            "pending_evaluation":
+                self.pending_evaluation,
+
+            "last_evaluation":
+                self.last_evaluation
+                
         }   

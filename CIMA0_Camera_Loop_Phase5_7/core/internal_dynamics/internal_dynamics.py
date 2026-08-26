@@ -88,7 +88,7 @@ class InternalDynamics:
         self.observation_memory = ObservationMemory(
             capacity=128
         )
-        
+        self.observation_memory = self.observation_memory
                      
         #
         # information transport
@@ -218,7 +218,61 @@ class InternalDynamics:
                         name,
                         organ.debug_state()
                     )
-        return clouds            
+        return clouds  
+
+    def _evaluate_memory(
+        self
+    ):
+
+        if self.observation_memory is None:
+
+            return
+
+
+        pending = (
+            self.observation_memory
+            .pending_evaluation
+        )
+
+
+        if pending is None:
+
+            return
+
+
+        winner = pending.get(
+            "winner"
+        )
+        
+
+        for name, organ in self.organs.items():
+            
+            if name != winner:
+
+                continue
+            
+            if hasattr(
+                organ,
+                "activity"
+            ):
+
+                state = organ.activity()
+
+                if state is not None:
+                    result = (
+                        self.observation_memory
+                        .evaluate_pending(
+                            state
+                        )
+                    )
+                    
+                    print(
+                        "MEMORY EVALUATION:",
+                        result
+                    )
+
+                    break
+        
                                 
     #
     # main evolution cycle
@@ -227,13 +281,32 @@ class InternalDynamics:
     def step(
         self
     ):
+                
         self.step_count += 1
+        collision_result = None
+                
+        #
+        # previous observation
+        #
+
+        previous_signals = self._observe()          
+        
+        
+        #
+        # evaluate previous selection
+        #
+
+        if self.observation_memory is not None:
+
+            self.observation_memory.evaluate_pending(
+                previous_signals
+            )
+        #
+        # collect clouds
+        #
+
         clouds = self._collect_clouds()
         
-        
-        collision_result = None
-
-
         if self.collision:
             
             print(
@@ -259,7 +332,7 @@ class InternalDynamics:
         # observation
         #
 
-        signals = self._observe()
+        current_signals = self._observe()
         
         #
         # collision signal
@@ -282,7 +355,7 @@ class InternalDynamics:
                 }
 
 
-                signals.append(
+                current_signals.append(
                     {
                         "name": "collision",
                         "organ": self.collision,
@@ -304,7 +377,7 @@ class InternalDynamics:
         if self.attention_field is not None:
 
 
-            for signal in signals:
+            for signal in current_signals:
 
 
                 state = signal.get(
@@ -340,11 +413,11 @@ class InternalDynamics:
 
 
         #
-        # compute competition
+        # compute competition(new compute decision)
         #
 
         self._compute(
-            signals
+            current_signals
         )
 
 
