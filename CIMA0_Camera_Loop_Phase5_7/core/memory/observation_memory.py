@@ -13,7 +13,7 @@ class ObservationMemory:
         control
 
     Provides:
-        historical pressure
+        historical observation statistics
     """
 
     def __init__(
@@ -30,15 +30,17 @@ class ObservationMemory:
 
         if len(self.records)==0:
             return {
-                "age":0.0,
+                
                 "activity":0.0,
-                "delta":0.0
+                "delta":0.0,
+                "age":0.0,
+                "occupancy":0.0
             }
 
 
-        age=0
         activity=0
         delta=0
+        age=0
 
 
         count=0
@@ -46,10 +48,21 @@ class ObservationMemory:
 
         for record in self.records:
 
-            signals=record.get(
-                "signals",
-                []
-            )
+            if "signals" in record:
+
+                signals = record["signals"]
+
+            else:
+
+                signals = [
+                    {
+                        "state":
+                            record.get(
+                                "state",
+                                {}
+                            )
+                    }
+                ]
 
 
             for signal in signals:
@@ -57,6 +70,20 @@ class ObservationMemory:
                 state=signal.get(
                     "state",
                     {}
+                )
+                
+                activity += float(
+                    state.get(
+                        "activity",
+                        0
+                    )
+                )
+                
+                delta += float(
+                    state.get(
+                        "delta",
+                        0
+                    )
                 )
 
                 age += float(
@@ -66,35 +93,33 @@ class ObservationMemory:
                     )
                 )
 
-                activity += float(
-                    state.get(
-                        "activity",
-                        0
-                    )
-                )
+                
 
-                delta += float(
-                    state.get(
-                        "delta",
-                        0
-                    )
-                )
+                
 
                 count += 1
 
 
         if count==0:
-            return {
-                "age":0.0,
+            return {                
                 "activity":0.0,
-                "delta":0.0
+                "delta":0.0,
+                "age":0.0,
+                "occupancy":
+                    len(self.records)
+                    /
+                    self.capacity
             }
 
 
-        return {
-            "age":age/count,
+        return {            
             "activity":activity/count,
-            "delta":delta/count
+            "delta":delta/count,
+            "age":age/count,
+            "occupancy":
+                len(self.records)
+                /
+                self.capacity
         }    
         
     def receive(

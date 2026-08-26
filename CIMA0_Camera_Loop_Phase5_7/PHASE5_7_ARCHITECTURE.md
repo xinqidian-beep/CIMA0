@@ -649,7 +649,7 @@ observation_cache.py
 PlanetField
 
 owns:
-    internal field
+    internal field(continuous internal dynamic field)
 
 
 CLIPField
@@ -698,3 +698,11 @@ ObservationMemory
 
 owns:
     historical observation adaptation
+
+snapshot():
+
+returns local observation window
+
+projection():
+
+returns interaction representation
