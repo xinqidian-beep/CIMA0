@@ -31,6 +31,8 @@ class ComputeSystem:
         self.sampler.attach_memory(
             self.memory
         )
+        
+        self.step_count = 0
 
     def step(self):
 
@@ -50,12 +52,22 @@ class ComputeSystem:
         self,
         signals
     ):
-
-
+        
+        self.step_count += 1
+        
         if not signals:
 
             return None
-            
+
+        #
+        # evaluate previous decision
+        #
+
+        if self.memory is not None:
+
+            self.memory.evaluate_pending(
+                signals
+            )            
                 
         states = []
 
@@ -111,7 +123,9 @@ class ComputeSystem:
         ]  
 
         if self.memory is not None:
-            
+            #
+            # save current candidates
+            #
             self.memory.receive(
             {
                 "type":
@@ -155,8 +169,8 @@ class ComputeSystem:
                     "state":
                         winner["state"]
 
-                }
-                
+                },
+                step=self.step_count
             )
         
         return signals[
