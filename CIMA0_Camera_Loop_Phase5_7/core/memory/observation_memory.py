@@ -26,6 +26,34 @@ class ObservationMemory:
         self.records =deque(
             maxlen=capacity
         )
+        
+        #
+        # current observation cycle
+        #
+
+        self.last_selection = None
+
+        self.last_result = None
+    
+    def record_selection(
+        self,
+        candidates,
+        winner
+    ):
+
+        self.last_selection = {
+
+            "candidate_count":
+                len(candidates),
+
+            "candidates":
+                candidates
+
+        }
+
+
+        self.last_result = winner
+        
     def statistics(self):
 
         if len(self.records)==0:
@@ -81,7 +109,7 @@ class ObservationMemory:
                 
                 delta += float(
                     state.get(
-                        "delta",
+                        "signal",
                         0
                     )
                 )
@@ -172,6 +200,11 @@ class ObservationMemory:
                 self.capacity,
 
             "pressure":
-                self.pressure()
+                self.pressure(),
+                
+            "last_selection":
+                self.last_selection,
 
-        }
+            "last_result":
+                self.last_result
+        }   
