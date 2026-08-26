@@ -2,6 +2,7 @@ import copy
 import numpy as np
 
 from .cloud.cloud_state import CloudState
+from core.memory.observation_memory import ObservationMemory
 
 class InternalDynamics:
     """
@@ -82,7 +83,12 @@ class InternalDynamics:
         
         self.observation_cache = observation_cache
 
-        self.attention_field = attention_field                
+        self.attention_field = attention_field
+
+        self.observation_memory = ObservationMemory(
+            capacity=128
+        )
+        
                      
         #
         # information transport
@@ -615,14 +621,25 @@ class InternalDynamics:
         winner = self.compute.select(
             signals
         )
+        
+        self.observation_memory.receive(
+            {
+                "signals": signals,
 
+                "winner":
+                    None
+                    if winner is None
+                    else winner["name"],
 
-
+                "step":
+                    self.step_count
+            }
+        )
+        
         if winner is not None:
-
-
+            
+                        
             organ = winner["organ"]
-
 
 
             if hasattr(
