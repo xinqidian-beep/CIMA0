@@ -66,9 +66,8 @@ class CameraObserver:
         self.field = None
 
         self.age = None
-        
-        self.raw_frame = None
-        
+
+
 
         self.w_delta = w_delta
 
@@ -83,19 +82,11 @@ class CameraObserver:
         packet
     ):
 
-        frame = self._decode(packet)
 
-        if frame is None:
-            return None
-
-
-        self.raw_frame = frame.copy()
-
-
-        pixels = frame.reshape(
-            -1,
-            3
+        pixels = self._decode(
+            packet
         )
+
 
         if pixels is None:
 
@@ -190,9 +181,8 @@ class CameraObserver:
             "field":
 
                 self.field.copy(),
-                
-            "raw":
-                self.raw_frame.copy(),    
+
+
 
             "delta":
 
@@ -401,7 +391,7 @@ class CameraObserver:
 
 
 
-        frame = observation["raw"]
+        field = observation["field"]
 
 
 
@@ -410,18 +400,21 @@ class CameraObserver:
 
             "bytes":
 
-                frame.tobytes(),
+                field.astype(
+                    np.uint8
+                ).tobytes(),
+
 
 
             "shape":
 
-                frame.shape,
+                field.shape,
 
 
 
             "dtype":
 
-                str(frame.dtype),
+                "uint8",
 
 
 
@@ -431,7 +424,7 @@ class CameraObserver:
 
             "type":
 
-                "media",
+                "field",
 
 
 

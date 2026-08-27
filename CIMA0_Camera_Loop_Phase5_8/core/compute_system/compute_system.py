@@ -52,9 +52,7 @@ class ComputeSystem:
         self,
         signals
     ):
-        if not signals:
-            return None
-            
+        
         self.step_count += 1
         
         if not signals:

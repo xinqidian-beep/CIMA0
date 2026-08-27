@@ -66,8 +66,6 @@ class InternalDynamics:
         
         self.cloud = CloudState()
         
-
-        
         #
         # computation system
         #
@@ -87,7 +85,11 @@ class InternalDynamics:
 
         self.attention_field = attention_field
 
-                             
+        self.observation_memory = ObservationMemory(
+            capacity=128
+        )
+        self.observation_memory = self.observation_memory
+                     
         #
         # information transport
         #
@@ -118,12 +120,6 @@ class InternalDynamics:
 
         self.internal_fields = {}
         
-        #
-        # raw external packet cache
-        #
-
-        self.external_packets = {}        
-        
     #
     # register organ
     #
@@ -147,17 +143,6 @@ class InternalDynamics:
         packet
     ):
 
-        if (
-            packet.source=="camera"
-            and
-            packet.tag=="camera_raw"
-        ):
-
-            self.external_packets[
-                "camera_raw"
-            ] = packet
-
-
         for organ in self.organs.values():
 
             if hasattr(
@@ -165,9 +150,10 @@ class InternalDynamics:
                 "receive"
             ):
 
-                organ.receive(packet)
-    
-    
+                organ.receive(
+                    packet
+                )
+                
     def _collect_clouds(
         self
     ):
@@ -234,7 +220,60 @@ class InternalDynamics:
                     )
         return clouds  
 
-                               
+    def _evaluate_memory(
+        self
+    ):
+
+        if self.observation_memory is None:
+
+            return
+
+
+        pending = (
+            self.observation_memory
+            .pending_evaluation
+        )
+
+
+        if pending is None:
+
+            return
+
+
+        winner = pending.get(
+            "winner"
+        )
+        
+
+        for name, organ in self.organs.items():
+            
+            if name != winner:
+
+                continue
+            
+            if hasattr(
+                organ,
+                "activity"
+            ):
+
+                state = organ.activity()
+
+                if state is not None:
+                    result = (
+                        self.observation_memory
+                        .evaluate_pending(
+                            state
+                        )
+                    )
+                    
+                    print(
+                        "MEMORY EVALUATION:",
+                        result
+                    )
+
+                    break
+        
+                                
     #
     # main evolution cycle
     #
@@ -246,6 +285,22 @@ class InternalDynamics:
         self.step_count += 1
         collision_result = None
                 
+        #
+        # previous observation
+        #
+
+        previous_signals = self._observe()          
+        
+        
+        #
+        # evaluate previous selection
+        #
+
+        if self.observation_memory is not None:
+
+            self.observation_memory.evaluate_pending(
+                previous_signals
+            )
         #
         # collect clouds
         #
@@ -640,6 +695,19 @@ class InternalDynamics:
             signals
         )
         
+        self.observation_memory.receive(
+            {
+                "signals": signals,
+
+                "winner":
+                    None
+                    if winner is None
+                    else winner["name"],
+
+                "step":
+                    self.step_count
+            }
+        )
         
         if winner is not None:
             
@@ -713,25 +781,7 @@ class InternalDynamics:
         if self.transport is None:
 
             return
-            
-        #
-        # external raw media passthrough
-        #
 
-        for source, packet in self.external_packets.items():
-            
-            if packet is None:
-                continue
-
-            if packet.source=="camera":
-                
-                print(
-                    "RAW CAMERA PASSTHROUGH"
-                )
-
-                self.transport.publish(
-                    packet
-                )
 
 
         #
@@ -790,55 +840,8 @@ class InternalDynamics:
                 self.transport.publish(
                     packet
                 )
-                
-    def receive(
-        self,
-        packet
-    ):
 
-        print(
-            "INTERNAL RECEIVE:",
-            packet.source,
-            packet.tag,
-            packet.schema,
-            packet.shape
-        ) 
 
-        if not hasattr(
-            self,
-            "external_packets"
-        ):
-            self.external_packets = {}
-            
-        #
-        # preserve original physical stream
-        #    
-        
-        if (
-            packet.source=="camera"
-            and
-            packet.tag=="camera_raw"
-        ):
-
-            self.external_packets[
-                "camera_raw"
-            ] = packet
-
-        
-        #
-        # penetrate organs
-        #
-
-        for organ in self.organs.values():
-
-            if hasattr(
-                organ,
-                "receive"
-            ):
-
-                organ.receive(
-                    packet
-                )     
 
 
     #
@@ -913,8 +916,7 @@ class InternalDynamics:
 
                 self.internal_fields,
 
-            "external":
-                self.external_packets,  
+
 
             "planet":
 
@@ -926,7 +928,5 @@ class InternalDynamics:
                 )
 
                 else None
-                
-              
 
         }

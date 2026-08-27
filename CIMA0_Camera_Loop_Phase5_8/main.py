@@ -312,16 +312,14 @@ def main():
 
             if ret and frame is not None:
 
-                print(
-                    "CAMERA FRAME:",
-                    type(frame),
-                    frame.shape,
-                    frame.dtype
-                )
+
                 camera_state = {
 
                     "field":
-                        frame
+                        frame.reshape(
+                            -1,
+                            3
+                        )
 
                 }
 
@@ -330,16 +328,13 @@ def main():
                 packet = camera_io.encode(
                     camera_state
                 )
-                print(
-                    "CAMERA PACKET:",
-                    packet
-                )
+
 
 
                 if packet is not None:
 
 
-                    dynamics.receive(
+                    transport.publish(
                         packet
                     )
 
@@ -368,10 +363,6 @@ def main():
                     "CIMA0",
                     display.frame
                 )
-            key=cv2.waitKey(1)&0xff
-
-            if key==27:
-                break    
 
 
 

@@ -72,19 +72,6 @@ class DisplayIO:
 
         self.previous = None
         self.frame = None
-        
-    def _media_to_rgb(
-        self,
-        data
-    ):
-
-        if data.ndim !=3:
-            return None
-
-
-        if data.shape[2]!=3:
-            return None    
-        
 
     def encode(
         self,
@@ -105,38 +92,26 @@ class DisplayIO:
         if data is None:
 
             return None
-            
-        #
-        # physical camera stream
-        #
 
-        if packet.schema == "media.bgr":
-
-            image = self._media_to_rgb(
-                data
-            )
-
+        data = self._complete(
+            data
+        )
 
         #
-        # internal fields
+        # external media stream
         #
-
-        elif packet.schema in (
+        if packet.schema in (
             "continuous_field",
             "discrete_field"
         ):
 
-            data = self._complete(
-                data
-            )
-
             image = self._field_to_rgb(
                 data
             )
-
-
+          
+        
         else:
- 
+
             return None
 
 
@@ -155,30 +130,6 @@ class DisplayIO:
         return image.astype(
             np.uint8
         )
-        
-    def _media_to_rgb(
-        self,
-        data
-    ):
-
-        if data.ndim != 3:
-
-            return None
-
-
-        if data.shape[2] != 3:
-
-            return None
-
-
-        #
-        # camera packet is BGR
-        #
-        # framebuffer is RGB
-        #
-
-        return data[:, :, ::-1]    
-        
 
     #
     # missing position completion
@@ -282,34 +233,9 @@ class DisplayIO:
 
         if frame is not None:
 
-            return
-
-
-        if packet.schema=="media.bgr":
-
-            self.media_frame = frame
-
-
-        elif packet.schema in (
-            "continuous_field",
-            "discrete_field"
-        ):
-
-            self.field_frame = frame
-
-
-    def render(
-        self
-    ):
- 
-        if self.media_frame is not None:
-
-            return self.media_frame
-
-
-        return self.field_frame
-
-
+            self.frame = frame    
+        
+    
     #
     # internal field visualization
     #
