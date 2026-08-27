@@ -252,16 +252,10 @@ class CLIPField:
 
 
         self.input_packet = packet
-        #
-        # new observation arrived
-        #
+
 
         self.dirty = True
-        #
-        # external stimulus
-        #
 
-        self.input_activity = 1.0
 
         self.age = 0
 
@@ -393,47 +387,61 @@ class CLIPField:
     # update cloud
     #
 
-    def step(self):
+    def step(
+        self
+    ):
+
+
+        if self.compute_budget <= 0:
+
+            return
 
 
         if not self.dirty:
+
             return
 
 
         if self.input_packet is None:
+
             return
 
 
-        if self.activity < self.compute_threshold:
-            return
 
-
-
-        tensor=self._decode(
+        tensor = self._decode(
             self.input_packet
         )
 
 
         if tensor is None:
+
             return
 
 
 
-        success=self._forward(
+        success = self._forward(
             tensor
         )
 
 
         if not success:
+
             return
 
 
 
-        self.dirty=False
+        self.compute_budget = 0
 
-        self.input_activity *= 0.2
+
+        self.dirty = False
+
+
+        self.need_initialization=False
+
+
 
         self.age += 1
+
 
 
 
