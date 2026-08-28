@@ -773,36 +773,44 @@ class CLIPField:
         self
     ):
         """
-        Export CLIP internal cloud state.
+        Export the complete CLIP cloud state.
 
         Read only.
 
-        Used by:
+        Responsibility:
+
+            CLIP internal cloud
+                    |
+                    v
+            CIMA0 external cloud
+                    |
+                    v
             CloudCollision
 
-        Does NOT:
-            modify self.cloud
-            evaluate winner
-            create activity
-            allocate compute
+        This method:
 
-        Output:
+            - preserves all 12 layers
+            - preserves the complete layer data
+            - preserves shape and dtype
+            - preserves layer-level activity
+            - preserves CLIP internal structure metadata
+            - does NOT select a layer
+            - does NOT compress the cloud
+            - does NOT calculate collision
+            - does NOT create attention
+            - does NOT allocate compute
+            - does NOT modify self.cloud
 
-            {
-                "source": "clip",
-                "representation": "clip_cloud",
+        Important:
 
-                "cloud":
-                {
-                    "mean": ...,
-                    "energy": ...,
-                    "variance": ...,
-                    "density": ...
-                },
+            CLIP may use tokens internally.
 
-                "shape": ...
-            }
+            Tokens remain part of the CLIP internal
+            representation and are carried across the
+            external boundary as data.
 
+            CIMA0 does not reinterpret them as the
+            fundamental unit of cognition.
         """
 
         #
@@ -815,96 +823,101 @@ class CLIPField:
 
 
         #
-        # read only snapshot
+        # complete read-only cloud copy
         #
 
         field = self.cloud.copy()
 
 
         #
-        # heterogeneous cloud statistics
+        # complete layer state
         #
-        # keep same abstraction as PlanetField
+        # field shape:
+        #
+        #     (12, 50, 768)
+        #
+        # No layer is selected.
+        # No token is selected.
+        # No information is discarded.
         #
 
-        cloud = {
+        layers = {}
+
+        for index in sorted(
+            self.layers.keys()
+        ):
+
+            layers[index] = self.layers[index].copy()
 
 
-            "mean":
+        #
+        # preserve layer activity
+        #
 
-                float(
-                    np.mean(field)
-                ),
+        layer_activity = {}
 
+        for index, value in self.layer_activity.items():
 
-
-            "energy":
-
-                float(
-                    np.mean(
-                        np.abs(field)
-                    )
-                ),
+            layer_activity[index] = float(
+                value
+            )
 
 
-
-            "variance":
-
-                float(
-                    np.var(field)
-                ),
-
-
-
-            "density":
-
-                float(
-                    np.count_nonzero(field)
-                    /
-                    field.size
-                )
-
-        }
-
+        #
+        # external cloud packet
+        #
 
         return {
 
-
             "source":
-
                 "clip",
 
-
-
             "representation":
-
                 "clip_cloud",
 
-
+            #
+            # complete cloud
+            #
 
             "cloud":
+                field,
 
-                cloud,
+            #
+            # explicit layer representation
+            #
 
+            "layers":
+                layers,
 
+            #
+            # activity belonging to each layer
+            #
+
+            "layer_activity":
+                layer_activity,
+
+            #
+            # structural information
+            #
+
+            "structure":
+                dict(
+                    self.structure
+                ),
+
+            #
+            # physical representation
+            #
 
             "shape":
-
                 field.shape,
 
-
             "dtype":
-
                 str(
                     field.dtype
                 )
 
         }
-
-
-
-
-
 
 
     #

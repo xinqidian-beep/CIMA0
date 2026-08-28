@@ -56,7 +56,7 @@ from core.compute_system.compute_system import (
     ComputeSystem
 )
 
-
+from core.internal_dynamics.cloud_collision import CloudCollision
 #
 # io
 #
@@ -101,7 +101,7 @@ def main():
     print("=" * 60)
 
     print(
-        "CIMA0 Phase5_6 Internal Dynamics Loop"
+        "CIMA0 Phase5_8 Internal Dynamics Loop"
     )
 
     print("=" * 60)
@@ -132,7 +132,7 @@ def main():
     )
 
 
-
+    collision = CloudCollision()
     #
     # Observer
     #
@@ -174,6 +174,8 @@ def main():
         planet=planet,
 
         compute=compute,
+        
+        collision=collision,
 
         observer=observer,
 
