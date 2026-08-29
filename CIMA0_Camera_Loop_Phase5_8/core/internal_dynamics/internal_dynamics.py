@@ -301,176 +301,44 @@ class InternalDynamics:
     # main evolution cycle
     #
 
-    def step(
-        self
-    ):
-        print(
-            "========== INTERNAL DYNAMICS STEP ENTER =========="
-        )        
-        self.step_count += 1
-        collision_result = None
-        print(
-            "STEP: BEFORE COLLECT CLOUDS"
-        )        
+    def step(self):
         #
-        # collect clouds
+        # 1. internal evolution
         #
 
-        clouds = self._collect_clouds()
-        print(
-            "STEP: AFTER COLLECT CLOUDS"
-        )
-        
-        if self.collision:
-            print(
-                "STEP: COLLISION OBJECT:",
-                type(self.collision)
-            )
-            print(
-                "PLANET CLOUD++++++++:",
-                clouds.get("planet")
-            )
-
-            print(
-                "CLIP CLOUD//////////:",
-                clouds.get("clip")
-            )
-
-            collision_result = self.collision.collide(
-                clouds.get("planet"),
-                clouds.get("clip")
-            )
-            print(
-                "COLLISION RESULT********:",
-                collision_result
-            )
-            
-        print(
-            "STEP: AFTER COLLISION"
-        )    
-        
-        #
-        # observation
-        #
-
-        current_signals = self._observe()
-        
-        #
-        # collision signal
-        #
-
-        if collision_result is not None:
-
-            interaction = collision_result.get(
-                "interaction",
-                0.0
-            )
-
-
-            if interaction > 0:
-
-                collision_signal = {
-                    "source": "collision",
-                    "signal": float(interaction),
-                    "step": self.step_count
-                }
-
-
-                current_signals.append(
-                    {
-                        "name": "collision",
-                        "organ": self.collision,
-                        "state": collision_signal
-                    }
-                )
-
-
-                self.cloud.receive(
-                    collision_signal
-                )
-
-        #
-        # attention update
-        #
-        # all organs use same envelope
-        #
-
-        if self.attention_field is not None:
-
-
-            for signal in current_signals:
-
-
-                state = signal.get(
-                    "state",
-                    {}
-                )
-
-
-                if state is None:
-
-                    continue
-
-
-                self.attention_field.receive(
-                    state
-                )
-
-
-            self.attention_field.step()
-
-
-
-        #
-        # save attention snapshot
-        #
-
-        if self.attention_field is not None:
-
-            self.last_signals = (
-                self.attention_field.snapshot()
-            )
-
-
-
-        #
-        # compute competition(new compute decision)
-        #
-
-        self._compute(
-            current_signals
-        )
-
-
-
-        #
-        # internal organs evolution
-        #
+        self._planet_step()
 
         self._evolve()
+        #
+        # 2. observe current change
+        #
 
+        signals = self._observe()
 
 
         #
-        # output internal fields
+        # 3. compute
         #
 
-        self._sample()
-
+        result = self._compute(
+            signals
+        )
 
 
         #
-        # planet evolution
+        # 4. commit exactly once
         #
 
-        planet_delta = self._planet_step()
-        
-        
+        self.commit(
+            result
+        )
+
+
         #
-        # cloud evolution
+        # 5. sample exactly once
         #
-        
-        self.cloud.step()
+
+        return self._sample()
         
 
 
@@ -717,41 +585,54 @@ class InternalDynamics:
         )
         
         
-        if winner is not None:
-            
+        if winner is  None:
+            return None
                         
-            organ = winner["organ"]
+        organ = winner.get(
+            "organ"
+        )
 
 
-            if hasattr(
-                organ,
-                "apply_compute"
-            ):
+        if organ is None:
+            return None
 
-                organ.apply_compute(
-                    1
-                )
-                
-            if hasattr(
-                organ,
-                "update"
-            ):
 
-                organ.update()    
-                
-            self.compute.consume(
-                1
+        return {
+            "organ": organ,
+            "winner": winner
+        }
+
+    def commit(
+        self,
+        result
+    ):
+
+        if result is None:
+            return
+
+
+        organ = result.get(
+            "organ"
+        )
+
+        if organ is None:
+            return
+
+
+        winner = result.get(
+            "winner"
+        )
+        #
+        # selected organ
+        #
+        if hasattr(
+            organ,
+            "commit"
+        ):
+
+            organ.commit(
+                winner
             )
-
-
-
-        self.compute.step()
-
-
-
-        return winner
-
-
 
 
     #
@@ -785,76 +666,41 @@ class InternalDynamics:
         self
     ):
 
-        if self.transport is None:
-            return
+        snapshot = {
+            "organs":
+                {
+                    name:
+                        organ.snapshot()
+                        if hasattr(
+                            organ,
+                            "snapshot"
+                        )
+                        else None
 
+                    for name, organ
+                    in self.organs.items()
+                },
 
-        #
-        # external raw stream
-        #
-        # Preserve the original camera packet.
-        #
-
-        for source, packet in self.external_packets.items():
-
-            if packet is None:
-                continue
-
-            self.transport.publish(
-                packet
-            )
-
-
-        #
-        # internal organs
-        #
-
-        for name, organ in self.organs.items():
-
-            if not hasattr(
-                organ,
-                "packet"
-            ):
-                continue
-
-
-            packet = organ.packet()
-
-
-            if packet is None:
-                continue
-
-
-            self.internal_fields[name] = packet
-
-
-            self.transport.publish(
-                packet
-            )
-
-
-        #
-        # planet
-        #
-
-        if hasattr(
-            self.planet,
-            "packet"
-        ):
-
-            packet = self.planet.packet()
-
-
-            if packet is not None:
-
-                self.internal_fields[
-                    "planet"
-                ] = packet
-
-
-                self.transport.publish(
-                    packet
+            "planet":
+                self.planet.snapshot()
+                if hasattr(
+                    self.planet,
+                    "snapshot"
                 )
+                else None,
+
+            "fields":
+                copy.deepcopy(
+                    self.internal_fields
+                )    
+        
+        }
+
+        
+
+        self.last_snapshot = snapshot
+
+        return snapshot
                 
  
     #

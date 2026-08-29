@@ -179,21 +179,112 @@ class ComputeSystem:
             winner_index
         ]
         
-    def consume(
+    def allocate(
         self,
-        amount=1
+        demand
     ):
-        self.available=max(
-            self.available,
-            0
-        )
-        
-        amount=min(
-            float(amount),
-            self.available
+
+        if demand is None:
+            return {}
+
+
+        if not isinstance(
+            demand,
+            dict
+        ):
+            return {}
+
+
+        total = 0.0
+
+        for value in demand.values():
+
+            try:
+
+                value = float(value)
+
+            except Exception:
+
+                continue
+
+
+            if value > 0:
+
+                total += value
+
+
+        if total <= 0:
+            return {}
+
+
+        if self.available <= 0:
+            return {}
+
+
+        ratio = min(
+            1.0,
+            self.available / total
         )
 
-        self.available-=amount
+
+        allocation = {}
+
+
+        for name, value in demand.items():
+
+            try:
+
+                value = float(value)
+
+            except Exception:
+
+                value = 0.0
+
+
+            if value < 0:
+                value = 0.0
+
+
+            allocation[name] = (
+                value * ratio
+            )
+
+
+        allocated = sum(
+            allocation.values()
+        )
+
+
+        self.consume(
+            allocated
+        )
+
+
+        return allocation    
+        
+        
+    def consume(
+        self,
+        amount
+    ):
+        
+        if amount is None:
+            return
+
+
+        amount = max(
+            float(amount),
+            0.0
+        )
+
+
+        amount = min(
+            amount,
+            self.available
+        )        
+        
+        self.available -= amount
+
 
         print(
             "MEMORY:",
