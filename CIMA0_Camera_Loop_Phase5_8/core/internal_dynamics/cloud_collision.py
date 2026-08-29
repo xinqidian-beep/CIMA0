@@ -5,85 +5,69 @@ class CloudCollision:
     """
     CIMA0 Phase5_8
 
-    Native Cloud Collision.
+    Cloud-native collision.
 
-    ------------------------------------------------------------
-    Responsibility
-    ------------------------------------------------------------
+    Core principle
+    --------------
 
-    Compare heterogeneous cloud structures by their
-    topological positions.
+    A Cloud contains heterogeneous states:
 
-    Collision is NOT statistical similarity.
+        empty slot
+        empty value
+        zero value
+        non-zero value
+        negative value
 
-    Collision is NOT semantic similarity.
+    Collision is performed between positions that
+    actually exist in the participating clouds.
 
-    Collision is NOT attention.
+    Collision does NOT:
 
-    Collision is NOT Focus.
+        - interpret camera data
+        - interpret semantic meaning
+        - reduce CLIP to a scalar
+        - reduce Planet to CLIP space
+        - select a Focus
+        - allocate compute
+        - modify PlanetField directly
+        - modify CLIPField directly
+        - discard unselected layers
+        - choose a winner
 
-    Collision is NOT compute allocation.
+    Collision only produces a structural collision result.
 
-    Collision does NOT modify either cloud.
+    Collision states
+    ----------------
 
-    ------------------------------------------------------------
-    Cloud Cell States
-    ------------------------------------------------------------
+        penetrate
+        change
+        bounce
 
-        EMPTY_SLOT
-            |
-            | no Cell exists
-            v
+    The distinction is based on the local cloud states.
 
-        EMPTY_VALUE
-            |
-            | Cell exists, value is None
-            v
+    Important
+    ---------
 
-        ZERO_VALUE
-            |
-            | value == 0
-            v
+    Empty slot and zero value are NOT the same thing.
 
-        NONZERO_VALUE
-            |
-            | value != 0
-            |
-            +-- positive
-            |
-            +-- negative
+        empty slot
+            position does not currently contain a cloud value
 
-    ------------------------------------------------------------
-    Collision
-    ------------------------------------------------------------
+        empty value
+            slot exists but contains no value
 
-        topology position
-              |
-              v
-        Planet Cell  <---->  CLIP Cell
-              |
-              v
-        state pair
-              |
-        +-----+------+ 
-        |            |
-        v            v
-    penetration    occupied collision
-                      |
-                +-----+-----+
-                |           |
-                v           v
-              change      bounce
+        zero value
+            value == 0
 
-    ------------------------------------------------------------
+        non-zero value
+            value != 0
 
-    The collision engine observes structure only.
+    Negative values are valid non-zero values.
 
-    It does not modify PlanetField or CLIPField.
+    The collision result is therefore a structural description
+    of what happened at corresponding positions.
 
-    It does not create Focus.
-
-    Focus belongs to a later layer.
+    No semantic interpretation is performed here.
     """
 
     EMPTY_SLOT = "empty_slot"
@@ -95,13 +79,24 @@ class CloudCollision:
     CHANGE = "change"
     BOUNCE = "bounce"
 
-    def __init__(self):
+    def __init__(
+        self,
+        change_threshold=1e-6,
+        bounce_threshold=0.0
+    ):
+        self.change_threshold = float(
+            change_threshold
+        )
+
+        self.bounce_threshold = float(
+            bounce_threshold
+        )
 
         self.last_result = None
 
-    # ============================================================
-    # PUBLIC
-    # ============================================================
+    # ==========================================================
+    # public interface
+    # ==========================================================
 
     def collide(
         self,
@@ -109,14 +104,23 @@ class CloudCollision:
         clip_cloud
     ):
         """
-        Perform native cloud collision.
+        Perform one collision pass.
 
-        Inputs are cloud structures.
+        Planet Cloud and CLIP Cloud remain heterogeneous.
 
-        No semantic interpretation.
-        No scalar reduction.
-        No winner selection.
-        No mutation.
+        The method does not force their tensors into a common
+        representation.
+
+        Instead, each cloud is converted only into a local
+        collision view.
+
+        The collision view preserves:
+
+            position
+            existence
+            value
+
+        and the actual collision rule operates on those states.
         """
 
         if planet_cloud is None:
@@ -139,182 +143,41 @@ class CloudCollision:
         if clip is None:
             return None
 
-        # --------------------------------------------------------
-        # topology
-        # --------------------------------------------------------
+        planet_view = self._make_collision_view(
+            planet
+        )
 
-        topology = self._build_topology(
-            planet_cloud,
-            clip_cloud,
-            planet,
+        clip_view = self._make_collision_view(
             clip
         )
 
-        if topology is None:
-            return None
-
-        # --------------------------------------------------------
-        # collision
-        # --------------------------------------------------------
-
-        collisions = []
-
-        counts = {
-            self.PENETRATE: 0,
-            self.CHANGE: 0,
-            self.BOUNCE: 0
-        }
-
-        state_pairs = {}
-
-        for position in topology:
-
-            planet_cell = self._planet_cell(
-                planet,
-                position
-            )
-
-            clip_cell = self._clip_cell(
-                clip,
-                position
-            )
-
-            planet_state = self._classify(
-                planet_cell
-            )
-
-            clip_state = self._classify(
-                clip_cell
-            )
-
-            key = (
-                planet_state,
-                clip_state
-            )
-
-            state_pairs[key] = (
-                state_pairs.get(key, 0) + 1
-            )
-
-            collision_type = self._resolve_collision(
-                planet_cell,
-                clip_cell,
-                planet_state,
-                clip_state
-            )
-
-            if collision_type is None:
-                continue
-
-            counts[
-                collision_type
-            ] += 1
-
-            collisions.append({
-
-                "position":
-                    position,
-
-                "planet_state":
-                    planet_state,
-
-                "clip_state":
-                    clip_state,
-
-                "planet_value":
-                    self._safe_value(
-                        planet_cell
-                    ),
-
-                "clip_value":
-                    self._safe_value(
-                        clip_cell
-                    ),
-
-                "collision":
-                    collision_type
-
-            })
-
-        # --------------------------------------------------------
-        # structural result
-        # --------------------------------------------------------
-
-        total = len(topology)
-
-        collision_count = len(
-            collisions
+        result = self._collide_views(
+            planet_view,
+            clip_view
         )
-
-        result = {
-
-            "collision":
-                bool(
-                    collision_count > 0
-                ),
-
-            "topology_count":
-                int(
-                    total
-                ),
-
-            "collision_count":
-                int(
-                    collision_count
-                ),
-
-            "penetrate":
-                int(
-                    counts[
-                        self.PENETRATE
-                    ]
-                ),
-
-            "change":
-                int(
-                    counts[
-                        self.CHANGE
-                    ]
-                ),
-
-            "bounce":
-                int(
-                    counts[
-                        self.BOUNCE
-                    ]
-                ),
-
-            "state_pairs":
-                state_pairs,
-
-            "collisions":
-                collisions
-
-        }
 
         self.last_result = result
 
         return result
 
-    # ============================================================
-    # CLOUD EXTRACTION
-    # ============================================================
+    # ==========================================================
+    # cloud extraction
+    # ==========================================================
 
     def _extract_cloud(
         self,
         packet
     ):
         """
-        Extract the actual cloud structure.
+        Extract the actual cloud without changing it.
 
-        Accepted form:
+        Supported packet:
 
             {
                 "cloud": ...
             }
 
-        The collision engine does not convert the cloud
-        into statistics.
+        The original object is never modified.
         """
 
         if not isinstance(
@@ -326,664 +189,821 @@ class CloudCollision:
         if "cloud" not in packet:
             return None
 
-        return packet[
-            "cloud"
-        ]
+        return packet["cloud"]
 
-    # ============================================================
-    # TOPOLOGY
-    # ============================================================
+    # ==========================================================
+    # collision view
+    # ==========================================================
 
-    def _build_topology(
+    def _make_collision_view(
         self,
-        planet_packet,
-        clip_packet,
-        planet,
-        clip
+        cloud
     ):
         """
-        Build correspondence positions.
+        Build a local collision view.
 
-        Preferred:
+        This is NOT a replacement for the Cloud.
 
-            explicit cloud topology
+        It is only a read-only description used by collision.
 
-        Otherwise:
+        For dense numpy arrays:
 
-            native positional correspondence where possible.
+            every array position is a slot.
 
-        The important rule is that topology defines
-        correspondence.
+        For object/dict based clouds:
 
-        CloudCollision does not invent semantic meaning.
+            existing positions are discovered without forcing
+            the cloud into another representation.
         """
 
-        # --------------------------------------------------------
-        # explicit topology
-        # --------------------------------------------------------
-
-        topology = None
+        if isinstance(
+            cloud,
+            np.ndarray
+        ):
+            return self._array_view(
+                cloud
+            )
 
         if isinstance(
-            clip_packet,
+            cloud,
             dict
         ):
-
-            topology = clip_packet.get(
-                "topology"
+            return self._dict_view(
+                cloud
             )
-
-        if topology is None:
-
-            topology = (
-                planet_packet.get(
-                    "topology"
-                )
-                if isinstance(
-                    planet_packet,
-                    dict
-                )
-                else None
-            )
-
-        if topology is not None:
-
-            return list(
-                topology
-            )
-
-        # --------------------------------------------------------
-        # native array topology
-        # --------------------------------------------------------
-
-        planet_array = self._array_view(
-            planet
-        )
-
-        clip_array = self._array_view(
-            clip
-        )
-
-        if (
-            planet_array is not None
-            and
-            clip_array is not None
-        ):
-
-            return self._native_topology(
-                planet_array,
-                clip_array
-            )
-
-        # --------------------------------------------------------
-        # cell dictionary topology
-        # --------------------------------------------------------
 
         if isinstance(
-            planet,
-            dict
-        ) and isinstance(
-            clip,
-            dict
+            cloud,
+            (list, tuple)
         ):
-
-            planet_keys = set(
-                planet.keys()
-            )
-
-            clip_keys = set(
-                clip.keys()
-            )
-
-            common = (
-                planet_keys
-                &
-                clip_keys
-            )
-
-            if common:
-
-                return list(
-                    common
+            return self._array_view(
+                np.asarray(
+                    cloud
                 )
+            )
 
         return None
 
-    # ============================================================
-    # ARRAY TOPOLOGY
-    # ============================================================
+    # ==========================================================
+    # ndarray view
+    # ==========================================================
 
     def _array_view(
         self,
         cloud
     ):
         """
-        Return ndarray only when the cloud itself is
-        a numerical field.
+        Dense cloud view.
 
-        Dictionaries containing statistics are deliberately
-        rejected.
+        Every position exists as a slot.
 
-        This prevents the old scalar-statistics collision
-        from silently returning.
+        Therefore:
+
+            NaN      -> empty value
+            0        -> zero value
+            non-zero -> non-zero value
+
+        A dense ndarray has no empty slot unless the source
+        representation explicitly encodes one.
         """
 
-        if isinstance(
-            cloud,
-            np.ndarray
-        ):
+        arr = np.asarray(
+            cloud
+        )
 
-            if cloud.dtype.kind in (
-                "b",
-                "i",
-                "u",
-                "f"
+        if arr.size == 0:
+            return {
+                "kind": "array",
+                "shape": tuple(
+                    arr.shape
+                ),
+                "values": arr,
+                "exists": np.zeros(
+                    arr.shape,
+                    dtype=bool
+                ),
+            }
+
+        try:
+            values = arr.astype(
+                np.float32,
+                copy=False
+            )
+
+        except Exception:
+            return None
+
+        exists = np.ones(
+            values.shape,
+            dtype=bool
+        )
+
+        return {
+            "kind": "array",
+            "shape": tuple(
+                values.shape
+            ),
+            "values": values,
+            "exists": exists,
+        }
+
+    # ==========================================================
+    # dict / sparse cloud view
+    # ==========================================================
+
+    def _dict_view(
+        self,
+        cloud
+    ):
+        """
+        Sparse/object cloud view.
+
+        Expected possibilities include:
+
+            {
+                position: value
+            }
+
+        or a Cell-like structure.
+
+        This method intentionally does not interpret arbitrary
+        dictionaries as numeric tensors.
+        """
+
+        positions = []
+        values = []
+
+        for position, value in cloud.items():
+
+            if not self._is_position(
+                position
             ):
+                continue
 
-                return cloud
+            positions.append(
+                position
+            )
 
-        return None
+            values.append(
+                value
+            )
 
-    def _native_topology(
+        return {
+            "kind": "sparse",
+            "positions": positions,
+            "values": values,
+        }
+
+    # ==========================================================
+    # state classification
+    # ==========================================================
+
+    def _classify(
+        self,
+        exists,
+        value
+    ):
+        """
+        Classify one cloud position.
+
+        Order matters.
+
+        empty slot
+            no slot exists
+
+        empty value
+            slot exists but no usable value exists
+
+        zero value
+            actual numeric zero
+
+        non-zero value
+            any actual non-zero value, including negative values
+        """
+
+        if not exists:
+            return self.EMPTY_SLOT
+
+        if value is None:
+            return self.EMPTY_VALUE
+
+        try:
+            number = float(
+                value
+            )
+        except Exception:
+            return self.EMPTY_VALUE
+
+        if not np.isfinite(
+            number
+        ):
+            return self.EMPTY_VALUE
+
+        if number == 0.0:
+            return self.ZERO_VALUE
+
+        return self.NONZERO_VALUE
+
+    # ==========================================================
+    # dense collision
+    # ==========================================================
+
+    def _collide_views(
         self,
         planet,
         clip
     ):
         """
-        Build positional correspondence for arrays.
-
-        Heterogeneous arrays are not reshaped into one
-        representation.
-
-        Correspondence is established by normalized
-        coordinate position.
+        Dispatch according to cloud representation.
         """
 
-        if planet.ndim == 0:
-            return []
+        if planet["kind"] == "array" and \
+           clip["kind"] == "array":
 
-        if clip.ndim == 0:
-            return []
-
-        planet_shape = (
-            planet.shape
-        )
-
-        clip_shape = (
-            clip.shape
-        )
-
-        planet_count = (
-            int(
-                np.prod(
-                    planet_shape
-                )
+            return self._collide_arrays(
+                planet,
+                clip
             )
-        )
 
-        clip_count = (
-            int(
-                np.prod(
-                    clip_shape
-                )
+        if planet["kind"] == "sparse" and \
+           clip["kind"] == "sparse":
+
+            return self._collide_sparse(
+                planet,
+                clip
             )
+
+        return self._collide_mixed(
+            planet,
+            clip
         )
 
-        count = min(
-            planet_count,
-            clip_count
-        )
+    # ==========================================================
+    # array collision
+    # ==========================================================
 
-        if count <= 0:
-            return []
-
-        topology = []
-
-        for index in range(
-            count
-        ):
-
-            topology.append({
-                "planet_index":
-                    index,
-
-                "clip_index":
-                    index
-
-            })
-
-        return topology
-
-    # ============================================================
-    # POSITION ACCESS
-    # ============================================================
-
-    def _planet_cell(
+    def _collide_arrays(
         self,
-        cloud,
-        position
+        planet,
+        clip
     ):
         """
-        Read one Planet position.
+        Collision between dense fields.
 
-        Read only.
+        Heterogeneous shapes are allowed.
+
+        We do NOT resize either cloud.
+
+        Instead, collision uses their common positional
+        intersection.
+
+        This is important:
+
+            Planet 128 x 128
+            CLIP   12 x 50 x 768
+
+        are NOT converted into one another.
+
+        Only actual corresponding positions in the common
+        structural domain are examined.
         """
 
-        if isinstance(
-            position,
-            dict
-        ):
+        p = planet["values"]
+        c = clip["values"]
 
-            index = position.get(
-                "planet_index"
-            )
+        p_shape = p.shape
+        c_shape = c.shape
 
-            if index is not None:
-
-                return self._read_index(
-                    cloud,
-                    index
-                )
-
-        return self._read_index(
-            cloud,
-            position
+        dimensions = min(
+            p.ndim,
+            c.ndim
         )
 
-    def _clip_cell(
-        self,
-        cloud,
-        position
-    ):
-        """
-        Read one CLIP position.
-
-        Read only.
-        """
-
-        if isinstance(
-            position,
-            dict
-        ):
-
-            index = position.get(
-                "clip_index"
+        common_shape = tuple(
+            min(
+                p_shape[i],
+                c_shape[i]
             )
-
-            if index is not None:
-
-                return self._read_index(
-                    cloud,
-                    index
-                )
-
-        return self._read_index(
-            cloud,
-            position
+            for i in range(
+                dimensions
+            )
         )
 
-    def _read_index(
+        if not common_shape:
+            return self._empty_result()
+
+        p_slices = tuple(
+            slice(
+                0,
+                common_shape[i]
+            )
+            for i in range(
+                dimensions
+            )
+        )
+
+        c_slices = tuple(
+            slice(
+                0,
+                common_shape[i]
+            )
+            for i in range(
+                dimensions
+            )
+        )
+
+        p_view = p[
+            p_slices
+        ]
+
+        c_view = c[
+            c_slices
+        ]
+
+        return self._compare_arrays(
+            p_view,
+            c_view,
+            common_shape
+        )
+
+    # ==========================================================
+    # actual array comparison
+    # ==========================================================
+
+    def _compare_arrays(
         self,
-        cloud,
-        index
+        planet,
+        clip,
+        shape
     ):
         """
-        Read a cloud position without modifying it.
-        
-        Missing position -> EMPTY_SLOT
-        Existing position with value=None -> None
+        Local collision rule.
+
+        The important part is that collision is decided from
+        the actual local states, not from global statistics.
         """
 
-        if isinstance(
-            cloud,
-            np.ndarray
+        penetrate = 0
+        change = 0
+        bounce = 0
+
+        zero_zero = 0
+        zero_nonzero = 0
+        nonzero_zero = 0
+        nonzero_nonzero = 0
+
+        total = int(
+            np.prod(shape)
+        )
+
+        for index in np.ndindex(
+            shape
         ):
 
-            try:
-
-                return cloud[
-                    np.unravel_index(
-                        int(index),
-                        cloud.shape
-                    )
-                ]
-
-            except Exception:
-
-                return_EMPTY_SLOT
-
-        if isinstance(
-            cloud,
-            dict
-        ):
-            if index not in cloud:
-
-                return _EMPTY_SLOT
-
-            return cloud[
-                index
-            ]
-
-        if isinstance(
-            cloud,
-            (list, tuple)
-        ):
-
-            try:
-
-                return cloud[
-                    int(index)
-                ]
-
-            except Exception:
-
-                return _EMPTY_SLOT
-
-        
-
-        return _EMPTY_SLOT
-
-    # ============================================================
-    # STATE CLASSIFICATION
-    # ============================================================
-
-    def _classify(
-        self,
-        cell
-    ):
-        """
-        Classify exactly four cloud states.
-
-        Important:
-
-            None here is interpreted as an empty value
-            when a Cell/value exists.
-
-        A missing position is represented separately
-        by EMPTY_SLOT where topology permits it.
-        """
-
-        if cell is _EMPTY_SLOT:
-            return self.EMPTY_SLOT
-
-        if cell is None:
-            return self.EMPTY_VALUE
-
-        # --------------------------------------------------------
-        # Cell-like object
-        # --------------------------------------------------------
-
-        if hasattr(
-            cell,
-            "value"
-        ):
-
-            value = cell.value
-
-            if value is None:
-
-                return self.EMPTY_VALUE
-
-            try:
-
-                if float(value) == 0.0:
-
-                    return self.ZERO_VALUE
-
-                return self.NONZERO_VALUE
-
-            except Exception:
-
-                return self.EMPTY_VALUE
-
-        # --------------------------------------------------------
-        # numpy scalar / numeric value
-        # --------------------------------------------------------
-
-        try:
-
-            value = float(
-                np.asarray(
-                    cell
-                )
+            p = float(
+                planet[index]
             )
 
-        except Exception:
+            c = float(
+                clip[index]
+            )
 
-            return self.EMPTY_VALUE
+            p_state = self._classify(
+                True,
+                p
+            )
 
-        if value == 0.0:
+            c_state = self._classify(
+                True,
+                c
+            )
 
-            return self.ZERO_VALUE
+            collision_type = self._collision_type(
+                p_state,
+                c_state,
+                p,
+                c
+            )
 
-        return self.NONZERO_VALUE
+            if collision_type == self.PENETRATE:
+                penetrate += 1
 
-    # ============================================================
-    # COLLISION RULE
-    # ============================================================
+            elif collision_type == self.CHANGE:
+                change += 1
 
-    def _resolve_collision(
+            elif collision_type == self.BOUNCE:
+                bounce += 1
+
+            if p_state == self.ZERO_VALUE and \
+               c_state == self.ZERO_VALUE:
+
+                zero_zero += 1
+
+            elif p_state == self.ZERO_VALUE and \
+                 c_state == self.NONZERO_VALUE:
+
+                zero_nonzero += 1
+
+            elif p_state == self.NONZERO_VALUE and \
+                 c_state == self.ZERO_VALUE:
+
+                nonzero_zero += 1
+
+            elif p_state == self.NONZERO_VALUE and \
+                 c_state == self.NONZERO_VALUE:
+
+                nonzero_nonzero += 1
+
+        return self._result(
+            total=total,
+            penetrate=penetrate,
+            change=change,
+            bounce=bounce,
+            zero_zero=zero_zero,
+            zero_nonzero=zero_nonzero,
+            nonzero_zero=nonzero_zero,
+            nonzero_nonzero=nonzero_nonzero,
+            shape=shape
+        )
+
+    # ==========================================================
+    # collision rule
+    # ==========================================================
+
+    def _collision_type(
         self,
-        planet_cell,
-        clip_cell,
         planet_state,
-        clip_state
+        clip_state,
+        planet_value,
+        clip_value
     ):
         """
-        Native collision rule.
+        Fundamental collision rule.
 
-        --------------------------------------------------------
-        Empty space
-        --------------------------------------------------------
+        1. Empty states do not collide.
 
-        If either side is an empty slot/value, the other
-        structure can pass through.
+        2. Zero with non-zero produces change.
 
-            empty + occupied
-                    |
-                    v
-                PENETRATE
+        3. Non-zero with non-zero:
 
-        --------------------------------------------------------
-        Zero
-        --------------------------------------------------------
+            same sign
+                penetration / continuation
 
-        Zero is a real value.
+            opposite sign
+                bounce
 
-        It is NOT empty.
+        4. Zero with zero
+            is a valid coincident state but produces no change.
 
-        Therefore:
-
-            zero + zero
-            zero + nonzero
-
-        participate in collision structure.
-
-        --------------------------------------------------------
-        Non-zero
-        --------------------------------------------------------
-
-        Both sides contain actual values.
-
-        Same-direction interaction:
-
-            positive + positive
-            negative + negative
-
-                -> CHANGE
-
-        Opposing interaction:
-
-            positive + negative
-            negative + positive
-
-                -> BOUNCE
-
-        --------------------------------------------------------
+        Negative values are fully preserved as non-zero values.
         """
 
-        # --------------------------------------------------------
-        # empty slot
-        # --------------------------------------------------------
-
-        if (
-            planet_state
-            ==
-            self.EMPTY_SLOT
-            or
-            clip_state
-            ==
-            self.EMPTY_SLOT
-        ):
-
-            return self.PENETRATE
-
-        # --------------------------------------------------------
-        # empty value
-        # --------------------------------------------------------
-
-        if (
-            planet_state
-            ==
-            self.EMPTY_VALUE
-            or
-            clip_state
-            ==
+        if planet_state in (
+            self.EMPTY_SLOT,
             self.EMPTY_VALUE
         ):
+            return None
 
-            return self.PENETRATE
+        if clip_state in (
+            self.EMPTY_SLOT,
+            self.EMPTY_VALUE
+        ):
+            return None
 
-        # --------------------------------------------------------
-        # zero participates as a real state
-        # --------------------------------------------------------
+        # ------------------------------------------------------
+        # zero / zero
+        # ------------------------------------------------------
 
         if (
-            planet_state
-            ==
-            self.ZERO_VALUE
-            or
-            clip_state
-            ==
-            self.ZERO_VALUE
+            planet_state == self.ZERO_VALUE
+            and
+            clip_state == self.ZERO_VALUE
         ):
+            return None
 
+        # ------------------------------------------------------
+        # zero / non-zero
+        # ------------------------------------------------------
+
+        if (
+            planet_state == self.ZERO_VALUE
+            and
+            clip_state == self.NONZERO_VALUE
+        ):
             return self.CHANGE
 
-        # --------------------------------------------------------
-        # both are non-zero
-        # --------------------------------------------------------
+        if (
+            planet_state == self.NONZERO_VALUE
+            and
+            clip_state == self.ZERO_VALUE
+        ):
+            return self.CHANGE
 
-        planet_value = (
-            self._safe_value(
-                planet_cell
-            )
-        )
-
-        clip_value = (
-            self._safe_value(
-                clip_cell
-            )
-        )
+        # ------------------------------------------------------
+        # non-zero / non-zero
+        # ------------------------------------------------------
 
         if (
-            planet_value is None
-            or
-            clip_value is None
+            planet_state == self.NONZERO_VALUE
+            and
+            clip_state == self.NONZERO_VALUE
         ):
+
+            product = (
+                planet_value
+                *
+                clip_value
+            )
+
+            if product < self.bounce_threshold:
+                return self.BOUNCE
 
             return self.PENETRATE
 
-        # --------------------------------------------------------
-        # opposite signs
-        # --------------------------------------------------------
+        return None
 
-        if (
-            planet_value < 0
-            and
-            clip_value > 0
-        ):
+    # ==========================================================
+    # sparse collision
+    # ==========================================================
 
-            return self.BOUNCE
-
-        if (
-            planet_value > 0
-            and
-            clip_value < 0
-        ):
-
-            return self.BOUNCE
-
-        # --------------------------------------------------------
-        # same sign
-        # --------------------------------------------------------
-
-        return self.CHANGE
-
-    # ============================================================
-    # VALUE
-    # ============================================================
-
-    def _safe_value(
+    def _collide_sparse(
         self,
-        cell
+        planet,
+        clip
     ):
         """
-        Extract scalar value for reporting only.
+        Sparse clouds.
 
-        This method never changes the Cell.
+        Only positions that exist in either cloud are examined.
+
+        Missing positions remain empty slots.
+
+        Nothing is created merely because another cloud has
+        a value at that position.
         """
 
-        if cell is _EMPTY_SLOT:
-            return None
+        planet_map = dict(
+            zip(
+                planet["positions"],
+                planet["values"]
+            )
+        )
 
-        if cell is None:
-            return None
+        clip_map = dict(
+            zip(
+                clip["positions"],
+                clip["values"]
+            )
+        )
 
-        if hasattr(
-            cell,
-            "value"
-        ):
+        positions = set(
+            planet_map.keys()
+        ) | set(
+            clip_map.keys()
+        )
 
-            cell = cell.value
+        penetrate = 0
+        change = 0
+        bounce = 0
 
-        try:
+        for position in positions:
 
-            arr = np.asarray(
-                cell
+            p_exists = (
+                position in planet_map
             )
 
-            if arr.size != 1:
+            c_exists = (
+                position in clip_map
+            )
 
-                return float(
-                    np.mean(
-                        arr
-                    )
+            p_value = (
+                planet_map.get(
+                    position
                 )
-
-            return float(
-                arr.reshape(-1)[0]
+                if p_exists
+                else None
             )
 
-        except Exception:
+            c_value = (
+                clip_map.get(
+                    position
+                )
+                if c_exists
+                else None
+            )
 
-            return None
+            p_state = self._classify(
+                p_exists,
+                p_value
+            )
 
+            c_state = self._classify(
+                c_exists,
+                c_value
+            )
 
-class _EmptySlot:
-    """
-    Internal marker.
+            collision = self._collision_type(
+                p_state,
+                c_state,
+                0.0
+                if p_value is None
+                else float(p_value),
+                0.0
+                if c_value is None
+                else float(c_value)
+            )
 
-    Distinguishes:
+            if collision == self.PENETRATE:
+                penetrate += 1
 
-        empty slot
+            elif collision == self.CHANGE:
+                change += 1
 
-    from:
+            elif collision == self.BOUNCE:
+                bounce += 1
 
-        existing Cell with value=None
-    """
+        return self._result(
+            total=len(
+                positions
+            ),
+            penetrate=penetrate,
+            change=change,
+            bounce=bounce,
+            zero_zero=0,
+            zero_nonzero=0,
+            nonzero_zero=0,
+            nonzero_nonzero=0,
+            shape=None
+        )
 
-    pass
+    # ==========================================================
+    # mixed representations
+    # ==========================================================
 
+    def _collide_mixed(
+        self,
+        planet,
+        clip
+    ):
+        """
+        Mixed representations are intentionally not coerced
+        into one tensor.
 
-_EMPTY_SLOT = _EmptySlot()
+        This version records that the clouds are structurally
+        heterogeneous and therefore have no direct positional
+        collision domain.
+
+        This is preferable to silently inventing a projection.
+        """
+
+        return {
+            "collision": False,
+
+            "penetrate": 0,
+            "change": 0,
+            "bounce": 0,
+
+            "total": 0,
+
+            "zero_zero": 0,
+            "zero_nonzero": 0,
+            "nonzero_zero": 0,
+            "nonzero_nonzero": 0,
+
+            "shape": None,
+
+            "heterogeneous": True,
+
+            "reason":
+                "no direct positional collision domain",
+
+            "relations": []
+        }
+
+    # ==========================================================
+    # result
+    # ==========================================================
+
+    def _result(
+        self,
+        total,
+        penetrate,
+        change,
+        bounce,
+        zero_zero,
+        zero_nonzero,
+        nonzero_zero,
+        nonzero_nonzero,
+        shape
+    ):
+        collided = (
+            penetrate
+            +
+            change
+            +
+            bounce
+        )
+
+        return {
+            "collision": bool(
+                collided > 0
+            ),
+
+            "total": int(
+                total
+            ),
+
+            "penetrate": int(
+                penetrate
+            ),
+
+            "change": int(
+                change
+            ),
+
+            "bounce": int(
+                bounce
+            ),
+
+            "zero_zero": int(
+                zero_zero
+            ),
+
+            "zero_nonzero": int(
+                zero_nonzero
+            ),
+
+            "nonzero_zero": int(
+                nonzero_zero
+            ),
+
+            "nonzero_nonzero": int(
+                nonzero_nonzero
+            ),
+
+            "shape": shape,
+
+            "heterogeneous": False
+        }
+
+    # ==========================================================
+    # empty
+    # ==========================================================
+
+    def _empty_result(
+        self
+    ):
+        return {
+            "collision": False,
+
+            "total": 0,
+
+            "penetrate": 0,
+            "change": 0,
+            "bounce": 0,
+
+            "zero_zero": 0,
+            "zero_nonzero": 0,
+            "nonzero_zero": 0,
+            "nonzero_nonzero": 0,
+
+            "shape": None,
+
+            "heterogeneous": True,
+
+            "relations": []
+        }
+
+    # ==========================================================
+    # position validation
+    # ==========================================================
+
+    def _is_position(
+        self,
+        position
+    ):
+        if isinstance(
+            position,
+            tuple
+        ):
+            return all(
+                isinstance(
+                    item,
+                    (int, np.integer)
+                )
+                for item in position
+            )
+
+        if isinstance(
+            position,
+            list
+        ):
+            return all(
+                isinstance(
+                    item,
+                    (int, np.integer)
+                )
+                for item in position
+            )
+
+        return False
