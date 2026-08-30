@@ -1,65 +1,119 @@
 from .sampling.sampler import Sampler
-
-from .sampling.sampler import Sampler
 from core.memory.observation_memory import ObservationMemory
+
 
 class ComputeSystem:
     """
     CIMA0 Compute Field
 
-    Local compute energy field.
+    A local field of finite computational opportunity.
+
+    Responsibilities:
+
+        - regenerate compute availability
+        - evaluate candidate signals
+        - select one candidate
+        - allocate a finite compute opportunity
+        - consume the used opportunity
 
     Does NOT know:
 
-        organ
-        meaning
-        source
+        - organ meaning
+        - organ internal rules
+        - collision
+        - decay
+        - propagation
+        - source
+        - external representation
 
+    Principle:
+
+        ComputeSystem decides WHO gets an opportunity
+        and HOW MUCH opportunity is available.
+
+        The selected entity decides WHAT TO DO with it.
     """
 
     def __init__(
         self,
         capacity=1024,
+        memory_capacity=32
     ):
 
-        self.capacity = capacity
+        self.capacity = float(
+            capacity
+        )
 
-        self.available = capacity
-        
-        self.memory = ObservationMemory(capacity=32)
+        self.available = self.capacity
+
+        #
+        # observation / selection memory
+        #
+
+        self.memory = ObservationMemory(
+            capacity=memory_capacity
+        )
+
         self.sampler = Sampler()
+
         self.sampler.attach_memory(
             self.memory
         )
-        
+
         self.step_count = 0
+
+
+    # -------------------------------------------------
+    # compute regeneration
+    # -------------------------------------------------
 
     def step(self):
 
-        self.available += (
+        recovery = (
             self.capacity
             -
             self.available
         ) * 0.01
 
+        self.available += recovery
 
         self.available = min(
             self.available,
             self.capacity
         )
 
+
+    # -------------------------------------------------
+    # selection
+    # -------------------------------------------------
+
     def select(
         self,
         signals
     ):
-        if not signals:
-            return None
-            
-        self.step_count += 1
-        
-        if not signals:
+        """
+        Select one candidate.
 
+        Selection does not execute the candidate.
+
+        Returns:
+
+            {
+                "name": ...,
+                "organ": ...,
+                "state": ...,
+                "allocation": ...
+            }
+
+        or None.
+        """
+
+        if not signals:
             return None
+
+
+        self.step_count += 1
+
 
         #
         # evaluate previous decision
@@ -69,93 +123,124 @@ class ComputeSystem:
 
             self.memory.evaluate_pending(
                 signals
-            )            
-                
+            )
+
+
+        #
+        # reduce candidate state to
+        # selection-relevant information
+        #
+
         states = []
 
 
-        for s in signals:
+        for signal in signals:
 
-            state = s.get(
+            state = signal.get(
                 "state",
                 {}
             )
 
-
             states.append(
                 {
-
                     "age":
                         state.get(
                             "age",
                             0.0
                         ),
 
-
-                   "activity":
+                    "activity":
                         state.get(
                             "activity",
                             0.0
                         ),
 
-
-                   "delta":
+                    "delta":
                         state.get(
                             "signal",
                             0.0
                         )
-
                 }
             )
-        
+
+
+        #
+        # no compute opportunity
+        #
+
+        if self.available <= 0:
+
+            return None
+
+
+        #
+        # available compute itself becomes
+        # the upper bound of this opportunity
+        #
+
+        budget = min(
+            1.0,
+            self.available
+        )
+
+
         index = self.sampler.select(
             states,
-            budget=1
+            budget=budget
         )
 
-        if len(index)==0:
-            
+
+        if len(index) == 0:
             return None
-            
-        winner_index=int(
+
+
+        winner_index = int(
             index[0]
         )
+
         winner = signals[
             winner_index
-        ]  
+        ]
+
+
+        #
+        # record selection context
+        #
 
         if self.memory is not None:
-            #
-            # save current candidates
-            #
+
             self.memory.receive(
-            {
-                "type":
-                    "selection_input",
+                {
+                    "type":
+                        "selection_input",
 
-                "signals":
-                    [
-                        {
-                            "name":
-                                s.get("name"),
+                    "signals":
+                        [
+                            {
+                                "name":
+                                    s.get("name"),
 
-                            "state":
-                                s.get("state")
-                        }
+                                "state":
+                                    s.get("state")
+                            }
 
-                        for s in signals
-                    ],
+                            for s in signals
+                        ],
 
-                "available":
-                    self.available
-            }
+                    "available":
+                        self.available
+                }
             )
-            
+
+
             self.memory.record_selection(
                 [
-                   {
-                        "name":s.get("name"),
-                        "state":s.get("state")
+                    {
+                        "name":
+                            s.get("name"),
+
+                        "state":
+                            s.get("state")
                     }
 
                     for s in signals
@@ -166,110 +251,120 @@ class ComputeSystem:
                         winner_index,
 
                     "name":
-                        winner["name"],
+                        winner.get(
+                            "name"
+                        ),
 
                     "state":
-                        winner["state"]
-
+                        winner.get(
+                            "state"
+                        )
                 },
+
                 step=self.step_count
             )
-        
-        return signals[
-            winner_index
-        ]
-        
+
+
+        #
+        # allocate opportunity
+        #
+        # ComputeSystem does NOT describe
+        # what this opportunity means.
+        #
+
+        allocation = self.allocate(
+            winner
+        )
+
+
+        if allocation is None:
+            return None
+
+
+        return {
+            "name":
+                winner.get("name"),
+
+            "organ":
+                winner.get("organ"),
+
+            "state":
+                winner.get("state"),
+
+            "allocation":
+                allocation
+        }
+
+
+    # -------------------------------------------------
+    # allocation
+    # -------------------------------------------------
+
     def allocate(
         self,
-        demand
+        winner
     ):
+        """
+        Allocate one unit of computational opportunity.
 
-        if demand is None:
-            return {}
+        The allocation is deliberately generic.
 
+        ComputeSystem does not know whether the receiver
+        will use it for collision, decay, propagation,
+        inference, or anything else.
+        """
 
-        if not isinstance(
-            demand,
-            dict
-        ):
-            return {}
-
-
-        total = 0.0
-
-        for value in demand.values():
-
-            try:
-
-                value = float(value)
-
-            except Exception:
-
-                continue
-
-
-            if value > 0:
-
-                total += value
-
-
-        if total <= 0:
-            return {}
+        if winner is None:
+            return None
 
 
         if self.available <= 0:
-            return {}
+            return None
 
 
-        ratio = min(
+        amount = min(
             1.0,
-            self.available / total
+            self.available
         )
 
 
-        allocation = {}
+        return {
+            "amount":
+                amount
+        }
 
 
-        for name, value in demand.items():
+    # -------------------------------------------------
+    # consume
+    # -------------------------------------------------
 
-            try:
-
-                value = float(value)
-
-            except Exception:
-
-                value = 0.0
-
-
-            if value < 0:
-                value = 0.0
-
-
-            allocation[name] = (
-                value * ratio
-            )
-
-
-        allocated = sum(
-            allocation.values()
-        )
-
-
-        self.consume(
-            allocated
-        )
-
-
-        return allocation    
-        
-        
     def consume(
         self,
-        amount
+        allocation
     ):
-        
-        if amount is None:
-            return
+        """
+        Consume an already allocated opportunity.
+
+        Allocation must come from allocate().
+        """
+
+        if allocation is None:
+            return 0.0
+
+
+        if isinstance(
+            allocation,
+            dict
+        ):
+
+            amount = allocation.get(
+                "amount",
+                0.0
+            )
+
+        else:
+
+            amount = allocation
 
 
         amount = max(
@@ -277,16 +372,33 @@ class ComputeSystem:
             0.0
         )
 
-
         amount = min(
             amount,
             self.available
-        )        
-        
+        )
+
+
         self.available -= amount
 
 
-        print(
-            "MEMORY:",
-            self.memory.debug_state()
-        )
+        return amount
+
+
+    # -------------------------------------------------
+    # state
+    # -------------------------------------------------
+
+    def snapshot(
+        self
+    ):
+
+        return {
+            "capacity":
+                self.capacity,
+
+            "available":
+                self.available,
+
+            "step":
+                self.step_count
+        }

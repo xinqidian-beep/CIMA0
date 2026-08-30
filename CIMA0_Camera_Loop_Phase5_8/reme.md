@@ -2443,4 +2443,68 @@ collision / decay 数值
 *****************************
 状态产生需求 → 系统产生机会 → 资源产生分配 → 对象自己行动。
 *****************************
-			   
+现在的工作顺序暂时定成：
+
+① InternalDynamics.step()
+       │
+       └── 固定“无限演化 / 有限观察”的语义
+
+② ComputeSystem
+       │
+       ├── selection
+       ├── available
+       ├── allocation
+       └── consume
+       
+③ CloudField
+       │
+       ├── request_compute()
+       └── execute_compute(allocation)
+
+④ InternalDynamics.commit()
+       │
+       └── 只转交机会，不理解内部规则
+
+⑤ 再验证：
+       │
+       ├── Planet
+       ├── Cloud
+       └── CLIP
+       
+       是否都能用同一个范式活起来
+
+⑥ 最后才处理：
+       │
+       └── shared flow / preserve / repack			   
+	   
+目标：
+让后来的人，甚至一个孩子，只需要理解几个非常简单的生命接口，就能够创造一个新的、会自己变化的内部实体。	   
+**********************************
+如果这个范式最终成立，那么新增一个 organ 理论上不应该需要修改 InternalDynamics。
+
+只需要：
+class MyOrgan:
+
+    def activity(self):
+        ...
+
+    def request_compute(self):
+        ...
+
+    def execute_compute(self, allocation):
+        ...
+
+    def snapshot(self):
+        ...
+然后：
+dynamics.register(
+    "my_organ",
+    MyOrgan()
+)
+它就进入这个内部世界了。		
+*********************************
+语义固定下来：
+
+ComputeSystem 是“计算机会场”，负责恢复计算能力、观察候选、选择一个候选、决定本次给予多少计算机会，并扣除相应资源。它不知道 organ 如何演化。
+内部世界自行演化；观察只是有限的窗口；计算资源是有限的；不同生命单元竞争观察/计算机会；获得机会以后，各自决定如何使用。“一瞥，再一瞥，然后看见变化最大的地方。”
+*****************************		
