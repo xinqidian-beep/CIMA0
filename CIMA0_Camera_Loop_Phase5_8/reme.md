@@ -2507,4 +2507,75 @@ dynamics.register(
 
 ComputeSystem 是“计算机会场”，负责恢复计算能力、观察候选、选择一个候选、决定本次给予多少计算机会，并扣除相应资源。它不知道 organ 如何演化。
 内部世界自行演化；观察只是有限的窗口；计算资源是有限的；不同生命单元竞争观察/计算机会；获得机会以后，各自决定如何使用。“一瞥，再一瞥，然后看见变化最大的地方。”
-*****************************		
+*****************************
+当前 Phase5_8 的状态，
+Camera
+   ↓
+BitPacket
+   ↓
+InternalDynamics.receive
+   ↓
+PlanetField / CLIPField
+   ↓
+internal evolution
+   ↓
+activity
+   ↓
+Sampler
+   ↓
+Winner
+   ↓
+ComputeSystem.allocate
+   ↓
+allocation
+   ↓
+Organ.apply_compute
+   ↓
+ComputeSystem.consume
+   ↓
+finite compute resource
+Compute → Winner → allocation → execute/apply → consume 已经跑通。	
+Planet 每一瞥都要完整演化，但有限计算资源应该如何决定“下一瞥看哪里、什么时候看、看多少”，而不是把 Planet 本身改成一个有限算法。
+*************************************	
+我们不否定 np.sin 这套规则。
+
+我们只是拒绝从：
+
+“这是我们目前知道的规则”
+
+进一步推导成：
+
+“这就是 Planet 的全部。”
+
+而 ComputeSystem 恰好可以成为这个认识边界的工程实现：
+
+我们不需要认识全部，系统只需要决定下一次有限的观察和行动机会给谁。
+**********************************
+当前进度
+① raw packet 回环
+        ↓
+   【基本已通】
+        ↓
+② CLIP Cloud
+        ↓
+   【已有 CLIP Cloud，并能产生 delta】
+        ↓
+③ CloudCollision
+        ↓
+   【尚未重写】
+        ↓
+④ Collision → Candidate Change
+        ↓
+   【尚未开始】
+        ↓
+⑤ 接现有 Sampler
+        ↓
+   【实际上已经跑通】
+        ↓
+⑥ Winner 才提交
+        ↓
+   【Compute allocation 已经跑通，
+      但 Organ 提交接口还在收口】
+	  
+****************************
+	  

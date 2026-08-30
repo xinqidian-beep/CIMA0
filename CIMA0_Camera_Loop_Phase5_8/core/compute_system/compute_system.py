@@ -279,7 +279,22 @@ class ComputeSystem:
 
         if allocation is None:
             return None
+            
+            print(
+                "COMPUTE WINNER:",
+                winner.get("name")
+            )
 
+            print(
+                "COMPUTE AVAILABLE BEFORE:",
+                self.available
+            )
+
+            print(
+                "COMPUTE ALLOCATION:",
+                allocation
+            )
+            
 
         return {
             "name":

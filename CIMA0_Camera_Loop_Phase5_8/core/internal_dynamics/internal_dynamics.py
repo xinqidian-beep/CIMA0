@@ -622,44 +622,112 @@ class InternalDynamics:
         winner = result.get(
             "winner"
         )
-        
+
         if winner is None:
             return
-        
+
+
         allocation = winner.get(
             "allocation"
         )
-        
+
         if allocation is None:
-            
-            if hasattr(
-                organ,
-                "execute_compute"
-            ):
+            return
 
-                organ.execute_compute(
-                    allocation
-                )
 
-                self.compute.consume(
-                    allocation
-                )
-            
-                return
-        
+        print(
+            "COMMIT ORGAN:",
+            type(organ).__name__
+        )
+
+        print(
+            "COMMIT ALLOCATION:",
+            allocation
+        )
+
+
         #
-        # selected organ
+        # current organ compute interface
         #
+
         if hasattr(
             organ,
-            "commit"
+            "apply_compute"
         ):
 
-            organ.commit(
-                winner.get(
-                    "state"
-                )
+            amount = allocation.get(
+                "amount",
+                0.0
             )
+
+            print(
+                "APPLY COMPUTE:",
+                type(organ).__name__,
+                amount
+            )
+
+            organ.apply_compute(
+                amount
+            )
+
+            consumed = self.compute.consume(
+                allocation
+            )
+
+            print(
+                "COMPUTE CONSUME:",
+                consumed
+            )
+ 
+            print(
+                "COMPUTE AVAILABLE AFTER:",
+                self.compute.available
+            )
+
+            return
+
+
+        #
+        # new interface, if an organ already provides it
+        #
+
+        if hasattr(
+            organ,
+            "execute_compute"
+        ):
+
+            print(
+                "EXECUTE COMPUTE:",
+                type(organ).__name__
+            )
+
+            organ.execute_compute(
+                allocation
+            )
+
+            consumed = self.compute.consume(
+                allocation
+            )
+
+            print(
+                "COMPUTE CONSUME:",
+                consumed
+            )
+
+            print(
+                "COMPUTE AVAILABLE AFTER:",
+                self.compute.available
+            )
+
+            return
+
+
+        print(
+            "COMPUTE DISPATCH:",
+            type(organ).__name__,
+            "NO EXECUTION INTERFACE"
+        )
+            
 
 
     #
