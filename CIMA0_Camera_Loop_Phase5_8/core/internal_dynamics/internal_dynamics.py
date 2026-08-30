@@ -623,27 +623,42 @@ class InternalDynamics:
             "winner"
         )
         
-        allocation = self.compute.allocate(
-            winner
+        if winner is None:
+            return
+        
+        allocation = winner.get(
+            "allocation"
         )
         
         if allocation is None:
-            return
+            
+            if hasattr(
+                organ,
+                "execute_compute"
+            ):
+
+                organ.execute_compute(
+                    allocation
+                )
+
+                self.compute.consume(
+                    allocation
+                )
+            
+                return
         
         #
         # selected organ
         #
         if hasattr(
             organ,
-            "execute_compute"
+            "commit"
         ):
 
-                        
-            self.execute_compute(
-            allocation
-            )
-            self.compute.consume(
-                allocation
+            organ.commit(
+                winner.get(
+                    "state"
+                )
             )
 
 
