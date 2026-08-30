@@ -622,16 +622,28 @@ class InternalDynamics:
         winner = result.get(
             "winner"
         )
+        
+        allocation = self.compute.allocate(
+            winner
+        )
+        
+        if allocation is None:
+            return
+        
         #
         # selected organ
         #
         if hasattr(
             organ,
-            "commit"
+            "execute_compute"
         ):
 
-            organ.commit(
-                winner
+                        
+            self.execute_compute(
+            allocation
+            )
+            self.compute.consume(
+                allocation
             )
 
 
