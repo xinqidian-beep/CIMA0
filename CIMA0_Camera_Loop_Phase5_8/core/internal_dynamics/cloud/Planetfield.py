@@ -293,16 +293,31 @@ class PlanetField:
     # compute allocation
     #
 
-    def apply_compute(
+    def execute_compute(
         self,
-        amount
+        allocation
     ):
 
+        if allocation is None:
+            return
 
-        self.compute_budget = amount
+
+        amount = allocation.get(
+            "amount",
+            0.0
+        )
 
 
+        print(
+            "APPLY COMPUTE:",
+            type(self).__name__,
+            amount
+        )
 
+
+        self.apply_compute(
+            amount
+        )
 
 
     #
