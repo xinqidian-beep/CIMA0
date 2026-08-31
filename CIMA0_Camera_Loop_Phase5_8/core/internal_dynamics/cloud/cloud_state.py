@@ -25,7 +25,9 @@ class CloudState:
         self.capacity = capacity
 
         self.cells = []
-
+        
+        self.step_count = 0
+        
 
     def receive(
         self,
@@ -49,7 +51,8 @@ class CloudState:
 
 
     def step(self):
-
+        
+        self.step_count += 1
         alive = []
 
 
