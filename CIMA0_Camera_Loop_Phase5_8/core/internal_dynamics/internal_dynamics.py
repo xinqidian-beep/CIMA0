@@ -302,6 +302,13 @@ class InternalDynamics:
     #
 
     def step(self):
+        
+        #
+        # 0. compute resource recovery
+        #
+
+        self.compute.step()
+        
         #
         # 1. internal evolution
         #
