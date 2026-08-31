@@ -68,19 +68,15 @@ class ComputeSystem:
     # -------------------------------------------------
 
     def step(self):
+        
+        self.step_count += 1
 
-        recovery = (
-            self.capacity
-            -
-            self.available
-        ) * 0.01
+        #
+        # each cycle receives a fresh
+        # computational opportunity
+        #
 
-        self.available += recovery
-
-        self.available = min(
-            self.available,
-            self.capacity
-        )
+        self.available = self.capacity
 
 
     # -------------------------------------------------

@@ -347,8 +347,13 @@ class CLIPField:
         self,
         amount
     ):
+        
+        amount = max( 
+            float(amount), 
+            0.0 
+        )
 
-        self.compute_budget = amount
+        self.compute_budget += amount
 
 
     def debug_state(self):
@@ -393,7 +398,6 @@ class CLIPField:
     # update cloud
     #
 
-
     def step(
         self
     ):
@@ -402,7 +406,7 @@ class CLIPField:
         # no compute permission
         #
 
-        if self.compute_budget <= 0:
+        if self.compute_budget <= 0.0:
 
             return
 
@@ -413,6 +417,8 @@ class CLIPField:
 
         if not self.dirty:
 
+            self.compute_budget = 0.0
+
             return
 
 
@@ -421,6 +427,8 @@ class CLIPField:
         #
 
         if self.input_packet is None:
+
+            self.compute_budget = 0.0
 
             return
 
@@ -435,16 +443,33 @@ class CLIPField:
 
 
         if tensor is None:
- 
+
+            self.compute_budget = 0.0
+
             return
 
 
         #
         # expensive visual computation
         #
+        # one compute opportunity
+        # produces one local response
+        #
 
         success = self._forward(
             tensor
+        )
+
+
+        #
+        # consume this compute opportunity
+        #
+
+        self.compute_budget -= 1.0
+
+        self.compute_budget = max(
+            self.compute_budget,
+            0.0
         )
 
 
@@ -454,21 +479,12 @@ class CLIPField:
 
 
         #
-        # computation consumed its budget
-        #
-
-        self.compute_budget = 0
-
-
-        #
         # current input has been processed
         #
 
         self.dirty = False
 
-
         self.need_initialization = False
-
 
         self.age += 1
 

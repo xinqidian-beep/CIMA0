@@ -108,34 +108,9 @@ class Sampler:
         ):
 
             return None
-        
-        history = {}
-
-        if self.memory is not None:
-        
-            history = (
-                self.memory.statistics()
-                if self.memory is not None
-                else {}
-            
-            )
-            print(
-                "SAMPLER HISTORY:",
-                history
-            )
-
-        history_activity = history.get(
-            "activity",
-            0.0
-        )
-
-
-        history_delta = history.get(
-            "delta",
-            0.0
-        )
-
-
+        #
+        # local state only
+        #
 
         score = (
 
@@ -165,19 +140,6 @@ class Sampler:
                 )
             )
             
-
-            +
-
-            0.05
-            *
-            history_activity
-
-
-            +
-
-            0.05
-            *
-            abs(history_delta)
 
         )
 
