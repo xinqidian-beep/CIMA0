@@ -2954,4 +2954,870 @@ CLIPField.step()
 CLIP 已演化状态块
 CLIP 的一次 compute opportunity，目前定义为一次 _forward()。
 ***************************************
-				  
+未来 step() 必须能够区分两种计算机会：
+                    compute
+                       │
+             ┌─────────┴─────────┐
+             ▼                   ▼
+       建立/更新状态          已有状态响应
+       _forward()             local collision
+	   
+***************************************
+                Compute Pool
+                     |
+                     v
+               allocation
+                     |
+                     v
+              +-------------+
+              |    Organ    |
+              +-------------+
+                     |
+                 使用机会
+                     |
+          +----------+----------+
+          |                     |
+       consumed              unused
+          |                     |
+       trust ↑               trust ↓
+          |                     |
+          +----------+----------+
+                     |
+                     v
+             future priority
+也就是说：
+
+已经交出去的资源不收回。
+
+但是：
+
+未来还给不给这么多资源，要看历史表现。
+******************************************
+Observation
+     │
+     ▼
+ObservationMemory
+     │
+     │ historical statistics
+     ▼
+Sampler.adapt_weights()
+     │
+     ▼
+current priority
+     │
+     ▼
+winner
+     │
+     ▼
+ComputeSystem.allocate()
+     │
+     ▼
+allocation
+     │
+     ▼
+COMMIT
+     │
+     ▼
+ownership transfer
+     │
+     ▼
+Organ.compute_budget
+     │
+     ▼
+Organ.step()
+然后 Organ 的历史行为重新进入 Memory：
+Organ behavior
+      │
+      ▼
+ObservationMemory
+      │
+      ▼
+Trust / adaptation
+      │
+      └──────────────→ 下一轮 Sampler
+这是一个闭环的信用机制，而不是一个资源回收机制。
+资源一旦commit，即视为所有权转移；实际使用效率不影响已经完成的资源结算，只影响未来的资源分配权重。
+*******************************************	  
+资源结构应该固定成这样
+                  ComputeSystem
+                       │
+              ┌────────┴────────┐
+              │                 │
+          capacity          available
+          1024                1023
+                                │
+                         allocation 1
+                                │
+                         ownership ↓
+                                │
+                         ┌──────────────┐
+                         │  CLIPField   │
+                         │compute_budget│
+                         │      1      │
+                         └──────────────┘
+                                │
+                              step()
+                                │
+                         _forward()
+                                │
+                         budget -= 1
+                                │
+                         budget = 0
+然后：ComputeSystem.available不会因为 CLIPField 用完计算而自动增加。*************************************
+capacity 是总容量上限；available 是当前可用资源；每个 cycle 只恢复固定的一小部分。**************************************
+CLIPField 获得了计算机会，现在需要验证它是否按照自己的内部规则谨慎地消费这个机会。
+ComputeSystem.available
+        │
+        │ allocation / consume
+        ▼
+CLIPField.compute_budget
+        │
+        │ self-governed consumption
+        ▼
+CLIPField.step()
+        │
+        ▼
+_forward()
+不是中央控制的 AI，而是由资源、扰动、局部动力学和自持器官共同形成的内部系统。
+**************************************						 
+                         ┌──────────────────────┐
+                         │    ComputeSystem     │
+                         │                      │
+                         │ capacity             │
+                         │ available            │
+                         │ recovery             │
+                         └──────────┬───────────┘
+                                    │
+                              allocation
+                                    │
+                                    ▼
+                         ┌──────────────────────┐
+                         │      CLIPField       │
+                         │                      │
+Camera ────────────────► │ input                │
+                         │                      │
+                         │ 12×50×768            │
+                         │      │               │
+                         │      ▼               │
+                         │ local response       │
+                         │      │               │
+                         │      ▼               │
+                         │ response coordinate  │
+                         └──────────┬───────────┘
+                                    │
+                              local cloud
+                                    │
+                                    ▼
+                         ┌──────────────────────┐
+                         │   CloudCollision     │
+                         │                      │
+                         │ CLIP local cloud    │
+                         │        ↕             │
+                         │ PlanetField local    │
+                         │        │             │
+                         │        ▼             │
+                         │ collision result     │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+                         ┌──────────────────────┐
+                         │     PlanetField      │
+                         │                      │
+                         │ local disturbance    │
+                         │        ↓             │
+                         │ Planet.evolve()      │
+                         │        ↓             │
+                         │ new local state      │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+                              observation
+                                    │
+                                    ▼
+                                Sampler
+                                    │
+                                    ▼
+                              ComputeSystem
+                                    │
+                                    └──────► CLIP
+
+****************************************************	
+CloudCollision 理解成：
+                    CloudCollision
+                         │
+             ┌───────────┴───────────┐
+             │                       │
+        association              collision
+             │                       │
+             ▼                       ▼
+       找关联局部云              三项值规则
+                                     │
+                                     ▼
+                            penetrate/change/bounce
+							
+第一层
+“哪些东西真正构成这次碰撞？”
+
+由响应坐标产生。
+
+第二层
+“这些东西碰撞后属于什么关系？”	
+empty
+zero
+nonzero
+
+        ↓
+
+change
+penetrate
+bounce
+*************************************
+                    ┌──────────────────────┐
+                    │      Compute         │
+                    └──────────┬───────────┘
+                               │
+                          allocation
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │      CLIPField       │
+                    └──────────┬───────────┘
+                               │
+                         compute()
+                               │
+                ┌──────────────┴──────────────┐
+                │                             │
+                ▼                             ▼
+        complete cloud                 local response
+        (12,50,768)                          │
+                                             ▼
+                                          winner
+                                             │
+                                             ▼
+                                  ┌──────────────────┐
+                                  │  CloudCollision  │
+                                  └────────┬─────────┘
+                                           │
+                                    local association
+                                           │
+                                           ▼
+                                      collision
+                                           │
+                                           ▼
+                                   collision result
+                                           │
+                                           ▼
+                                  ┌──────────────────┐
+                                  │   PlanetField    │
+                                  └────────┬─────────┘
+                                           │
+                                      disturbance
+                                           │
+                                           ▼
+                                     Planet.evolve()
+                                           │
+                                           ▼
+                                    new Planet state
+                                           │
+                                           ▼
+                                      Observer
+                                           │
+                                           ▼
+                                     observation
+                                           │
+                                           ▼
+                                       Sampler
+                                           │
+                                           ▼
+                                     next choice
+                                           │
+                                           ▼
+                                      Compute
+
+**************************************************************************************************************									  
+建议结构整理成：
+__init__
+receive
+step
+    ↓
+_evolve
+_observe
+_compute
+commit
+    ↓
+_collision
+_apply_collision
+_sample
+
+然后才是各种辅助函数：
+
+_collect_clouds
+_extract...
+...
+**************************************
+Camera
+  │
+  │ 原始字节
+  ▼
+同构字节流
+  │
+  ├──────────────────────────────┐
+  │                              │
+  ▼                              │
+CLIP                             │
+  │                              │
+  │ 12 × 50 × 768                │
+  │                              │
+  ▼                              │
+局部响应                         │
+  │                              │
+  ▼                              │
+一个 winner 坐标                 │
+  │                              │
+  └──────────────┐               │
+                 ▼               │
+          Camera 同构字节流       │
+                 │               │
+                 ▼               │
+       根据 winner 反向定位       │
+                 │               │
+                 ▼               │
+       坐标周围的物理碰撞材料     │
+                 │               │
+                 ▼               │
+          Collision Physics      │
+                 │               │
+                 ▼               │
+             状态变化             │
+                 │               │
+                 ▼               │
+          同构状态字节流          │
+                 │               │
+                 ▼               │
+             下一阶段             │
+////////////////////////////////////////
+CLIP 不提供碰撞材料，Camera 提供碰撞材料；CLIP 只提供关注坐标。	
+CLIPField
+    │
+    │ winner coordinate
+    ▼
+InternalDynamics
+    │
+    │ coordinate + camera packet
+    ▼
+Camera同构反向定位
+    │
+    ▼
+局部物理区域
+    │
+    ▼
+CloudCollision
+    │
+    ▼
+变化状态
+    │
+    ▼
+同构字节包
+这样整个系统的职责也非常干净：	
+| 模块               | 唯一职责                  |
+| ---------------- | --------------------- |
+| Camera           | 提供原始同构字节流             |
+| CLIP             | 从完整内部状态选出一个关注坐标       |
+| InternalDynamics | 承接坐标与事件               |
+| Collision        | 在 Camera 对应局部物理空间计算变化 |
+| PlanetField      | 接收变化并继续自身演化           |
+| 下一阶段             | 接收同构状态                |
+******************************************************	 
+不存在全局配对。不存在预先建立的 CLIP↔Planet 全局关系。不存在永久 winner。不存在 Observer 参与事件因果。不存在预先知道下一次碰撞在哪里。Compute 给机会，不给答案；实体决定怎么行动；Collision 是已经发生的内部事件；Observer 最后才知道。
+***************************
+CONSTITUTION.md
+    ↓
+为什么不能有上帝视角
+什么绝对不能发生
+状态/因果/职责的根本约束
+
+        ↓
+
+ARCHITECTURE.md
+    ↓
+现在有哪些实体
+各自拥有什么
+彼此通过什么关系连接
+事件、资源、观察如何流动
+
+        ↓
+
+TOPOLOGY.md
+    ↓
+这些东西在当前代码里到底在哪里
+实际 import / object / interface 怎么连接
+
+        ↓
+
+PHASE5_8.md
+    ↓
+这一阶段具体做到了什么
+还有什么没完成
+
+尤其重要的是，我把原来 Phase5_7 那条“Collision → Attention → Compute → Sampler → Memory”的单一流水线拿掉了。 这不是说这些模块不能发生关系，而是明确：它们不是一个拥有全局知识的中央流水线。
+*************************************
+历史思想分成 4 个阶段
+                    CIMA0 早期思想
+                         │
+          ┌──────────────┼──────────────┐
+          ↓              ↓              ↓
+      Temporal        Compute         Local
+      Variation       Resource        Region
+          │              │              │
+          ↓              ↓              ↓
+        delta          budget       sampled area
+          │              │              │
+          └───────┬──────┴──────┬───────┘
+                  ↓               ↓
+             sparse/local      ephemeral
+                compute          state
+                  │               │
+                  └───────┬───────┘
+                          ↓
+                      Projection
+后来 Phase3 又增加：
+delta
+ +
+age
+ ↓
+score
+ ↓
+argpartition
+ ↓
+sparse precision update
+历史上实际上出现了两条互相靠近的路线：路线 A：空间局部化
+whole frame
+   ↓
+local region
+   ↓
+sampled area
+   ↓
+local coupling
+路线 B：计算稀疏化
+whole state
+   ↓
+delta + age
+   ↓
+score
+   ↓
+budget
+   ↓
+argpartition
+   ↓
+sparse precision
+Phase5_8 现在真正需要做的，很可能就是把这两条路线第一次完整地合起来。
+***********************************************
+                 ComputeSystem
+                      │
+                available budget
+                      │
+                      ▼
+                   Sampler
+                      │
+              compute opportunity
+                      │
+                      ▼
+               AttentionField
+                      │
+                local score
+                      │
+                      ▼
+                 CloudField
+                      │
+             sparse local states
+                      │
+                      ▼
+              local candidate
+                      │
+                      ▼
+              CloudCollision
+			  
+			  //////////////
+			  
+ComputeSystem
+    → 提供资源
+
+Sampler
+    → 决定这次能做多少计算机会
+
+AttentionField
+    → 提供局部响应/关注依据
+
+CloudField
+    → 持有稀疏内部状态
+
+CloudCollision
+    → 执行碰撞规则
+
+Observer
+    → 事后观察
+
+Cache
+    → 临时保存
+
+Memory
+    → 历史保存
+********************************************************
+机制能力审计，而不是文件名称审计。
+*****************************************
+四大模块的真实职责
+┌──────────────────────────────────────────┐
+│ 动力核心 / System State                  │
+│                                          │
+│ Planet                                   │
+│ PlanetField                              │
+│ CloudField / Organ                       │
+│                                          │
+│ 自己持续演化                             │
+└──────────────────┬───────────────────────┘
+                   │
+                   │ 当前状态
+                   ▼
+┌──────────────────────────────────────────┐
+│ Observer                                 │
+│                                          │
+│ 只看见                                   │
+│ snapshot → observation                   │
+│                                          │
+│ 不比较 / 不选择 / 不修改                 │
+└──────────────────┬───────────────────────┘
+                   │
+                   │ observations
+                   ▼
+┌──────────────────────────────────────────┐
+│ Compute                                  │
+│                                          │
+│ previous observation                     │
+│ current observation                      │
+│        ↓                                 │
+│ 比较                                     │
+│        ↓                                 │
+│ 计算变化                                 │
+│        ↓                                 │
+│ 形成候选                                 │
+│        ↓                                 │
+│ 选择 ONE                                 │
+└──────────────────┬───────────────────────┘
+                   │
+                   │ ONE selected candidate
+                   ▼
+┌──────────────────────────────────────────┐
+│ 动力核心 / Commit                         │
+│                                          │
+│ 真正执行一次状态改变                     │
+└──────────────────┬───────────────────────┘
+                   │
+                   ▼
+              Sample
+传输系统则独立负责搬运，不进入这条判断链。			  
+
+                 Internal Dynamics
+                        │
+        ┌───────────────┼────────────────┐
+        │               │                │
+     Planet          CLIPField        其他 Organ
+        │               │                │
+   自己的演化       自己的内部演化       自己的演化
+        │               │                │
+   自己观察局部      自己观察局部        自己观察局部
+        │               │                │
+   自己计算候选      自己计算候选        自己计算候选
+        │               │                │
+   选择最大者        选择最大者          选择最大者
+        │               │                │
+        └───────────────┼────────────────┘
+                        ↓
+                  各模块提出请求
+                        ↓
+                 ┌──────────────┐
+                 │    Compute   │
+                 │              │
+                 │ 计算资源管理  │
+                 │              │
+                 │ 选择一个请求  │
+                 │ 分配资源      │
+                 └──────┬───────┘
+                        ↓
+                  ONE resource grant
+                        ↓
+                   对应模块执行
+
+最终可以把四层选择关系明确下来
+我建议 Phase5_8 以后就按照这个定义固定下来：
+
+| 层级    | 谁                      | 选择什么        | 权利        |
+| ----- | ---------------------- | ----------- | --------- |
+| 内部动力学 | Planet / Cloud / Organ | 自己怎么演化      | 自主        |
+| 局部计算  | 各模块自己                  | 自己内部哪个候选最值得 | **局部选择权** |
+| 资源仲裁  | Compute                | 哪个模块获得计算资源  | **资源分配权** |
+| 采样    | Sampler / Sampling     | 当前采什么状态     | **采样选择权** |
+
+“选择最大”并不是系统唯一的一种选择。
+
+而是不同模块在不同层级进行局部选择。
+
+Compute 的特殊性不是“它最聪明”，而是：
+
+它拥有有限计算资源，因此负责资源仲裁。	
+
+                    内部世界
+                       │
+        ┌──────────────┼──────────────┐
+        ↓              ↓              ↓
+     Planet         CLIPField       Cloud
+        │              │              │
+        │        局部候选集合          │
+        │              ↓              │
+        │        LOCAL WINNER         │
+        │              │              │
+        └──────────────┼──────────────┘
+                       ↓
+                 Compute Request
+                       ↓
+              ┌─────────────────┐
+              │     Compute     │
+              │                 │
+              │ 资源仲裁 / 分配  │
+              └────────┬────────┘
+                       ↓
+                ONE allocation
+                       ↓
+                 对应模块执行
+                       ↓
+                    Sample	
+********************************************************
+                     ┌──────────────┐
+                     │  Internal    │
+                     │   Dynamics   │
+                     └──────┬───────┘
+                            │
+                    current state
+                            ↓
+                    ┌────────────┐
+                    │  Observer  │
+                    │   只看见    │
+                    └─────┬──────┘
+                          │
+                     observations
+                          ↓
+              ┌───────────────────────┐
+              │     各内部模块         │
+              │                       │
+              │  observe / calculate  │
+              │       candidates      │
+              │          ↓            │
+              │    select LOCAL ONE   │
+              │          ↓            │
+              │      request          │
+              └───────────┬───────────┘
+                          │
+                    multiple requests
+                          ↓
+                 ┌────────────────┐
+                 │    Compute     │
+                 │                │
+                 │ resource       │
+                 │ arbitration    │
+                 └───────┬────────┘
+                         │
+                  select ONE request
+                         ↓
+                    allocation
+                         ↓
+                      Commit
+                         ↓
+              selected module executes
+                         ↓
+                       Sample					
+************************************************
+                 ┌─────────────────────────┐
+                 │       CLIPField         │
+                 │                         │
+camera ─────────►│ receive()               │
+                 │      │                  │
+                 │      ▼                  │
+                 │    dirty                │
+                 │      │                  │
+                 │      │ compute granted  │
+                 │      ▼                  │
+                 │    step()               │
+                 │      │                  │
+                 │      ▼                  │
+                 │  complete forward       │
+                 │      │                  │
+                 │      ▼                  │
+                 │ complete cloud          │
+                 │      │                  │
+                 │      ▼                  │
+                 │ local response           │
+                 │      │                  │
+                 │      ▼                  │
+                 │ local winner             │
+                 │      │                  │
+                 │      ├── winner_layer    │
+                 │      ├── winner_response │
+                 │      │                  │
+                 │      ▼                  │
+                 │ current cloud            │
+                 └──────────┬──────────────┘
+                            │
+                            ▼
+                       activity()
+                            │
+                            │ request="compute"
+                            ▼
+                         Compute
+                            │
+                     resource arbitration
+                            │
+                            ▼
+                          Commit
+                            │
+                            ▼
+                       apply_compute()
+					   ********************
+| 字段                  | 意义             |
+| ------------------- | -------------- |
+| `input_activity`    | 外部输入造成的活动      |
+| `layer_activity`    | 12 个局部响应       |
+| `candidate`         | CLIP 自己选出的局部候选 |
+| `candidate_value`   | 该候选的响应         |
+| `internal_activity` | 完整 cloud 的内部变化 |
+这样我们后面才不会重新陷入“一个 activity 到底代表什么”的问题。*************************************************					   
+             ┌──────────────────────┐
+             │      CLIPField       │
+             └──────────┬───────────┘
+                        │
+                  new camera input
+                        │
+                        ▼
+                     dirty
+                        │
+                        ▼
+              request compute
+                        │
+                        ▼
+                  ┌──────────┐
+                  │ Compute  │
+                  └────┬─────┘
+                       │
+                  resource grant
+                       │
+                       ▼
+                    Commit
+                       │
+                       ▼
+               CLIPField.step()
+                       │
+                       ▼
+                   _forward()
+                       │
+             ┌─────────┴─────────┐
+             ▼                   ▼
+       complete cloud       local response
+                                 │
+                                 ▼
+                           local winner
+                                 │
+                                 ▼
+                        new internal state
+真正需要解决的是：
+
+CLIP 完成 compute 后，产生的内部结果应该由谁接收、在哪里进入下一次观察/选择循环？
+资源仲裁链已经通了；模块内部计算链也通了；现在缺的是“计算结果 → 下一次观察事实”的闭环。
+                 已经完成
+                    ↓
+Camera → request → Compute → Commit → CLIP forward
+                                             │
+                                             ▼
+                                      internal result
+                                             │
+                                             │
+                                      【这里要闭环】
+                                             │
+                                             ▼
+                                      next observation
+                                             │
+                                             ▼
+                                      next request
+
+                 ┌─────────────────────┐
+                 │ existing dynamics   │
+                 │ already running     │
+                 └──────────┬──────────┘
+                            ↓
+                       OBSERVE
+                            ↓
+                ┌───────────────────────┐
+                │ each Organ             │
+                │ local candidate/request│
+                └──────────┬────────────┘
+                           ↓
+                      COMPUTE
+                           │
+                    resource arbitration
+                           ↓
+                       COMMIT
+                           │
+                    one resource grant
+                           ↓
+                       _EVOLVE()
+                           │
+              ┌────────────┴────────────┐
+              ↓                         ↓
+        Organ A.step()             Organ B.step()
+              │                         │
+        no resource                 resource?
+              ↓                         ↓
+            return                  execute
+                                      │
+                                      ↓
+                                   SAMPLE
+								   
+						
+这里 _evolve() 的重要含义就变成：
+
+不是 InternalDynamics 命令 Organ “你现在必须演化”。而是 InternalDynamics 在完成一次资源提交后，给所有 Organ 一个执行入口；真正有没有资格执行，由 Organ 自己根据已经获得的资源决定。
+
+这和我们之前确定的：
+
+各自完成自己的职责
+
+是吻合的。
+
+*****************************职责画得更清楚
+                  InternalDynamics
+                         │
+       ┌─────────────────┼──────────────────┐
+       │                 │                  │
+       ↓                 ↓                  ↓
+ Dynamical Core      Resource System     Internal Organs
+       │                 │                  │
+       │                 │                  ├── CLIPField
+       │                 │                  ├── ...
+       │                 │                  └── ...
+       ↓                 ↓
+    Planet             Compute
+       │
+       ↓
+   Planet evolution									  
+然后观察系统是另一条旁路：
+                 current state
+                      │
+                      ↓
+                  Observer
+                      │
+                      ↓
+             Observation / facts
+                      │
+                      ↓
+                   Compute
+
+				   
+   
+   

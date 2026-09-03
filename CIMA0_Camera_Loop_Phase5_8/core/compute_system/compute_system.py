@@ -37,7 +37,8 @@ class ComputeSystem:
     def __init__(
         self,
         capacity=1024,
-        memory_capacity=32
+        memory_capacity=32,
+        recovery_rate=1.0
     ):
 
         self.capacity = float(
@@ -45,6 +46,19 @@ class ComputeSystem:
         )
 
         self.available = self.capacity
+        
+        self.recovery_rate = max(
+            float(recovery_rate),
+            0.0
+        )
+        
+        #
+        # observation history
+        #
+        # Compute owns comparison context.
+        #
+
+        self.previous_observation = None
 
         #
         # observation / selection memory
@@ -61,23 +75,231 @@ class ComputeSystem:
         )
 
         self.step_count = 0
+        
+        
+    # -------------------------------------------------
+    # observation comparison
+    # -------------------------------------------------
+
+    def compare(
+        self,
+        observation
+    ):
+        """
+        Compare current observation with the
+        previous observation.
+
+        Responsibility:
+
+            current observation
+                    +
+            previous observation
+                    |
+                    v
+                comparison
+                    |
+                    v
+                observed change
+
+        Does NOT:
+
+            - modify dynamical state
+            - select
+            - commit
+            - define evolution rules
+            - infer causality
+        """
+
+        if observation is None:
+
+            return None
+
+        previous = self.previous_observation
+
+        #
+        # current becomes history only AFTER
+        # comparison context has been obtained.
+        #
+
+        self.previous_observation = observation
+
+        #
+        # first observation has no comparison pair
+        #
+
+        if previous is None:
+
+            return {
+                "changed": False,
+                "first": True,
+                "changes": {}
+            }
+
+        return self._compare_observations(
+            previous,
+            observation
+        )
+        
+        
+    def _compare_observations(
+        self,
+        previous,
+        current
+    ):
+        """
+        Compare factual observation values.
+
+        This is deliberately conservative.
+
+        It does not infer an evolution law.
+
+        It only reports observable numerical changes.
+        """
+
+        changes = {}
+
+        #
+        # -------------------------------------------------
+        # compare top-level observed entities
+        # -------------------------------------------------
+        #
+
+        names = set()
+
+        if isinstance(previous, dict):
+
+            names.update(
+                previous.keys()
+            )
+
+        if isinstance(current, dict):
+
+            names.update(
+                current.keys()
+            )
+
+        for name in names:
+
+            before = previous.get(
+                name
+            )
+
+            after = current.get(
+                name
+            )
+
+            if before is None or after is None:
+
+                continue
+
+            if not isinstance(
+                before,
+                dict
+            ):
+
+                continue
+
+            if not isinstance(
+                after,
+                dict
+            ):
+
+                continue
+
+            entity_changes = {}
+
+            #
+            # only compare values that actually exist
+            # in both observations
+            #
+
+            keys = (
+                set(before.keys())
+                &
+                set(after.keys())
+            )
+
+            for key in keys:
+
+                b = before.get(
+                    key
+                )
+
+                a = after.get(
+                    key
+                )
+
+                #
+                # scalar numerical values
+                #
+
+                if (
+                    isinstance(
+                        b,
+                        (int, float)
+                    )
+                    and
+                    isinstance(
+                        a,
+                        (int, float)
+                    )
+                ):
+
+                    delta = float(a) - float(b)
+
+                    if delta != 0.0:
+
+                        entity_changes[key] = {
+                            "before": float(b),
+                            "after": float(a),
+                            "delta": delta
+                        }
+
+            if entity_changes:
+
+                changes[name] = entity_changes
+
+        return {
+            "changed": bool(changes),
+            "first": False,
+            "changes": changes
+        }
+        
 
 
     # -------------------------------------------------
     # compute regeneration
     # -------------------------------------------------
 
-    def step(self):
-        
+    def step(
+        self
+    ):
+
         self.step_count += 1
 
+
         #
-        # each cycle receives a fresh
-        # computational opportunity
+        # compute resource recovery
+        #
+        # recover 1% of the remaining gap
+        # between available and capacity.
         #
 
-        self.available = self.capacity
+        self.available += (
+            self.capacity
+            -
+            self.available
+        ) * 0.01
 
+
+        #
+        # capacity is the absolute upper bound
+        #
+
+        self.available = min(
+            self.available,
+            self.capacity
+        )
 
     # -------------------------------------------------
     # selection
@@ -108,9 +330,7 @@ class ComputeSystem:
             return None
 
 
-        self.step_count += 1
-
-
+        
         #
         # evaluate previous decision
         #
@@ -275,21 +495,6 @@ class ComputeSystem:
 
         if allocation is None:
             return None
-            
-            print(
-                "COMPUTE WINNER:",
-                winner.get("name")
-            )
-
-            print(
-                "COMPUTE AVAILABLE BEFORE:",
-                self.available
-            )
-
-            print(
-                "COMPUTE ALLOCATION:",
-                allocation
-            )
             
 
         return {
