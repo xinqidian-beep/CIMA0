@@ -3,6 +3,8 @@ import numpy as np
 
 from .cloud.cloud_state import CloudState
 from core.memory.observation_memory import ObservationMemory
+from core.internal_dynamics.cloud_collision import CloudCollision
+
 
 class InternalDynamics:
     """
@@ -229,6 +231,9 @@ class InternalDynamics:
                     packet
                 )
     
+
+
+
     
     def _collect_clouds(
         self
@@ -301,30 +306,45 @@ class InternalDynamics:
     # main evolution cycle
     #
 
-    def step(self):
-        
+    def step(
+        self
+    ):
+
         #
-        # 0. compute resource recovery
+        # -------------------------------------------------
+        # 1. computational opportunity recovers
+        # -------------------------------------------------
         #
 
         self.compute.step()
-        
+
+
         #
-        # 1. internal evolution
+        # -------------------------------------------------
+        # 2. existing Planet continues its own evolution
+        # -------------------------------------------------
         #
 
         self._planet_step()
 
-        self._evolve()
+
+
         #
-        # 2. observe current change
+        # -------------------------------------------------
+        # 3. observe current state
+        #
+        # Observer is still before the next decision.
+        # It does not know future collision.
+        # -------------------------------------------------
         #
 
         signals = self._observe()
 
 
         #
-        # 3. compute
+        # -------------------------------------------------
+        # 4. compute selects one opportunity
+        # -------------------------------------------------
         #
 
         result = self._compute(
@@ -333,7 +353,11 @@ class InternalDynamics:
 
 
         #
-        # 4. commit exactly once
+        # -------------------------------------------------
+        # 5. commit computational resource
+        #
+        # ComputeSystem -> organ
+        # -------------------------------------------------
         #
 
         self.commit(
@@ -342,11 +366,49 @@ class InternalDynamics:
 
 
         #
-        # 5. sample exactly once
+        # -------------------------------------------------
+        # 6. internal dynamics evolution
+        # -------------------------------------------------
+        #
+
+        self._evolve()
+
+
+        #
+        # -------------------------------------------------
+        # 8. collision happens AFTER computation
+        #
+        # No Observer here.
+        # -------------------------------------------------
+        #
+        #
+        #collision = self._collision(
+        #    result
+        #)
+        #
+
+
+        #
+        # -------------------------------------------------
+        # 9. collision result enters PlanetField
+        # -------------------------------------------------
+        #
+        #
+        #self._apply_collision(
+        #    collision
+        #)
+        #
+
+
+        #
+        # -------------------------------------------------
+        # 10. sample AFTER the event
+        #
+        # The next observation is therefore post-event.
+        # -------------------------------------------------
         #
 
         return self._sample()
-        
 
 
   
@@ -356,37 +418,13 @@ class InternalDynamics:
     def _observe(
         self
     ):
-        
-        """
-        Collect internal observations.
 
-        Responsibility:
-
-            planet snapshot
-            organ snapshot
-
-            |
-            v
-
-            observer description
-            observation cache
-            activity signal
-
-
-        Does NOT:
-
-            - compute
-            - select
-            - route
-            - display
-
-        """
-        
         signals = []
 
-        print(self.organs.keys())
         #
-        # planet observation
+        # -------------------------------------------------
+        # Observer only sees current state
+        # -------------------------------------------------
         #
 
         if (
@@ -397,169 +435,79 @@ class InternalDynamics:
             )
         ):
 
-
             snapshot = {
-
                 "planet":
                     self.planet.snapshot()
-
             }
- 
 
-            #
-            # readonly description
-            #
-
-            observation = (
-                self.observer.describe(
-                    snapshot
-                )    
+            observation = self.observer.describe(
+                snapshot
             )
-            
-            #
-            # observation cache short-lived cache
-            #
-
-            change = None
-
-
-            if self.observation_cache is not None:
-
-                change = (
-                    self.observation_cache.step(
-                        snapshot
-                    )
-                )
-
-
-            #
-            # preserve high dimensional field
-            #
-            # NOT for compute
-            #
-
-            if change is not None:
- 
-                delta = change.get(
-                    "delta"
-                )
-
-
-                if isinstance(
-                    delta,
-                    dict
-                ):
-
-                    self.internal_fields.update(
-                        delta
-                    )
-
-
-
-            #
-            # lightweight attention signal
-            #
-
-            activity = 0.0
-
-
-            if change is not None:
-
-                activity = change.get(
-                    "signal",
-                    0.0
-                )
-                
-            print(
-                "PLANET ACTIVITY:",
-                activity
-            )
-                
 
             signals.append(
                 {
                     "name":
                         "planet",
 
-
                     "organ":
                         self.planet,
 
-
                     "state":
                         {
-
-                            #
-                            # readonly description
-                            #
-
                             "observation":
                                 observation,
 
-
                             #
-                            # attention / compute signal
+                            # These remain local signals
+                            # for the existing selection path.
                             #
-
-
                             "activity":
-                                float(activity),
-                                
-                            "signal":
-                                float(activity),    
-                                
-                            "changed":
-                                False
-                                if change is None
-                                else change.get(
-                                    "changed",
-                                    False
-                                ),
-                            
-                            "source":
-                                "planet"
+                                0.0,
 
+                            "signal":
+                                0.0,
+
+                            "changed":
+                                False,
+
+                            "source":
+                                "planet",
+
+                            "request":
+                                False
                         }
                 }
-            )    
-                
-        #
-        # organ observation
-        #
-        
-        for name, organ in self.organs.items():
+            )
 
+        #
+        # -------------------------------------------------
+        # organs
+        # -------------------------------------------------
+        #
+
+        for name, organ in self.organs.items():
 
             if hasattr(
                 organ,
                 "activity"
             ):
 
-
                 state = organ.activity()
-
 
                 if state is not None:
 
-
                     signals.append(
-
                         {
-
                             "name":
                                 name,
 
-
                             "organ":
                                 organ,
-                                
+
                             "state":
                                 state
-
                         }
-
                     )
-
 
         return signals
     
@@ -571,13 +519,70 @@ class InternalDynamics:
         self,
         signals
     ):
-        
-        
+
         if self.compute is None:
 
             return None
 
+        #
+        # -------------------------------------------------
+        # collect observations
+        # -------------------------------------------------
+        #
 
+        observations = {}
+
+        for signal in signals:
+
+            name = signal.get(
+                "name"
+            )
+
+            state = signal.get(
+                "state",
+                {}
+            )
+
+            observation = state.get(
+                "observation"
+            )
+
+            if observation is not None:
+
+                observations[name] = observation
+
+        #
+        # -------------------------------------------------
+        # Compute performs comparison
+        # -------------------------------------------------
+        #
+
+        comparison = None
+
+        if observations:
+
+            comparison = self.compute.compare(
+                observations
+            )
+
+        #
+        # comparison is information.
+        #
+        # It is NOT yet a candidate.
+        #
+
+        if comparison is not None:
+
+            print(
+                "COMPUTE COMPARISON:",
+                comparison
+            )
+
+        #
+        # -------------------------------------------------
+        # existing compute-selection path
+        # -------------------------------------------------
+        #
 
         if self.compute.available <= 0:
 
@@ -585,36 +590,81 @@ class InternalDynamics:
 
             return None
 
+        requests = []
 
+        for signal in signals:
+
+            state = signal.get(
+                "state",
+                {}
+            )
+
+            request = state.get(
+                "request"
+            )
+
+            if request == "compute":
+
+                requests.append(
+                    signal
+                )
+
+        if not requests:
+
+            return None
 
         winner = self.compute.select(
-            signals
+            requests
         )
-        
-        
-        if winner is  None:
+
+        if winner is None:
+
             return None
-                        
+
         organ = winner.get(
             "organ"
         )
 
-
         if organ is None:
+
             return None
 
-
         return {
-            "organ": organ,
-            "winner": winner
-        }
+            "organ":
+                organ,
 
+            "winner":
+                winner,
+
+            "comparison":
+                comparison
+        }
+        
+        
     def commit(
         self,
         result
     ):
+        """
+        Commit one computational opportunity.
+
+        Responsibility:
+
+            allocation
+                |
+                +----> consume system resource
+                |
+                +----> grant local compute permission
+
+        ComputeSystem owns resource accounting.
+
+        Organ owns execution.
+
+        ComputeSystem does NOT execute the organ.
+        """
 
         if result is None:
+
             return
 
 
@@ -623,6 +673,7 @@ class InternalDynamics:
         )
 
         if organ is None:
+
             return
 
 
@@ -631,6 +682,7 @@ class InternalDynamics:
         )
 
         if winner is None:
+
             return
 
 
@@ -639,6 +691,7 @@ class InternalDynamics:
         )
 
         if allocation is None:
+
             return
 
 
@@ -654,7 +707,36 @@ class InternalDynamics:
 
 
         #
-        # current organ compute interface
+        # -------------------------------------------------
+        # consume system resource
+        # -------------------------------------------------
+        #
+
+        consumed = self.compute.consume(
+            allocation
+        )
+
+
+        if consumed <= 0.0:
+
+            return
+
+
+        print(
+            "COMPUTE CONSUME:",
+            consumed
+        )
+
+        print(
+            "COMPUTE AVAILABLE AFTER:",
+            self.compute.available
+        )
+
+
+        #
+        # -------------------------------------------------
+        # grant local compute opportunity
+        # -------------------------------------------------
         #
 
         if hasattr(
@@ -662,40 +744,23 @@ class InternalDynamics:
             "apply_compute"
         ):
 
-            amount = allocation.get(
-                "amount",
-                0.0
-            )
-
             print(
                 "APPLY COMPUTE:",
                 type(organ).__name__,
-                amount
+                consumed
             )
 
             organ.apply_compute(
-                amount
-            )
-
-            consumed = self.compute.consume(
-                allocation
-            )
-
-            print(
-                "COMPUTE CONSUME:",
                 consumed
-            )
- 
-            print(
-                "COMPUTE AVAILABLE AFTER:",
-                self.compute.available
             )
 
             return
 
 
         #
-        # new interface, if an organ already provides it
+        # -------------------------------------------------
+        # alternate execution interface
+        # -------------------------------------------------
         #
 
         if hasattr(
@@ -705,25 +770,15 @@ class InternalDynamics:
 
             print(
                 "EXECUTE COMPUTE:",
-                type(organ).__name__
-            )
-
-            organ.execute_compute(
-                allocation
-            )
-
-            consumed = self.compute.consume(
-                allocation
-            )
-
-            print(
-                "COMPUTE CONSUME:",
+                type(organ).__name__,
                 consumed
             )
 
-            print(
-                "COMPUTE AVAILABLE AFTER:",
-                self.compute.available
+            organ.execute_compute(
+                {
+                    "amount":
+                        consumed
+                }
             )
 
             return
@@ -734,9 +789,170 @@ class InternalDynamics:
             type(organ).__name__,
             "NO EXECUTION INTERFACE"
         )
-            
+
+    def _collision(
+        self,
+        result
+    ):
+
+        if result is None:
+            return None
 
 
+        organ = result.get(
+            "organ"
+        )
+
+        if organ is None:
+            return None
+
+
+        if not hasattr(
+            organ,
+            "collision_projection"
+        ):
+            return None
+
+
+        projection = organ.collision_projection()
+ 
+        if projection is None:
+            return None
+
+
+        winner = projection.get(
+            "winner"
+        )
+
+        if winner is None:
+            return None
+
+
+        clip_cloud = projection.get(
+            "cloud"
+        )
+
+        if clip_cloud is None:
+            return None
+
+
+        planet_cloud = self.planet.state
+
+
+        print(
+            "COLLISION ENTRANCE:",
+            winner
+        )
+
+
+        collision_result = self.collision.collide(
+            planet_cloud,
+            clip_cloud,
+            winner
+        )
+
+
+        if collision_result is None:
+            return None
+
+
+        print(
+            "COLLISION:",
+            collision_result.get(
+                "collision"
+            )
+        )
+
+
+        print(
+            "COLLISION RESULT:",
+            collision_result.get(
+                "collision_result"
+            )
+        )
+
+
+        return collision_result
+
+    def _apply_collision(
+        self,
+        collision
+    ):
+        """
+        Apply collision result to PlanetField.
+
+        CloudCollision does not modify PlanetField.
+
+        PlanetField remains the owner of disturbance intake.
+        """
+
+        if collision is None:
+            return False
+
+
+        if not collision.get(
+            "collision"
+        ):
+
+            return False
+
+
+        collision_result = collision.get(
+            "collision_result"
+        )
+
+        if collision_result is None:
+            return False
+
+
+        if not collision_result.get(
+            "exists"
+        ):
+
+            return False
+
+
+        disturbance = collision_result.get(
+            "disturbance"
+        )
+
+        if disturbance is None:
+            return False
+
+
+        state = self.planet.state
+
+        if state is None:
+            return False
+
+
+        disturbance_field = np.zeros_like(
+            state,
+            dtype=np.float32
+        )
+
+
+        disturbance_field[...] = np.float32(
+            disturbance
+        )
+
+
+        print(
+            "PLANETFIELD DISTURBANCE:",
+            float(
+                disturbance
+            )
+        )
+
+
+        self.planet.receive(
+            disturbance_field
+        )
+
+
+        return True
+    
+    
     #
     # internal organ evolution
     #
@@ -812,8 +1028,9 @@ class InternalDynamics:
     def _planet_step(
         self
     ):
-
-
+        
+        return None
+        """
         if hasattr(
             self.planet,
             "step"
@@ -833,6 +1050,7 @@ class InternalDynamics:
             )
             
             return delta
+        """
 
     #
     # external snapshot

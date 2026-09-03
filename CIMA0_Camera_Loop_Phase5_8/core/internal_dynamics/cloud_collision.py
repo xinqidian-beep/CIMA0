@@ -3,92 +3,46 @@ import numpy as np
 
 class CloudCollision:
     """
-    CIMA0 Phase5_8 / V2
+    CIMA0 Phase5_8
 
-    Cloud-native structural collision.
+    Local cloud collision.
 
-    ------------------------------------------------------------
-    Core principle
-    ------------------------------------------------------------
+    Core flow:
 
-    PlanetField and CLIPField are heterogeneous clouds.
+        CLIP complete cloud
+                |
+                v
+        response coordinate
+                |
+                v
+        local associated cloud
+                |
+                +
+                |
+        PlanetField local cloud
+                |
+                v
+             collision
+                |
+                v
+        collision result
 
-    They do NOT share:
+    Important:
 
-        - coordinate system
-        - topology
-        - tensor shape
-        - index meaning
-        - token meaning
-        - spatial correspondence
+        winner is only the entrance.
 
-    Therefore Collision does NOT invent a positional mapping.
+        The collision material is the associated local cloud
+        discovered around the response coordinate.
 
-    Collision observes only states that have already formed
-    inside the participating clouds.
+    This class does NOT:
 
-    ------------------------------------------------------------
-    Responsibility
-    ------------------------------------------------------------
-
-        existing Planet local states
-                    +
-        existing CLIP local states
-                    |
-                    v
-              CloudCollision
-                    |
-                    v
-             structural relations
-                    |
-                    v
-             candidate changes
-
-    ------------------------------------------------------------
-    Does NOT
-    ------------------------------------------------------------
-
-        - interpret camera data
-        - interpret semantic meaning
-        - resize clouds
-        - reshape clouds
-        - flatten clouds
-        - truncate clouds
-        - average clouds
-        - project Planet into CLIP
-        - project CLIP into Planet
-        - invent coordinates
-        - modify PlanetField
-        - modify CLIPField
-        - execute changes
         - select winner
         - allocate compute
-        - perform Focus
-
-    ------------------------------------------------------------
-    Important
-    ------------------------------------------------------------
-
-    candidate_change is only a possibility.
-
-        collision
-            |
-            v
-        candidate_change
-            |
-            v
-        Sampler
-            |
-            v
-        winner
-            |
-            v
-        Compute
-            |
-            v
-        Commit
-
-    Collision stops before Sampler.
+        - modify CLIPField
+        - modify PlanetField
+        - call Planet.evolve()
+        - perform observation
+        - perform sampling
     """
 
     EMPTY_SLOT = "empty_slot"
@@ -104,8 +58,9 @@ class CloudCollision:
         self,
         change_threshold=1e-6,
         bounce_threshold=0.0,
-        max_relations=None
+        association_radius=1
     ):
+
         self.change_threshold = float(
             change_threshold
         )
@@ -114,34 +69,35 @@ class CloudCollision:
             bounce_threshold
         )
 
-        self.max_relations = (
-            None
-            if max_relations is None
-            else int(max_relations)
+        self.association_radius = int(
+            max(
+                association_radius,
+                0
+            )
         )
 
         self.last_result = None
 
+
     # ==========================================================
-    # public interface
+    # public
     # ==========================================================
 
     def collide(
         self,
         planet_cloud,
-        clip_cloud
+        clip_cloud,
+        winner
     ):
         """
-        Compare already-formed local cloud states.
+        Perform one local collision.
 
-        No positional correspondence is invented.
+        winner identifies the CLIP response entrance.
 
-        Each cloud is first converted into a collection of
-        local state observations.
+        The winner itself is NOT treated as the complete
+        collision material.
 
-        The observations are then compared structurally.
-
-        The output contains relations and candidate changes only.
+        Local associated states are discovered from it.
         """
 
         if planet_cloud is None:
@@ -150,198 +106,367 @@ class CloudCollision:
         if clip_cloud is None:
             return None
 
-        planet_states = self._extract_states(
-            planet_cloud,
-            source="planet"
-        )
+        if winner is None:
+            return None
 
-        clip_states = self._extract_states(
+
+        clip_states = self._extract_clip_local_states(
             clip_cloud,
-            source="clip"
+            winner
         )
 
-        if planet_states is None:
-            return None
+        planet_states = self._extract_planet_local_states(
+            planet_cloud
+        )
 
-        if clip_states is None:
-            return None
 
-        result = self._collide_states(
+        if not clip_states:
+            result = {
+                "collision": False,
+                "reason": "no_clip_local_states",
+                "winner": winner,
+                "collision_material": []
+            }
+
+            self.last_result = result
+
+            return result
+
+
+        if not planet_states:
+            result = {
+                "collision": False,
+                "reason": "no_planet_local_states",
+                "winner": winner,
+                "collision_material": clip_states
+            }
+
+            self.last_result = result
+
+            return result
+
+
+        result = self._collide_local(
             planet_states,
-            clip_states
+            clip_states,
+            winner
         )
+
 
         self.last_result = result
 
         return result
 
+
     # ==========================================================
-    # state extraction
+    # CLIP local association
     # ==========================================================
 
-    def _extract_states(
+    def _extract_clip_local_states(
         self,
-        packet,
-        source
+        cloud,
+        winner
     ):
         """
-        Convert a cloud into local state observations.
+        Extract local CLIP cloud associated with winner.
 
-        This is a read-only boundary operation.
+        Current CLIP topology:
 
-        Important:
+            (12, 50, 768)
 
-            position is metadata only.
+        winner currently identifies a layer.
 
-        It is NEVER used to assert that Planet position X
-        corresponds to CLIP position X.
+        Therefore the layer is the entrance coordinate.
+
+        We do NOT flatten the whole cloud.
+
+        We retain:
+
+            layer
+            token
+            dimension
+            value
         """
 
-        cloud = self._extract_cloud(
-            packet
+        arr = self._extract_array(
+            cloud
         )
 
-        if cloud is None:
-            return None
+        if arr is None:
+            return []
+
+
+        if arr.ndim != 3:
+            return []
+
+
+        levels, tokens, dimensions = arr.shape
+
+
+        layer = self._winner_layer(
+            winner,
+            levels
+        )
+
+
+        if layer is None:
+            return []
+
+
+        radius = self.association_radius
+
+        start = max(
+            0,
+            layer - radius
+        )
+
+        end = min(
+            levels,
+            layer + radius + 1
+        )
+
 
         states = []
 
-        # ------------------------------------------------------
-        # ndarray
-        # ------------------------------------------------------
 
-        if isinstance(
-            cloud,
-            np.ndarray
+        for current_layer in range(
+            start,
+            end
         ):
 
-            arr = np.asarray(
-                cloud
-            )
+            layer_data = arr[
+                current_layer
+            ]
 
-            if arr.size == 0:
-                return states
 
-            try:
-                values = arr.astype(
-                    np.float32,
-                    copy=False
-                )
+            #
+            # A layer is a local cloud.
+            #
+            # Preserve token/dimension topology.
+            #
 
-            except Exception:
-                return states
-
-            for index in np.ndindex(
-                values.shape
+            for token in range(
+                tokens
             ):
 
-                value = values[index]
+                vector = layer_data[
+                    token
+                ]
 
-                if np.asarray(value).ndim != 0:
-                    continue
 
-                value = float(
-                    value
-                )
+                #
+                # Collision requires scalar local values.
+                #
+                # We do not destroy the complete CLIP cloud.
+                #
+                # The collision material is derived only here.
+                #
 
-                state = self._classify(
-                    True,
-                    value
-                )
-
-                if state in (
-                    self.EMPTY_SLOT,
-                    self.EMPTY_VALUE
+                for dimension in range(
+                    dimensions
                 ):
-                    continue
 
-                states.append(
-                    {
-                        "source": source,
-                        "position": index,
-                        "value": value,
-                        "state": state
-                    }
-                )
+                    value = float(
+                        vector[
+                            dimension
+                        ]
+                    )
 
-            return states
 
-        # ------------------------------------------------------
-        # list / tuple
-        # ------------------------------------------------------
+                    state = self._classify(
+                        True,
+                        value
+                    )
 
-        if isinstance(
-            cloud,
-            (list, tuple)
-        ):
 
-            for index, value in enumerate(
-                cloud
-            ):
+                    if state in (
+                        self.EMPTY_SLOT,
+                        self.EMPTY_VALUE
+                    ):
+                        continue
 
-                self._append_value_state(
-                    states,
-                    source,
-                    index,
-                    value
-                )
 
-            return states
+                    states.append(
+                        {
+                            "source":
+                                "clip",
 
-        # ------------------------------------------------------
-        # dict
-        # ------------------------------------------------------
+                            "position":
+                                (
+                                    current_layer,
+                                    token,
+                                    dimension
+                                ),
 
-        if isinstance(
-            cloud,
-            dict
-        ):
+                            "value":
+                                value,
 
-            self._extract_dict_states(
-                states,
-                cloud,
-                source
-            )
+                            "state":
+                                state,
 
-            return states
+                            "distance":
+                                abs(
+                                    current_layer
+                                    -
+                                    layer
+                                )
+                        }
+                    )
 
-        # ------------------------------------------------------
-        # Cell-like object
-        # ------------------------------------------------------
-
-        if hasattr(
-            cloud,
-            "cells"
-        ):
-
-            return self._extract_cells(
-                cloud.cells,
-                source
-            )
 
         return states
 
-    # ==========================================================
-    # packet extraction
-    # ==========================================================
 
-    def _extract_cloud(
+    def _winner_layer(
         self,
-        packet
+        winner,
+        levels
     ):
         """
-        Extract cloud object without changing it.
+        Accept the current CLIP winner representation.
 
         Supported:
 
-            {
-                "cloud": ...
-            }
+            11
 
-        or a raw cloud object.
+            {"coordinate": 11}
 
-        No numerical interpretation occurs here.
+            {"layer": 11}
+
+            {"winner": 11}
         """
+
+        if isinstance(
+            winner,
+            dict
+        ):
+
+            if "coordinate" in winner:
+                winner = winner[
+                    "coordinate"
+                ]
+
+            elif "layer" in winner:
+                winner = winner[
+                    "layer"
+                ]
+
+            elif "winner" in winner:
+                winner = winner[
+                    "winner"
+                ]
+
+            else:
+                return None
+
+
+        try:
+            layer = int(
+                winner
+            )
+
+        except Exception:
+            return None
+
+
+        if layer < 0:
+            return None
+
+        if layer >= levels:
+            return None
+
+
+        return layer
+
+
+    # ==========================================================
+    # Planet local states
+    # ==========================================================
+
+    def _extract_planet_local_states(
+        self,
+        planet_cloud
+    ):
+        """
+        Extract existing PlanetField states.
+
+        Planet topology is NOT mapped to CLIP topology.
+
+        Planet positions remain Planet positions.
+        """
+
+        arr = self._extract_array(
+            planet_cloud
+        )
+
+        if arr is None:
+            return []
+
+
+        states = []
+
+
+        for position in np.ndindex(
+            arr.shape
+        ):
+
+            value = arr[
+                position
+            ]
+
+
+            if np.asarray(
+                value
+            ).ndim != 0:
+                continue
+
+
+            value = float(
+                value
+            )
+
+
+            state = self._classify(
+                True,
+                value
+            )
+
+
+            if state in (
+                self.EMPTY_SLOT,
+                self.EMPTY_VALUE
+            ):
+                continue
+
+
+            states.append(
+                {
+                    "source":
+                        "planet",
+
+                    "position":
+                        position,
+
+                    "value":
+                        value,
+
+                    "state":
+                        state
+                }
+            )
+
+
+        return states
+
+
+    # ==========================================================
+    # array extraction
+    # ==========================================================
+
+    def _extract_array(
+        self,
+        packet
+    ):
 
         if isinstance(
             packet,
@@ -349,188 +474,250 @@ class CloudCollision:
         ):
 
             if "cloud" in packet:
-                return packet["cloud"]
+
+                packet = packet[
+                    "cloud"
+                ]
+
+            elif "state" in packet:
+
+                packet = packet[
+                    "state"
+                ]
+
+
+        if isinstance(
+            packet,
+            np.ndarray
+        ):
 
             return packet
 
-        return packet
-
-    # ==========================================================
-    # dict states
-    # ==========================================================
-
-    def _extract_dict_states(
-        self,
-        states,
-        cloud,
-        source
-    ):
-        """
-        Extract explicit local states from dictionaries.
-
-        A dictionary is not assumed to be a tensor.
-
-        Supported forms include:
-
-            {
-                position: value
-            }
-
-        and:
-
-            {
-                "cells": [...]
-            }
-        """
-
-        if "cells" in cloud:
-
-            cells = cloud.get(
-                "cells"
-            )
-
-            if isinstance(
-                cells,
-                (list, tuple)
-            ):
-
-                extracted = self._extract_cells(
-                    cells,
-                    source
-                )
-
-                states.extend(
-                    extracted
-                )
-
-                return
-
-        if "value" in cloud:
-
-            self._append_value_state(
-                states,
-                source,
-                None,
-                cloud.get("value")
-            )
-
-            return
-
-        for position, value in cloud.items():
-
-            if position in (
-                "source",
-                "representation",
-                "layers",
-                "layer_activity",
-                "structure",
-                "shape",
-                "dtype"
-            ):
-                continue
-
-            self._append_value_state(
-                states,
-                source,
-                position,
-                value
-            )
-
-    # ==========================================================
-    # Cell extraction
-    # ==========================================================
-
-    def _extract_cells(
-        self,
-        cells,
-        source
-    ):
-        states = []
-
-        for index, cell in enumerate(
-            cells
-        ):
-
-            if cell is None:
-                continue
-
-            if hasattr(
-                cell,
-                "empty"
-            ):
-
-                try:
-                    if cell.empty:
-                        continue
-                except Exception:
-                    pass
-
-            if hasattr(
-                cell,
-                "value"
-            ):
-
-                value = cell.value
-
-            elif isinstance(
-                cell,
-                dict
-            ):
-
-                value = cell.get(
-                    "value"
-                )
-
-            else:
-
-                value = cell
-
-            self._append_value_state(
-                states,
-                source,
-                index,
-                value
-            )
-
-        return states
-
-    # ==========================================================
-    # append state
-    # ==========================================================
-
-    def _append_value_state(
-        self,
-        states,
-        source,
-        position,
-        value
-    ):
-        state = self._classify(
-            True,
-            value
-        )
-
-        if state in (
-            self.EMPTY_SLOT,
-            self.EMPTY_VALUE
-        ):
-            return
 
         try:
-            number = float(
-                value
-            )
-        except Exception:
-            return
 
-        states.append(
-            {
-                "source": source,
-                "position": position,
-                "value": number,
-                "state": state
+            return np.asarray(
+                packet
+            )
+
+        except Exception:
+
+            return None
+
+
+    # ==========================================================
+    # collision
+    # ==========================================================
+
+    def _collide_local(
+        self,
+        planet_states,
+        clip_states,
+        winner
+    ):
+
+        relations = []
+
+
+        for clip in clip_states:
+
+            #
+            # We do not invent coordinate equivalence.
+            #
+            # Planet states participate as local available
+            # states.
+            #
+
+            for planet in planet_states:
+
+                collision_type = (
+                    self._collision_type(
+                        planet["state"],
+                        clip["state"],
+                        planet["value"],
+                        clip["value"]
+                    )
+                )
+
+
+                if collision_type is None:
+                    continue
+
+
+                candidate = (
+                    self._make_candidate(
+                        planet,
+                        clip,
+                        collision_type
+                    )
+                )
+
+
+                relations.append(
+                    {
+                        "type":
+                            collision_type,
+
+                        "planet":
+                            dict(
+                                planet
+                            ),
+
+                        "clip":
+                            dict(
+                                clip
+                            ),
+
+                        "candidate_change":
+                            candidate
+                    }
+                )
+
+
+        #
+        # Collision material is the actual local relation set.
+        #
+
+        result = {
+
+            "collision":
+                bool(
+                    len(relations) > 0
+                ),
+
+            "winner":
+                winner,
+
+            "clip_local_states":
+                int(
+                    len(clip_states)
+                ),
+
+            "planet_local_states":
+                int(
+                    len(planet_states)
+                ),
+
+            "relations":
+                relations,
+
+            #
+            # This is the important output.
+            #
+            # It is not a prediction anymore.
+            #
+
+            "collision_result":
+                self._build_collision_result(
+                    relations
+                ),
+
+            "heterogeneous":
+                True
+        }
+
+
+        return result
+
+
+    # ==========================================================
+    # result
+    # ==========================================================
+
+    def _build_collision_result(
+        self,
+        relations
+    ):
+
+        if not relations:
+
+            return {
+                "exists":
+                    False,
+
+                "count":
+                    0,
+
+                "disturbance":
+                    None
             }
+
+
+        proposed = []
+
+
+        for relation in relations:
+
+            candidate = relation.get(
+                "candidate_change"
+            )
+
+            if candidate is None:
+                continue
+
+
+            value = candidate.get(
+                "proposed_value"
+            )
+
+
+            if value is None:
+                continue
+
+
+            try:
+
+                proposed.append(
+                    float(value)
+                )
+
+            except Exception:
+                continue
+
+
+        if not proposed:
+
+            return {
+                "exists":
+                    False,
+
+                "count":
+                    0,
+
+                "disturbance":
+                    None
+            }
+
+
+        #
+        # For the first complete loop we create one scalar
+        # local disturbance from the actual collision result.
+        #
+        # This is NOT the CLIP cloud.
+        #
+        # This is the result of collision.
+        #
+
+        disturbance_value = float(
+            np.mean(
+                proposed
+            )
         )
+
+
+        return {
+            "exists":
+                True,
+
+            "count":
+                int(
+                    len(proposed)
+                ),
+
+            "disturbance":
+                disturbance_value
+        }
+
 
     # ==========================================================
     # classification
@@ -541,274 +728,145 @@ class CloudCollision:
         exists,
         value
     ):
-        """
-        Structural value classification.
-
-        Empty slot
-            no state exists
-
-        Empty value
-            slot exists but has no usable numeric value
-
-        Zero value
-            actual numeric zero
-
-        Non-zero value
-            actual non-zero value
-
-        Negative values remain valid non-zero values.
-        """
 
         if not exists:
             return self.EMPTY_SLOT
 
+
         if value is None:
             return self.EMPTY_VALUE
 
+
         try:
-            number = float(
+
+            value = float(
                 value
             )
+
         except Exception:
+
             return self.EMPTY_VALUE
+
 
         if not np.isfinite(
-            number
+            value
         ):
+
             return self.EMPTY_VALUE
 
-        if number == 0.0:
+
+        if value == 0.0:
+
             return self.ZERO_VALUE
+
 
         return self.NONZERO_VALUE
 
+
     # ==========================================================
-    # structural collision
+    # collision rule
     # ==========================================================
 
-    def _collide_states(
+    def _collision_type(
         self,
-        planet_states,
-        clip_states
+        planet_state,
+        clip_state,
+        planet_value,
+        clip_value
     ):
-        """
-        Compare states without positional pairing.
 
-        There is deliberately no:
+        if planet_state in (
+            self.EMPTY_SLOT,
+            self.EMPTY_VALUE
+        ):
+            return None
 
-            planet[i] <-> clip[i]
 
-        and no:
+        if clip_state in (
+            self.EMPTY_SLOT,
+            self.EMPTY_VALUE
+        ):
+            return None
 
-            planet[position] <-> clip[position]
 
-        Instead, every existing local state is allowed to
-        establish a structural relation with another existing
-        state according to the local value rule.
+        #
+        # zero / zero
+        #
 
-        This still produces candidates only.
-        """
+        if (
+            planet_state
+            ==
+            self.ZERO_VALUE
+            and
+            clip_state
+            ==
+            self.ZERO_VALUE
+        ):
 
-        relations = []
+            return None
 
-        penetrate = 0
-        change = 0
-        bounce = 0
 
-        zero_zero = 0
-        zero_nonzero = 0
-        nonzero_zero = 0
-        nonzero_nonzero = 0
+        #
+        # zero / non-zero
+        #
 
-        comparisons = 0
+        if (
+            planet_state
+            ==
+            self.ZERO_VALUE
+            and
+            clip_state
+            ==
+            self.NONZERO_VALUE
+        ):
 
-        for planet in planet_states:
+            return self.CHANGE
 
-            for clip in clip_states:
 
-                p_value = planet["value"]
-                c_value = clip["value"]
+        if (
+            planet_state
+            ==
+            self.NONZERO_VALUE
+            and
+            clip_state
+            ==
+            self.ZERO_VALUE
+        ):
 
-                p_state = planet["state"]
-                c_state = clip["state"]
+            return self.CHANGE
 
-                collision_type = self._collision_type(
-                    p_state,
-                    c_state,
-                    p_value,
-                    c_value
-                )
 
-                if (
-                    p_state == self.ZERO_VALUE
-                    and
-                    c_state == self.ZERO_VALUE
-                ):
-                    zero_zero += 1
+        #
+        # non-zero / non-zero
+        #
 
-                elif (
-                    p_state == self.ZERO_VALUE
-                    and
-                    c_state == self.NONZERO_VALUE
-                ):
-                    zero_nonzero += 1
+        if (
+            planet_state
+            ==
+            self.NONZERO_VALUE
+            and
+            clip_state
+            ==
+            self.NONZERO_VALUE
+        ):
 
-                elif (
-                    p_state == self.NONZERO_VALUE
-                    and
-                    c_state == self.ZERO_VALUE
-                ):
-                    nonzero_zero += 1
+            product = (
+                planet_value
+                *
+                clip_value
+            )
 
-                elif (
-                    p_state == self.NONZERO_VALUE
-                    and
-                    c_state == self.NONZERO_VALUE
-                ):
-                    nonzero_nonzero += 1
 
-                comparisons += 1
+            if product < self.bounce_threshold:
 
-                if collision_type is None:
-                    continue
+                return self.BOUNCE
 
-                if collision_type == self.PENETRATE:
-                    penetrate += 1
 
-                elif collision_type == self.CHANGE:
-                    change += 1
+            return self.PENETRATE
 
-                elif collision_type == self.BOUNCE:
-                    bounce += 1
 
-                relation = self._make_relation(
-                    planet,
-                    clip,
-                    collision_type
-                )
+        return None
 
-                relations.append(
-                    relation
-                )
-
-                if (
-                    self.max_relations is not None
-                    and
-                    len(relations) >= self.max_relations
-                ):
-                    break
-
-            if (
-                self.max_relations is not None
-                and
-                len(relations) >= self.max_relations
-            ):
-                break
-
-        return {
-            "collision": bool(
-                len(relations) > 0
-            ),
-
-            "total_planet_states":
-                int(len(planet_states)),
-
-            "total_clip_states":
-                int(len(clip_states)),
-
-            "comparisons":
-                int(comparisons),
-
-            "penetrate":
-                int(penetrate),
-
-            "change":
-                int(change),
-
-            "bounce":
-                int(bounce),
-
-            "zero_zero":
-                int(zero_zero),
-
-            "zero_nonzero":
-                int(zero_nonzero),
-
-            "nonzero_zero":
-                int(nonzero_zero),
-
-            "nonzero_nonzero":
-                int(nonzero_nonzero),
-
-            "candidate_changes":
-                relations,
-
-            "heterogeneous":
-                True
-        }
-
-    # ==========================================================
-    # relation
-    # ==========================================================
-
-    def _make_relation(
-        self,
-        planet,
-        clip,
-        collision_type
-    ):
-        """
-        Create a candidate relation.
-
-        Nothing is written back.
-
-        The relation records:
-
-            who
-            local state
-            collision type
-            candidate change
-
-        Candidate change remains declarative.
-        """
-
-        candidate = self._make_candidate(
-            planet,
-            clip,
-            collision_type
-        )
-
-        return {
-            "type":
-                collision_type,
-
-            "planet":
-                {
-                    "position":
-                        planet["position"],
-
-                    "value":
-                        planet["value"],
-
-                    "state":
-                        planet["state"]
-                },
-
-            "clip":
-                {
-                    "position":
-                        clip["position"],
-
-                    "value":
-                        clip["value"],
-
-                    "state":
-                        clip["state"]
-                },
-
-            "candidate_change":
-                candidate
-        }
 
     # ==========================================================
     # candidate
@@ -820,16 +878,6 @@ class CloudCollision:
         clip,
         collision_type
     ):
-        """
-        Produce a possible change.
-
-        IMPORTANT:
-
-            This method never modifies either cloud.
-
-        The candidate is only a proposal for downstream
-        sampling.
-        """
 
         p = float(
             planet["value"]
@@ -839,18 +887,23 @@ class CloudCollision:
             clip["value"]
         )
 
+
         if collision_type == self.CHANGE:
 
             if abs(p) <= self.change_threshold:
+
                 proposed = c
 
             elif abs(c) <= self.change_threshold:
+
                 proposed = p
 
             else:
+
                 proposed = (
                     p + c
                 ) / 2.0
+
 
         elif collision_type == self.PENETRATE:
 
@@ -858,19 +911,22 @@ class CloudCollision:
                 p + c
             ) / 2.0
 
+
         elif collision_type == self.BOUNCE:
 
             proposed = (
                 p - c
             )
 
+
         else:
 
             proposed = None
 
+
         return {
             "kind":
-                "candidate_change",
+                "collision_change",
 
             "collision":
                 collision_type,
@@ -885,104 +941,9 @@ class CloudCollision:
                 proposed,
 
             "committed":
-                False
+                True
         }
 
-    # ==========================================================
-    # collision rule
-    # ==========================================================
-
-    def _collision_type(
-        self,
-        planet_state,
-        clip_state,
-        planet_value,
-        clip_value
-    ):
-        """
-        Fundamental local collision rule.
-
-        Empty states:
-            no collision
-
-        Zero / zero:
-            coincidence, no change
-
-        Zero / non-zero:
-            change
-
-        Non-zero / non-zero:
-
-            same sign
-                penetrate
-
-            opposite sign
-                bounce
-        """
-
-        if planet_state in (
-            self.EMPTY_SLOT,
-            self.EMPTY_VALUE
-        ):
-            return None
-
-        if clip_state in (
-            self.EMPTY_SLOT,
-            self.EMPTY_VALUE
-        ):
-            return None
-
-        # ------------------------------------------------------
-        # zero / zero
-        # ------------------------------------------------------
-
-        if (
-            planet_state == self.ZERO_VALUE
-            and
-            clip_state == self.ZERO_VALUE
-        ):
-            return None
-
-        # ------------------------------------------------------
-        # zero / non-zero
-        # ------------------------------------------------------
-
-        if (
-            planet_state == self.ZERO_VALUE
-            and
-            clip_state == self.NONZERO_VALUE
-        ):
-            return self.CHANGE
-
-        if (
-            planet_state == self.NONZERO_VALUE
-            and
-            clip_state == self.ZERO_VALUE
-        ):
-            return self.CHANGE
-
-        # ------------------------------------------------------
-        # non-zero / non-zero
-        # ------------------------------------------------------
-
-        if (
-            planet_state == self.NONZERO_VALUE
-            and
-            clip_state == self.NONZERO_VALUE
-        ):
-
-            product = (
-                planet_value
-                *
-                clip_value
-            )
-
-            if product < self.bounce_threshold:
-                return self.BOUNCE
-
-            return self.PENETRATE
-
-        return None
 
     # ==========================================================
     # snapshot
@@ -991,23 +952,11 @@ class CloudCollision:
     def snapshot(
         self
     ):
-        """
-        Read-only diagnostic snapshot.
-        """
 
         if self.last_result is None:
             return None
 
-        result = dict(
+
+        return dict(
             self.last_result
         )
-
-        if "candidate_changes" in result:
-
-            result["candidate_changes"] = [
-                dict(item)
-                for item
-                in result["candidate_changes"]
-            ]
-
-        return result

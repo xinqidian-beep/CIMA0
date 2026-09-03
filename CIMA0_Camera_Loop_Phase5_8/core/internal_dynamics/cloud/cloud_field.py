@@ -1,76 +1,90 @@
+import numpy as np
 
 from .cell import Cell
 
 
 class CloudField:
     """
-    CIMA0 Phase5_8
-
-    Sparse transient internal state cloud.
+    CIMA0 CloudField
 
     Responsibility:
 
-        receive a local internal state
-        maintain a small number of Cells
-        expose local activity
-        perform local collision
-        perform natural decay
-        preserve transient state
+        preserve an incoming internal state field
+        and provide local state slots after collision.
 
     CloudField does NOT:
 
-        interpret external input
-        decode bytes
-        inspect images
-        perform attention
-        select important regions
-        compress large fields
-        know Planet
-        know CLIP
-        know scheduler
-        know CPU / GPU
-        allocate compute
+        - interpret CLIP
+        - classify
+        - select semantic features
+        - know CPU / GPU
+        - know scheduler policy
+        - perform expensive neural computation
 
     Important:
 
-        CloudField capacity is only an upper bound.
+        The incoming field is preserved in its original
+        structure.
 
-        It is NOT the size of the represented world.
+        Example:
 
-        Normally only a small number of Cells are occupied.
+            CLIP cloud
+                (12, 50, 768)
+
+        remains:
+
+            (12, 50, 768)
+
+        It is NOT converted to:
+
+            float
+            scalar mean
+            layer mean
+            token mean
     """
-
 
     def __init__(
         self,
         capacity=32
     ):
 
-        self.capacity = int(
-            capacity
-        )
-
-
         self.cells = [
-
             Cell()
-
-            for _ in range(
-                self.capacity
-            )
-
+            for _ in range(capacity)
         ]
 
+        #
+        # complete incoming state field
+        #
+
+        self.field = None
 
         #
-        # collision history
+        # previous complete field
+        #
+
+        self.previous_field = None
+
+        #
+        # state change of complete field
+        #
+
+        self.delta = 0.0
+
+        #
+        # local collision events
         #
 
         self.merge_events = []
 
+        self.response_events = []
 
-    # -------------------------------------------------
-    # receive
+        #
+        # compute bookkeeping
+        #
+
+        self.last_allocation = {}
+
     # -------------------------------------------------
 
     def receive(
@@ -78,24 +92,285 @@ class CloudField:
         value
     ):
         """
-        Inject one already-determined local state.
+        Receive one complete internal state field.
 
-        The caller is responsible for:
+        No reduction.
 
-            attention
-            change detection
-            local correspondence
-            state reconstruction
+        No mean.
 
-        CloudField does none of these.
+        No interpretation.
 
-        Existing occupied Cells are not overwritten.
+        The complete structure is preserved.
         """
 
         if value is None:
 
             return False
 
+        try:
+
+            field = np.asarray(
+                value,
+                dtype=np.float32
+            )
+
+        except Exception:
+
+            return False
+
+        if field.size == 0:
+
+            return False
+
+        #
+        # preserve previous field
+        #
+
+        self.previous_field = (
+            None
+            if self.field is None
+            else self.field.copy()
+        )
+
+        #
+        # install complete new field
+        #
+
+        self.field = field.copy()
+
+        #
+        # calculate complete-field change
+        #
+
+        if self.previous_field is None:
+
+            self.delta = float(
+                np.mean(
+                    np.abs(
+                        self.field
+                    )
+                )
+            )
+
+        elif (
+            self.previous_field.shape
+            ==
+            self.field.shape
+        ):
+
+            self.delta = float(
+                np.mean(
+                    np.abs(
+                        self.field
+                        -
+                        self.previous_field
+                    )
+                )
+            )
+
+        else:
+
+            #
+            # structural change
+            #
+
+            self.delta = 1.0
+
+        return True
+
+    # -------------------------------------------------
+
+    def has_field(
+        self
+    ):
+
+        return self.field is not None
+
+    # -------------------------------------------------
+
+    def shape(
+        self
+    ):
+
+        if self.field is None:
+
+            return None
+
+        return self.field.shape
+
+    # -------------------------------------------------
+
+    def activity(
+        self
+    ):
+
+        return float(
+            self.delta
+        )
+
+    # -------------------------------------------------
+
+    def request_compute(
+        self
+    ):
+        """
+        Report local compute demand.
+
+        CloudField reports state pressure only.
+
+        It does not allocate compute.
+        """
+
+        if self.field is None:
+
+            return {
+                "cloud": {
+                    "collision": 0.0,
+                    "decay": 0.0
+                }
+            }
+
+        occupied = sum(
+            1
+            for cell in self.cells
+            if not cell.empty
+        )
+
+        return {
+            "cloud": {
+
+                #
+                # complete field exists
+                #
+
+                "collision":
+                    float(
+                        self.delta
+                    ),
+
+                #
+                # local occupied cells
+                #
+
+                "decay":
+                    float(
+                        occupied
+                    )
+            }
+        }
+
+    # -------------------------------------------------
+
+    def execute_compute(
+        self,
+        allocation
+    ):
+        """
+        Execute only the operations permitted
+        by ComputeSystem.
+        """
+
+        if allocation is None:
+
+            return
+
+        cloud = allocation.get(
+            "cloud",
+            {}
+        )
+
+        collision_budget = int(
+            cloud.get(
+                "collision",
+                0
+            )
+        )
+
+        decay_budget = int(
+            cloud.get(
+                "decay",
+                0
+            )
+        )
+
+        self.last_allocation = dict(
+            cloud
+        )
+
+        if collision_budget > 0:
+
+            self.collision(
+                limit=collision_budget
+            )
+
+        if decay_budget > 0:
+
+            self.decay(
+                limit=decay_budget
+            )
+
+    # -------------------------------------------------
+
+    def collision(
+        self,
+        limit=1
+    ):
+        """
+        Process local collision responses.
+
+        This method does NOT compress the complete field.
+
+        A collision implementation may later create
+        local Cell states.
+
+        For now, CloudField only clears the event buffer.
+
+        The complete field remains untouched.
+        """
+
+        if limit <= 0:
+
+            return
+
+        self.merge_events.clear()
+
+        self.response_events.clear()
+
+        #
+        # Important:
+        #
+        # Do NOT do:
+        #
+        #     float(np.mean(self.field))
+        #
+        # Do NOT create a Cell from the
+        # complete CLIP cloud.
+        #
+
+        return
+
+    # -------------------------------------------------
+
+    def inject_local_response(
+        self,
+        value
+    ):
+        """
+        Insert a collision-produced local response.
+
+        This is the only path that creates a Cell.
+
+        The caller has already determined that
+        'value' represents a local response.
+        """
+
+        if value is None:
+
+            return False
+
+        #
+        # Cell currently represents scalar local state.
+        #
 
         try:
 
@@ -110,9 +385,16 @@ class CloudField:
 
             return False
 
+        #
+        # ignore empty / insignificant response
+        #
+
+        if abs(value) < 0.05:
+
+            return False
 
         #
-        # find one empty transient slot
+        # find empty slot
         #
 
         for cell in self.cells:
@@ -123,355 +405,16 @@ class CloudField:
                     value
                 )
 
+                self.response_events.append(
+                    {
+                        "value": value
+                    }
+                )
+
                 return True
-
-
-        #
-        # cloud is temporarily full
-        #
 
         return False
 
-
-    # -------------------------------------------------
-    # activity
-    # -------------------------------------------------
-
-    def activity(
-        self
-    ):
-        """
-        Return total local activity.
-
-        Activity represents actual state change,
-        not merely state magnitude.
-        """
-
-        total = 0.0
-
-
-        for cell in self.cells:
-
-            if cell.empty:
-
-                continue
-
-
-            total += abs(
-                cell.activity
-            )
-
-
-        return float(
-            total
-        )
-
-
-    # -------------------------------------------------
-    # occupancy
-    # -------------------------------------------------
-
-    def occupancy(
-        self
-    ):
-        """
-        Fraction of occupied Cells.
-        """
-
-        if self.capacity <= 0:
-
-            return 0.0
-
-
-        count = 0
-
-
-        for cell in self.cells:
-
-            if not cell.empty:
-
-                count += 1
-
-
-        return (
-            float(count)
-            /
-            float(self.capacity)
-        )
-
-
-    # -------------------------------------------------
-    # request compute
-    # -------------------------------------------------
-
-    def request_compute(
-        self
-    ):
-        """
-        Report local compute demand.
-
-        CloudField reports need only.
-
-        It does not allocate resources.
-
-        Collision demand is based on
-        actual local change.
-
-        Decay demand is based on
-        active occupied state.
-        """
-
-        collision_activity = 0.0
-
-        decay_activity = 0.0
-
-
-        for cell in self.cells:
-
-            if cell.empty:
-
-                continue
-
-
-            #
-            # what changed?
-            #
-
-            collision_activity += abs(
-                cell.activity
-            )
-
-
-            #
-            # what is currently alive?
-            #
-
-            decay_activity += abs(
-                cell.value
-            )
-
-
-        return {
-
-            "cloud": {
-
-                "collision":
-                    collision_activity,
-
-                "decay":
-                    decay_activity
-
-            }
-
-        }
-
-
-    # -------------------------------------------------
-    # execute compute
-    # -------------------------------------------------
-
-    def execute_compute(
-        self,
-        allocation
-    ):
-        """
-        Execute an already allocated compute budget.
-
-        ComputeSystem decides the budget.
-
-        CloudField only performs local operations.
-        """
-
-        if allocation is None:
-
-            return
-
-
-        if not isinstance(
-            allocation,
-            dict
-        ):
-
-            return
-
-
-        cloud = allocation.get(
-            "cloud",
-            {}
-        )
-
-
-        if not isinstance(
-            cloud,
-            dict
-        ):
-
-            return
-
-
-        collision_budget = int(
-
-            cloud.get(
-                "collision",
-                0
-            )
-
-        )
-
-
-        decay_budget = int(
-
-            cloud.get(
-                "decay",
-                0
-            )
-
-        )
-
-
-        #
-        # execute only what was allocated
-        #
-
-        self.collision(
-            limit=collision_budget
-        )
-
-
-        self.decay(
-            limit=decay_budget
-        )
-
-
-    # -------------------------------------------------
-    # collision
-    # -------------------------------------------------
-
-    def collision(
-        self,
-        limit=1
-    ):
-        """
-        Local state collision.
-
-        Current experimental rule:
-
-            sufficiently similar scalar states
-            may merge.
-
-        This is a local dynamical rule.
-
-        It is NOT:
-
-            attention
-            interpretation
-            semantic matching
-            global selection
-        """
-
-        if limit <= 0:
-
-            return
-
-
-        self.merge_events.clear()
-
-
-        count = 0
-
-
-        active = [
-
-            cell
-
-            for cell in self.cells
-
-            if not cell.empty
-
-        ]
-
-
-        #
-        # local pairwise collision
-        #
-
-        for i in range(
-            len(active)
-        ):
-
-            for j in range(
-                i + 1,
-                len(active)
-            ):
-
-                a = active[i]
-
-                b = active[j]
-
-
-                if a.empty or b.empty:
-
-                    continue
-
-
-                #
-                # current temporary rule
-                #
-
-                distance = abs(
-
-                    a.value
-                    -
-                    b.value
-
-                )
-
-
-                if distance < 0.05:
-
-                    merged = (
-
-                        a.value
-                        +
-                        b.value
-
-                    ) / 2.0
-
-
-                    #
-                    # preserve collision
-                    # as a new local state
-                    #
-
-                    a.occupy(
-                        merged
-                    )
-
-
-                    b.release()
-
-
-                    self.merge_events.append({
-
-                        "value":
-                            merged,
-
-                        "source":
-                            "collision"
-
-                    })
-
-
-                    count += 1
-
-
-                    if count >= limit:
-
-                        return
-
-
-    # -------------------------------------------------
-    # decay
     # -------------------------------------------------
 
     def decay(
@@ -481,19 +424,18 @@ class CloudField:
         release_threshold=0.01
     ):
         """
-        Natural local state decay.
+        Natural decay of local Cell responses.
 
-        Only the allocated number of Cells
-        may be processed.
+        The complete incoming field is NOT decayed here.
+
+        CLIP's pre-evolved state remains intact.
         """
 
         if limit <= 0:
 
             return
 
-
         count = 0
-
 
         for cell in self.cells:
 
@@ -501,41 +443,15 @@ class CloudField:
 
                 continue
 
-
             old = cell.value
-
-
-            #
-            # natural decay
-            #
 
             cell.value *= rate
 
-
             cell.age += 1
 
-
-            #
-            # actual local change
-            #
-
-            cell.delta = abs(
-
-                cell.value
-                -
-                old
-
+            cell.activity = abs(
+                cell.value - old
             )
-
-
-            cell.activity = (
-                cell.delta
-            )
-
-
-            #
-            # state disappears naturally
-            #
 
             if abs(
                 cell.value
@@ -543,17 +459,12 @@ class CloudField:
 
                 cell.release()
 
-
             count += 1
-
 
             if count >= limit:
 
                 return
 
-
-    # -------------------------------------------------
-    # propagation
     # -------------------------------------------------
 
     def propagation(
@@ -562,60 +473,85 @@ class CloudField:
         """
         Reserved for future local influence.
 
-        No propagation rule is currently assumed.
+        Must not alter the complete source field
+        unless an explicit evolution rule is added.
         """
 
         pass
 
-
-    # -------------------------------------------------
-    # step
     # -------------------------------------------------
 
     def step(
         self
     ):
         """
-        CloudField itself does not consume compute
-        autonomously.
+        Autonomous local maintenance only.
 
-        Evolution is performed through:
+        Important:
 
-            request_compute()
-                    |
-                    v
-              ComputeSystem
-                    |
-                    v
-            execute_compute()
+            This does NOT evolve the incoming
+            CLIP state.
 
-        This method is intentionally inert.
+        CLIPField already provides a pre-evolved
+        state block.
+
+        CloudField only maintains local responses.
         """
 
-        pass
+        self.collision()
 
+        self.decay()
 
-    # -------------------------------------------------
-    # snapshot
+        self.propagation()
+
     # -------------------------------------------------
 
     def snapshot(
         self
     ):
         """
-        Read-only snapshot of the transient cloud.
+        Read-only snapshot.
         """
 
         return {
 
-            "capacity":
-                self.capacity,
+            #
+            # complete source field
+            #
 
-            "occupancy":
-                self.occupancy(),
+            "field":
+                None
+                if self.field is None
+                else self.field.copy(),
 
-            "activity":
-                self.activity(),
+            #
+            # source field structure
+            #
+
+            "shape":
+                None
+                if self.field is None
+                else self.field.shape,
+
+            "dtype":
+                None
+                if self.field is None
+                else str(
+                    self.field.dtype
+                ),
+
+            #
+            # whole-field activity
+            #
+
+            "delta":
+                float(
+                    self.delta
+                ),
+
+            #
+            # local response cells
+            #
 
             "cells": [
 
@@ -623,12 +559,6 @@ class CloudField:
 
                     "value":
                         cell.value,
-
-                    "previous":
-                        cell.previous,
-
-                    "delta":
-                        cell.delta,
 
                     "age":
                         cell.age,
@@ -642,7 +572,14 @@ class CloudField:
 
             ],
 
+            #
+            # collision events
+            #
+
             "merge_events":
-                self.merge_events.copy()
+                self.merge_events.copy(),
+
+            "response_events":
+                self.response_events.copy()
 
         }

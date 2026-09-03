@@ -300,14 +300,31 @@ class PlanetField:
 
         if allocation is None:
             return
+            
+        if isinstance(
+            allocation,
+            dict
+        ):    
+            
+            amount = allocation.get(
+                "amount",
+                0.0
+            )
+        else:
+            amount = allocation
 
+        try:
+            amount = float(
+                amount
+            )
+        except Exception:
+            return
 
-        amount = allocation.get(
-            "amount",
-            0.0
-        )
+        if amount <= 0.0:
+            return
 
-
+        self.compute_budget += amount
+        
         print(
             "APPLY COMPUTE:",
             type(self).__name__,
@@ -315,9 +332,104 @@ class PlanetField:
         )
 
 
-        self.apply_compute(
-            amount
+        
+
+    def _apply_collision(
+        self,
+        collision
+    ):
+        """
+        Apply an already-produced collision result
+        to PlanetField.
+
+        CloudCollision does not modify PlanetField.
+
+        PlanetField remains the owner of disturbance intake.
+        """
+
+        if collision is None:
+            return False
+
+
+        if not collision.get(
+            "collision"
+        ):
+
+            return False
+
+
+        result = collision.get(
+            "collision_result"
         )
+
+        if result is None:
+            return False
+
+
+        if not result.get(
+            "exists"
+        ):
+
+            return False
+
+
+        disturbance = result.get(
+            "disturbance"
+        )
+
+        if disturbance is None:
+            return False
+
+
+        #
+        # First complete loop:
+        #
+        # collision result is converted into a local
+        # disturbance field compatible with PlanetField.
+        #
+        # PlanetField still owns the actual state mutation.
+        #
+ 
+        state = self.planet.state
+
+
+        if state is None:
+            return False
+
+
+        disturbance_array = np.zeros_like(
+            state,
+            dtype=np.float32
+        )
+
+
+        #
+        # For the first closed-loop execution we inject
+        # the collision result as a bounded global field.
+        #
+        # This is deliberately the LAST bridge.
+        #
+        # It does not mean CLIP was projected into Planet.
+        #
+        disturbance_array[...] = np.float32(
+            disturbance
+        )
+
+
+        print(
+            "PLANETFIELD DISTURBANCE:",
+            float(
+                disturbance
+            )
+        )
+
+
+        self.planet.receive(
+            disturbance_array
+        )
+
+
+        return True
 
 
     #
