@@ -121,7 +121,17 @@ def main():
         planet_rule
     )
 
+    region = (
+        0,
+        0,
+        128,
+        128
+    )
 
+    print(
+        "PLANET OBSERVATION:",
+        planet.observe_region(region)
+    )
 
     #
     # Compute
