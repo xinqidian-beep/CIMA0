@@ -3818,6 +3818,64 @@ Camera → request → Compute → Commit → CLIP forward
                       ↓
                    Compute
 
-				   
+InternalDynamics.step()
+│
+├── Compute.step()
+│       │
+│       └── 恢复有限计算资源
+│
+├── _observe()
+│       │
+│       ├── Observer → current observation
+│       └── Organ → local state/request
+│
+├── _compute()
+│       │
+│       ├── compare(observations)
+│       │
+│       └── select(requests)
+│
+├── commit()
+│       │
+│       └── grant compute permission
+│
+├── _evolve()
+│       │
+│       └── Organ.step()
+│
+└── _sample()
+        │
+        └── post-event snapshot
+		
    
-   
+                    InternalDynamics
+                           │
+              ┌────────────┼────────────┐
+              ↓            ↓            ↓
+           Planet        Organs       Compute
+              │            │            │
+              ↓            ↓            │
+          Observer      activity()       │
+              │            │             │
+              │            ├─ request ───┤
+              │            │             │
+              └─ observation ───────────→│
+                           │             │
+                           │          compare
+                           │             │
+                           │          select
+                           │             │
+                           │          allocation
+                           │             ↓
+                           │          Commit
+                           │             │
+                           │             ↓
+                           │          Organ
+                           │             │
+                           └──────────→ step()
+                                         │
+                                         ↓
+                                      Sample
+
+
+									  
