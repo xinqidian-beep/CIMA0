@@ -1296,7 +1296,7 @@ class CLIPField:
 
             "activity":
                 dict(
-                    self.layer_response
+                    self.layer_activity
                 ),
 
             "winner_layer":
