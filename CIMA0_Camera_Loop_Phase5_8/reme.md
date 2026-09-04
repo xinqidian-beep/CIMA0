@@ -3877,5 +3877,14 @@ InternalDynamics.step()
                                          ↓
                                       Sample
 
+职责已经越来越清楚：
+| 接口                       | 谁产生   | 谁消费            | 性质      |
+| ------------------------ | ----- | -------------- | ------- |
+| `activity()`             | Organ | Compute        | 当前请求/活动 |
+| `snapshot()`             | Organ | Sampler / 外部观察 | 完整状态快照  |
+| `collision_projection()` | Organ | Collision      | 完整碰撞场   |
+| `packet()`               | Organ | Transport      | 完整传输场   |
+
+
 
 									  
