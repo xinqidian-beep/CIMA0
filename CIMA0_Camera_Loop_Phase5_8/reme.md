@@ -3885,6 +3885,61 @@ InternalDynamics.step()
 | `collision_projection()` | Organ | Collision      | 完整碰撞场   |
 | `packet()`               | Organ | Transport      | 完整传输场   |
 
+Planet：
+    产生演化过程
 
+PlanetField：
+    观察演化过程
+
+ObservationMemory：
+    保存观察过程
+
+Reverse inference：
+    根据观察历史推测演化过程
+                 ┌──────────────────────┐
+                 │        Planet        │
+                 │                      │
+                 │   内生动力 / 演化     │
+                 │                      │
+                 │ 均匀 → 变化 → 结构    │
+                 │        → 畴壁         │
+                 └──────────┬───────────┘
+                            │
+                       state / glimpse
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │     PlanetField      │
+                 │                      │
+                 │     观察边界          │
+                 │                      │
+                 │ snapshot             │
+                 │ glimpse              │
+                 │ local variance       │
+                 │ sign structure       │
+                 │ energy               │
+                 └──────────┬───────────┘
+                            │
+                       observation
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │  ObservationMemory   │
+                 │                      │
+                 │ t-4                  │
+                 │ t-3                  │
+                 │ t-2                  │
+                 │ t-1                  │
+                 │ t                    │
+                 └──────────┬───────────┘
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │   Reverse Inference  │
+                 │                      │
+                 │ 可能经历了什么阶段？   │
+                 └──────────────────────┘
+PlanetField 不产生“变化”，只产生关于变化的证据。
+Planet 负责发生，PlanetField 负责看，ObservationMemory 负责记，Reverse Inference 负责推。
 
 									  
