@@ -153,9 +153,19 @@ class PlanetField:
         #
 
         self.compute_budget = 0
-
-
-
+        
+        
+        #
+        # sparse glimpse state
+        #
+                
+        self.glimpse_state = {
+            "pending": False,
+            "path": [],
+            "region": None,
+            "level": 0,
+            "observation": None
+        }
 
 
     #
@@ -430,8 +440,342 @@ class PlanetField:
 
 
         return True
+        
+        
+    #
+    # sparse recursive glimpse
+    #
+    def glimpse(
+        self
+    ):
+        """
+        Take one endogenous sparse glimpse.
 
+        No region is supplied from outside.
 
+        The field itself raises candidates.
+        """
+
+        if self.state is None:
+            return None
+
+        height, width = self.state.shape[:2]
+
+        root = (
+            0,
+            0,
+            height,
+            width
+        )
+
+        path = []
+
+        region = root
+
+        level = 0
+
+        while True:
+
+            children = self._split_region(
+                region
+            )
+
+            if len(children) == 1:
+                break
+
+            candidates = []
+
+            for child in children:
+
+                signal = self._region_hand(
+                    child
+                )
+
+                candidates.append(
+                    {
+                        "region": child,
+                        "signal": signal
+                    }
+                )
+ 
+            winner = max(
+                candidates,
+                key=lambda item: item["signal"]
+            )
+
+            region = winner["region"]
+
+            path.append(
+                {
+                    "level": level,
+                    "region": region,
+                    "signal": float(
+                        winner["signal"]
+                    )
+                }
+            )
+
+            level += 1
+ 
+            x0, y0, x1, y1 = region
+
+            if (
+                x1 - x0 <= 1
+                and
+                y1 - y0 <= 1
+            ):
+                break
+
+        #
+        # only now perform exact local inspection
+        #
+
+        exact = self._local_exact(
+            region
+        )
+
+        self.glimpse_path = path
+ 
+        self.glimpse_region = region
+
+        self.glimpse_level = level
+
+        self.glimpse_observation = {
+            "source": "planet",
+            "type": "glimpse",
+            "level": level,
+            "region": region,
+            "path": path,
+            "exact": exact,
+            "age": self.age
+        }
+
+        return self.glimpse_observation
+        
+        
+    def _split_region(
+        self,
+        region
+    ):
+        x0, y0, x1, y1 = region
+
+        if (
+            x1 - x0 <= 1
+            and
+            y1 - y0 <= 1
+        ):
+            return [
+                region
+            ]
+
+        xm = x0 + (
+            x1 - x0
+        ) // 2
+
+        ym = y0 + (
+            y1 - y0
+        ) // 2
+
+        children = [
+            (x0, y0, xm, ym),
+            (x0, ym, xm, y1),
+            (xm, y0, x1, ym),
+            (xm, ym, x1, y1)
+        ]
+
+        return [
+            child
+            for child in children
+            if (
+                child[0] < child[2]
+                and
+                child[1] < child[3]
+            )
+        ]
+        
+        
+    def _region_hand(
+        self,
+        region
+    ):
+        """
+        Sparse internal hand-up signal.
+
+        Only a few positions are inspected.
+        """
+
+        x0, y0, x1, y1 = region
+
+        if (
+            x1 <= x0
+            or
+            y1 <= y0
+        ):
+            return 0.0
+
+        points = [
+            (
+                x0,
+                y0
+            ),
+            (
+                (x0 + x1 - 1) // 2,
+                (y0 + y1 - 1) // 2
+            ),
+            (
+                x1 - 1,
+                y1 - 1
+            )
+        ]
+
+        signal = 0.0
+
+        count = 0
+
+        for x, y in points:
+
+            current = float(
+                self.state[x, y]
+            )
+
+            value = abs(
+                current
+            )
+
+            #
+            # local temporal change
+            #
+
+            if self.previous_state is not None:
+ 
+                previous = float(
+                    self.previous_state[x, y]
+                )
+
+                value += abs(
+                    current - previous
+                )
+
+            #
+            # external disturbance
+            #
+
+            if self.pending_disturbance is not None:
+
+                try:
+
+                    value += abs(
+                        float(
+                            self.pending_disturbance[
+                                x,
+                                y
+                            ]
+                        )
+                    )
+
+                except (
+                    TypeError,
+                    IndexError,
+                    ValueError
+                ):
+                    pass
+
+            signal += value
+
+            count += 1
+
+        if count == 0:
+            return 0.0
+
+        return signal / count
+        
+    
+        
+    def _local_exact(
+        self,
+        region
+    ):
+        x0, y0, x1, y1 = region
+
+        local = self.state[
+            x0:x1,
+            y0:y1
+        ]
+
+        if local.size == 0:
+            return None
+
+        result = {
+            "shape": local.shape,
+            "mean": float(
+                np.mean(local)
+            ),
+            "energy": float(
+                np.mean(
+                    np.abs(local)
+                )
+            ),
+            "variance": float(
+                np.var(local)
+            )
+        }
+
+        if self.previous_state is not None:
+
+            previous = self.previous_state[
+                x0:x1,
+                y0:y1
+            ]
+
+            delta = np.abs(
+                local - previous
+            )
+
+            result[
+                "delta"
+            ] = float(
+                np.mean(delta)
+            )
+
+            result[
+                "max_delta"
+            ] = float(
+                np.max(delta)
+            )
+
+        if self.pending_disturbance is not None:
+
+            try:
+
+                disturbance = (
+                    self.pending_disturbance[
+                        x0:x1,
+                        y0:y1
+                    ]
+                )
+
+                result[
+                    "disturbance"
+                ] = float(
+                    np.mean(
+                        np.abs(
+                            disturbance
+                        )
+                    )
+                )
+
+            except (
+                TypeError,
+                IndexError,
+                ValueError
+            ):
+                pass
+
+        return result
+        
+        
+        
+        
     #
     # evolution
     #

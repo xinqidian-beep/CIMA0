@@ -1020,38 +1020,33 @@ class InternalDynamics:
 
         return snapshot
                 
- 
     #
-    # planet evolution
+    # planet evolution / endogenous glimpse
     #
-
     def _planet_step(
         self
     ):
-        
-        return None
         """
-        if hasattr(
+        Give the endogenous PlanetField an opportunity
+        to expose its current internal candidate.
+
+        InternalDynamics does not choose a region and does
+        not force a full Planet.step().
+        """
+
+        if self.planet is None:
+            return None
+
+        if not hasattr(
             self.planet,
-            "step"
+            "glimpse"
         ):
-           
-            
-            print(
-                "PLANET OBJECT:",
-                type(self.planet)
-            )
+            return None
 
+        result = self.planet.glimpse()
 
-            delta = self.planet.step()
-            print(
-                "PLANETFIELD DELTA:",
-                delta
-            )
-            
-            return delta
-        """
-
+        
+        
     #
     # external snapshot
     #
