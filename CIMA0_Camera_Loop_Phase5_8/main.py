@@ -2,6 +2,8 @@ import os
 import cv2
 
 
+
+
 BASE_DIR = os.path.abspath(
     os.path.join(
         os.path.dirname(__file__),
@@ -94,6 +96,13 @@ from core.internal_dynamics.organs.clip_field import (
 )
 
 
+#
+# memory
+#
+
+from core.memory.observation_memory import (
+    ObservationMemory
+)
 
 def main():
 
@@ -120,18 +129,84 @@ def main():
     planet = PlanetField(
         planet_rule
     )
-
+    
+    # ------------------------------------------------
+    # Planet observation test
+    # ------------------------------------------------
+    
     region = (
         0,
         0,
         128,
         128
     )
+    
+    # 
+    # Observation cache
+    #
+
+    observation_cache = ObservationCache()
+    
+    observation_memory = ObservationMemory()
+
+
+    observation = planet.observe_region(
+        region
+    )
 
     print(
         "PLANET OBSERVATION:",
-        planet.observe_region(region)
+        observation
     )
+    
+    # ------------------------------------------------
+    # Planet sparse glimpse test
+    # ------------------------------------------------
+
+    observation = planet.glimpse()
+
+    print(
+        "PLANET GLIMPSE:",
+        observation
+    )
+
+    print(
+        "GLIMPSE STATE:",
+        planet.glimpse_state
+    )
+    
+    observation_memory.record_observation(
+        observation
+    )
+    
+    # ------------------------------------------------
+    # ObservationMemory test
+    # ------------------------------------------------
+    
+    for i in range(5):
+
+        observation = planet.glimpse()
+
+        observation_memory.record_observation(
+            observation
+        )
+    
+    print(
+        "GLIMPSE MEMORY COUNT:",
+        len(
+            observation_memory.recent_observations()
+        )
+    )
+
+    print(
+        "GLIMPSE MEMORY:",
+    )
+    for observation in observation_memory.recent_observations():
+
+        print(
+            observation
+        )
+    
 
     #
     # Compute
@@ -148,14 +223,6 @@ def main():
     #
 
     observer = InternalDynamicsObserver()
-
-
-
-    #
-    # Observation cache
-    #
-
-    observation_cache = ObservationCache()
 
 
 

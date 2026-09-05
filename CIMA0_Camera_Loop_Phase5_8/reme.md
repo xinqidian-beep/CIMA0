@@ -3942,4 +3942,188 @@ Reverse inference：
 PlanetField 不产生“变化”，只产生关于变化的证据。
 Planet 负责发生，PlanetField 负责看，ObservationMemory 负责记，Reverse Inference 负责推。
 
-									  
+Planet 的时间尺度属于 Planet；Observation 的时间尺度属于 Observer。两者不能互相定义。
+Planet time
+    ≠
+Camera time
+    ≠
+Observation time
+    ≠
+Compute time
+
+Planet
+ └── internal age / internal evolution
+
+PlanetField
+ └── observation age / field age
+
+ObservationMemory
+ └── observation sequence
+
+ComputeSystem
+ └── compute step
+这几个时间概念不能混在一起。
+
+                    外部世界
+                       │
+                       │ camera
+                       ▼
+                ┌──────────────┐
+                │      IO      │
+                └──────┬───────┘
+                       │
+                       ▼
+              ┌─────────────────┐
+              │ InternalDynamics│
+              └────────┬────────┘
+                       │
+             ┌─────────┴─────────┐
+             │                   │
+             ▼                   ▼
+        快速观察层            内部宇宙层
+             │                   │
+             │             ┌─────▼─────┐
+             │             │  Planet   │
+             │             │            │
+             │             │ slow time │
+             │             └─────┬──────┘
+             │                   │
+             │              current state
+             │                   │
+             │                   ▼
+             │             PlanetField
+             │                   │
+             │                glimpse
+             │                   │
+             └───────────────┬───┘
+                             ▼
+                        Observation
+                             │
+                             ▼
+                         Compute
+                             │
+                       permission
+                             │
+                             ▼
+                          Organ
+                             │
+                             ▼
+                       local evolution
+
+camera input
+     ↓
+dirty
+     ↓
+request compute
+     ↓
+Compute授权
+     ↓
+CLIP forward
+     ↓
+新的局部状态
+它属于：
+“有输入 → 内部产生候选 → 请求计算 → 获得计算机会 → 执行”
+
+所以它自然服从 Compute。									  
+Compute permission
+    =
+    谁获得有限计算机会
+
+Planet evolution authority
+    =
+    Planet 自己
+
+                    CAMERA
+                       │
+                       ▼
+                      IO
+                       │
+                       ▼
+              InternalDynamics
+                       │
+          ┌────────────┴────────────┐
+          │                         │
+          ▼                         ▼
+       Planet                    Organs
+          │                         │
+     slow endogenous            local response
+       evolution                     │
+          │                         │
+          ▼                         ▼
+     PlanetField                  CLIPField
+          │                         │
+       glimpse                   request
+          │                         │
+          └──────────┬──────────────┘
+                     ▼
+                Observation
+                     │
+                     ▼
+               ComputeSystem
+                     │
+             ┌───────┴───────┐
+             │               │
+         eligibility       resource
+             │               │
+             ▼               ▼
+          Sampler         allocation
+             │               │
+             └───────┬───────┘
+                     ▼
+                   commit
+                     │
+                     ▼
+              Organ execution
+
+其中有两条完全不同的内部时间：
+Planet
+  └── slow / endogenous / continuous
+
+Organ
+  └── compute-mediated / opportunity-driven
+
+IO
+    只搬运
+
+Observer
+    只观察
+
+Compute
+    只管理有限计算机会
+    拥有“谁获得计算”的权限
+
+Organ
+    只有获得计算机会后才能执行
+
+Planet
+    自己拥有自己的动力学
+    自己拥有自己的演化时间
+    不接受外部扰动
+    不由 Compute 控制
+
+PlanetField
+    只是 Planet 的可观察边界
+
+ObservationMemory
+    保存观察时序
+
+Sampler
+    只是 Compute 内部的选择工具
+
+
+观察可以非常频繁，Planet 演化可以非常稀疏。
+Camera:
+──────────────────────────────────────────────>
+frame frame frame frame frame frame frame ...
+
+Observation:
+──────────────────────────────────────────────>
+obs   obs   obs   obs   obs   obs   obs   ...
+
+Compute:
+──────────────────────────────────────────────>
+       ↑             ↑       ↑
+
+Planet:
+───────────────●──────────────────────────●────>
+               evolution                  evolution

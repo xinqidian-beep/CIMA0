@@ -40,6 +40,52 @@ class ObservationMemory:
         self.pending_evaluation = None
         
         self.last_step = None
+
+    def record_observation(
+        self,
+        observation
+    ):
+        """
+        Store one finite observation.
+
+        ObservationMemory only stores history.
+        It does not select, allocate, evolve,
+        or interpret the observation.
+        """
+
+        if observation is None:
+
+            return
+
+        self.receive(
+            observation
+        )
+
+
+    def recent_observations(
+        self,
+        count=None
+    ):
+        """
+        Return recent observations.
+
+        Does not modify stored history.
+        """
+
+        if count is None:
+
+            return list(
+                self.records
+            )
+
+        if count <= 0:
+
+            return []
+
+        return list(
+            self.records
+        )[-count:]
+
     
     def record_selection(
         self,
