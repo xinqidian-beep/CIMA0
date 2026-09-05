@@ -423,25 +423,21 @@ class InternalDynamics:
 
         #
         # -------------------------------------------------
-        # Observer only sees current state
+        # Planet glimpse
         # -------------------------------------------------
         #
 
-        if (
-            self.observer is not None
-            and hasattr(
-                self.planet,
-                "snapshot"
-            )
-        ):
+        glimpse = self.internal_fields.get(
+            "planet_glimpse"
+        )
 
-            snapshot = {
-                "planet":
-                    self.planet.snapshot()
-            }
-
-            observation = self.observer.describe(
-                snapshot
+        if glimpse is not None:
+            
+            print(
+                "PLANET GLIMPSE OBSERVED:",
+                glimpse["region"],
+                glimpse["level"],
+                glimpse["exact"]
             )
 
             signals.append(
@@ -455,12 +451,8 @@ class InternalDynamics:
                     "state":
                         {
                             "observation":
-                                observation,
+                                glimpse,
 
-                            #
-                            # These remain local signals
-                            # for the existing selection path.
-                            #
                             "activity":
                                 0.0,
 
@@ -478,7 +470,7 @@ class InternalDynamics:
                         }
                 }
             )
-
+    
         #
         # -------------------------------------------------
         # organs
@@ -1044,6 +1036,15 @@ class InternalDynamics:
             return None
 
         result = self.planet.glimpse()
+        
+        if result is None:
+            return None
+
+        self.internal_fields[
+            "planet_glimpse"
+        ] = result
+
+        return result
 
         
         

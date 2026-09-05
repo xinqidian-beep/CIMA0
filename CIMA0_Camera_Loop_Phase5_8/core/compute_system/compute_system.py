@@ -310,29 +310,44 @@ class ComputeSystem:
         signals
     ):
         """
-        Select one candidate.
+        Select one internal candidate and allocate
+        one finite compute opportunity.
 
-        Selection does not execute the candidate.
+        Responsibilities of ComputeSystem:
 
-        Returns:
+            1. receive internal compute requests
+            2. determine candidate eligibility
+            3. build the competition set
+            4. ask Sampler to select
+            5. allocate compute resource
+            6. record the selection
 
-            {
-                "name": ...,
-                "organ": ...,
-                "state": ...,
-                "allocation": ...
-            }
+        ComputeSystem owns the permission.
 
-        or None.
+        Sampler only performs selection.
+        Organ only raises candidates and executes
+        after receiving compute permission.
+
+        No organ execution happens here.
         """
+
+        #
+        # --------------------------------------------------
+        # 0. no signals
+        # --------------------------------------------------
+        #
 
         if not signals:
             return None
 
 
-        
         #
-        # evaluate previous decision
+        # --------------------------------------------------
+        # 1. Compute evaluates pending memory
+        #
+        #    Memory observes/records the competition context.
+        #    It does not grant permission.
+        # --------------------------------------------------
         #
 
         if self.memory is not None:
@@ -343,12 +358,21 @@ class ComputeSystem:
 
 
         #
-        # reduce candidate state to
-        # selection-relevant information
+        # --------------------------------------------------
+        # 2. Build eligible compute requests
+        #
+        #    Organ only says:
+        #
+        #        request = "compute"
+        #        candidate
+        #        candidate_value
+        #
+        #    Compute decides whether the request
+        #    is eligible to enter competition.
+        # --------------------------------------------------
         #
 
-        states = []
-
+        requests = []
 
         for signal in signals:
 
@@ -357,41 +381,216 @@ class ComputeSystem:
                 {}
             )
 
+            if not isinstance(
+                state,
+                dict
+            ):
+                continue
+
+
+            #
+            # Organ must explicitly request compute.
+            #
+
+            request = state.get(
+                "request"
+            )
+
+            if request != "compute":
+                continue
+
+
+            #
+            # Internal candidate.
+            #
+
+            candidate = state.get(
+                "candidate"
+            )
+
+
+            #
+            # Internal candidate strength.
+            #
+
+            candidate_value = state.get(
+                "candidate_value",
+                0.0
+            )
+
+
+            #
+            # Compute owns candidate eligibility.
+            #
+            # No candidate:
+            #     no competition.
+            #
+            # Non-positive candidate value:
+            #     currently treated as no valid
+            #     compute candidate.
+            #
+
+            if candidate is None:
+                continue
+
+            try:
+                candidate_value = float(
+                    candidate_value
+                )
+            except (
+                TypeError,
+                ValueError
+            ):
+                continue
+
+            if candidate_value <= 0.0:
+                continue
+
+
+            #
+            # Candidate is now admitted into
+            # the Compute competition field.
+            #
+
+            requests.append(
+                signal
+            )
+
+
+        #
+        # --------------------------------------------------
+        # 3. No eligible candidate
+        # --------------------------------------------------
+        #
+
+        if not requests:
+            return None
+
+
+        #
+        # --------------------------------------------------
+        # 4. Compute resource availability
+        # --------------------------------------------------
+        #
+
+        if self.available <= 0:
+            return None
+
+
+        #
+        # --------------------------------------------------
+        # 5. Convert eligible requests into
+        #    Sampler-compatible generic states.
+        #
+        #    Sampler remains semantically blind.
+        #
+        #    It does NOT know:
+        #
+        #        candidate
+        #        candidate_value
+        #        organ
+        #        compute
+        #        source
+        #
+        #    It only receives:
+        #
+        #        age
+        #        activity
+        #        delta
+        # --------------------------------------------------
+        #
+
+        states = []
+
+        for signal in requests:
+
+            state = signal.get(
+                "state",
+                {}
+            )
+
             states.append(
                 {
-                    "age":
-                        state.get(
-                            "age",
-                            0.0
-                        ),
+                    "age": state.get(
+                        "age",
+                        0.0
+                    ),
 
-                    "activity":
-                        state.get(
-                            "activity",
-                            0.0
-                        ),
+                    "activity": state.get(
+                        "activity",
+                        0.0
+                    ),
 
-                    "delta":
-                        state.get(
-                            "signal",
-                            0.0
-                        )
+                    "delta": state.get(
+                        "signal",
+                        0.0
+                    )
                 }
             )
 
 
         #
-        # no compute opportunity
+        # --------------------------------------------------
+        # 6. Debug: show candidates entering Compute
+        #
+        #    This is deliberately before Sampler.
+        # --------------------------------------------------
         #
 
-        if self.available <= 0:
-
-            return None
+        print(
+            "COMPUTE CANDIDATES:",
+            [
+                {
+                    "name": signal.get("name"),
+                    "candidate":
+                        signal.get(
+                            "state",
+                            {}
+                        ).get(
+                            "candidate"
+                        ),
+                    "candidate_value":
+                        signal.get(
+                            "state",
+                            {}
+                        ).get(
+                            "candidate_value",
+                            0.0
+                        ),
+                    "age":
+                        signal.get(
+                            "state",
+                            {}
+                        ).get(
+                            "age",
+                            0.0
+                        ),
+                    "activity":
+                        signal.get(
+                            "state",
+                            {}
+                        ).get(
+                            "activity",
+                            0.0
+                        ),
+                    "delta":
+                        signal.get(
+                            "state",
+                            {}
+                        ).get(
+                            "signal",
+                            0.0
+                        )
+                }
+                for signal in requests
+            ]
+        )
 
 
         #
-        # available compute itself becomes
-        # the upper bound of this opportunity
+        # --------------------------------------------------
+        # 7. Sampler performs selection only
+        # --------------------------------------------------
         #
 
         budget = min(
@@ -399,28 +598,41 @@ class ComputeSystem:
             self.available
         )
 
-
         index = self.sampler.select(
             states,
             budget=budget
         )
 
-
         if len(index) == 0:
             return None
 
+
+        #
+        # --------------------------------------------------
+        # 8. Recover the actual winner
+        #
+        #    Sampler only returned an index.
+        #    Compute maps it back to the actual
+        #    internal request.
+        # --------------------------------------------------
+        #
 
         winner_index = int(
             index[0]
         )
 
-        winner = signals[
+        winner = requests[
             winner_index
         ]
 
 
         #
-        # record selection context
+        # --------------------------------------------------
+        # 9. Record selection
+        #
+        #    Memory records what Compute selected.
+        #    Memory does not make the decision.
+        # --------------------------------------------------
         #
 
         if self.memory is not None:
@@ -434,13 +646,17 @@ class ComputeSystem:
                         [
                             {
                                 "name":
-                                    s.get("name"),
+                                    s.get(
+                                        "name"
+                                    ),
 
                                 "state":
-                                    s.get("state")
+                                    s.get(
+                                        "state"
+                                    )
                             }
 
-                            for s in signals
+                            for s in requests
                         ],
 
                     "available":
@@ -448,18 +664,21 @@ class ComputeSystem:
                 }
             )
 
-
             self.memory.record_selection(
                 [
                     {
                         "name":
-                            s.get("name"),
+                            s.get(
+                                "name"
+                            ),
 
                         "state":
-                            s.get("state")
+                            s.get(
+                                "state"
+                            )
                     }
 
-                    for s in signals
+                    for s in requests
                 ],
 
                 {
@@ -482,30 +701,47 @@ class ComputeSystem:
 
 
         #
-        # allocate opportunity
+        # --------------------------------------------------
+        # 10. Compute allocates resource
         #
-        # ComputeSystem does NOT describe
-        # what this opportunity means.
+        #     This is the actual permission boundary.
+        # --------------------------------------------------
         #
 
         allocation = self.allocate(
             winner
         )
 
-
         if allocation is None:
             return None
-            
+
+
+        #
+        # --------------------------------------------------
+        # 11. Return the Compute decision
+        #
+        #     No execution here.
+        #
+        #     commit() will consume the allocation
+        #     and grant it to the organ.
+        # --------------------------------------------------
+        #
 
         return {
             "name":
-                winner.get("name"),
+                winner.get(
+                    "name"
+                ),
 
             "organ":
-                winner.get("organ"),
+                winner.get(
+                    "organ"
+                ),
 
             "state":
-                winner.get("state"),
+                winner.get(
+                    "state"
+                ),
 
             "allocation":
                 allocation

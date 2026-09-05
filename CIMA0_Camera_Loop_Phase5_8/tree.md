@@ -60,3 +60,10 @@ CIMA0_Camera_Loop_Phase5_8\archive
 CIMA0_Camera_Loop_Phase5_8\core
 CIMA0_Camera_Loop_Phase5_8\tests
 
+
+
+CIMA0_Camera_Loop_Phase5_8\archive\
+                                   compute.py
+								   io.py
+								   observer.py
+								   planet.py

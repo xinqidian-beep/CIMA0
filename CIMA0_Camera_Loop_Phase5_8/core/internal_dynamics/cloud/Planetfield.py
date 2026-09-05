@@ -547,23 +547,23 @@ class PlanetField:
             region
         )
 
-        self.glimpse_path = path
- 
-        self.glimpse_region = region
-
-        self.glimpse_level = level
-
-        self.glimpse_observation = {
-            "source": "planet",
-            "type": "glimpse",
-            "level": level,
-            "region": region,
+        self.glimpse_state = {
+            "pending": True,
             "path": path,
-            "exact": exact,
-            "age": self.age
+            "region": region,
+            "level": level,
+            "observation": {
+                "source": "planet",
+                "type": "glimpse",
+                "level": level,
+                "region": region,
+                "path": path,
+                "exact": exact,
+                "age": self.age
+            }
         }
 
-        return self.glimpse_observation
+        return self.glimpse_state["observation"]
         
         
     def _split_region(
