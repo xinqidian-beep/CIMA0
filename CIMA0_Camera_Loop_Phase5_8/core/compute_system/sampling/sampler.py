@@ -46,6 +46,17 @@ class Sampler:
 
 
     It only selects.
+    
+    
+    
+    adapt_weights
+    DEFERRED
+    Endogenous adaptation mechanism
+
+    Definition: active
+    Runtime call: none
+    Purpose: evolve selection preference from internal history
+    Status: intentionally disconnected
     """
 
 

@@ -4174,6 +4174,139 @@ PlanetField.step()
 ✓ Compute 不应该控制 Planet evolution
 ✓ collision disturbance 仍由 PlanetField 承接
 
+当前资源生命周期是：
+ComputeSystem.step()
+        │
+        │ 恢复资源
+        ▼
+   available
+        │
+        ▼
+ComputeSystem.select()
+        │
+        ├── candidate eligibility
+        │
+        ├── Sampler.select()
+        │       └── priority()
+        │
+        └── allocate()
+                │
+                │ 最多 1.0
+                ▼
+          {"amount": 1.0}
+                │
+                ▼
+InternalDynamics.commit()
+                │
+                ▼
+       consume(allocation)
+                │
+                │ available -= amount
+                ▼
+          organ.apply_compute()
+		  
+consume() 也没有越权
+它做了三层保护：
+amount = max(float(amount), 0.0)
+amount = min(amount, self.available)
+self.available -= amount
+所以不会：
+
+消费负数；
+
+超过当前 available；
+
+由 Organ 自己修改 ComputeSystem 资源。
+
+Compute 这一层可以封板
+
+COMPUTE SYSTEM
+────────────────────────────────
+
+Resource ownership:
+    ComputeSystem
+
+Selection:
+    ComputeSystem
+        ↓
+    Sampler
+
+Priority:
+    Sampler.priority()
+        ↓
+    w_age
+    w_activity
+    w_delta
+
+Allocation:
+    ComputeSystem.allocate()
+
+Consumption:
+    ComputeSystem.consume()
+
+Execution:
+    Organ.apply_compute()
+
+Adaptation:
+    adapt()
+    adapt_weights()
+
+Status:
+    DEFERRED / NOT CONNECTED
+没有发现需要立即重构的资源主权问题。
+
+现在主循环可以更准确地写成
+InternalDynamics.step()
+│
+├── 1. Compute resource recovery
+│
+├── 2. Planet glimpse
+│      └── expose endogenous internal candidate
+│
+├── 3. Observe current state
+│
+├── 4. Compute / Select
+│      └── choose one candidate
+│
+├── 5. Commit
+│      └── consume + grant compute
+│
+├── 6. Organ evolution
+│      └── organ.step()
+│
+└── 7. Sample
+       └── immutable-ish snapshot
+推进/承接无限内部演化 → 观察当前变化 → 计算选择一个最大/最值得的候选 → commit 一次 → sample 一次
+
+Planet 的自主时间推进到底应该发生在哪里，以及 glimpse() 和 step() 的关系是什么。
+
+main.py
+ │
+ ├── PlanetField.step()
+ │       │
+ │       └── Planet.evolve()
+ │
+ ├── PlanetField.glimpse()
+ │
+ └── InternalDynamics.step()
+         │
+         ├── _planet_step()
+         │       └── planet.glimpse()
+         │
+         ├── observe
+         ├── compute
+         ├── commit
+         ├── evolve organs
+         └── sample
+PlanetField 的演化目前由 main.py 在驱动，而 InternalDynamics 只是观察它。
+
+需要把职责明确成：
+_planet_evolve()
+    → planet.step()
+
+_planet_observe()
+    → planet.glimpse()
 
 
-					  
+
+	   
