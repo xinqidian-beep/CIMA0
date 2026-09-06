@@ -442,6 +442,10 @@ def main():
                     dynamics.receive(
                         packet
                     )
+                    
+                    display.receive(
+                        packet
+                    )
 
 
 
@@ -461,6 +465,7 @@ def main():
 
 
         if snapshot is not None:
+            
 
             if display.frame is not None:
                 

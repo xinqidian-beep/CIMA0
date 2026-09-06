@@ -1,14 +1,45 @@
 import copy
+import time
 import numpy as np
+
 
 from .cloud.cloud_state import CloudState
 from core.memory.observation_memory import ObservationMemory
 from core.internal_dynamics.cloud_collision import CloudCollision
 
+class LocalClock:
+
+    def __init__(
+        self,
+        interval=1
+    ):
+
+        self.interval = interval
+        self.last = time.perf_counter()
+
+
+    def due(
+        self
+    ):
+
+        now = time.perf_counter()
+
+        if (
+            now - self.last
+            >= self.interval
+        ):
+
+            self.last = now
+
+            return True
+
+        return False
+
+
 
 class InternalDynamics:
     """
-    CIMA0 Phase5_6
+    CIMA0 Phase5_8
 
     Internal Dynamics Container.
 
@@ -46,7 +77,6 @@ class InternalDynamics:
 
     """
 
-
     def __init__(
         self,
         planet,
@@ -65,6 +95,8 @@ class InternalDynamics:
         #
 
         self.planet = planet
+        
+        self.planet_clock = LocalClock(interval=1.0)
         
         self.cloud = CloudState()
         
@@ -213,6 +245,20 @@ class InternalDynamics:
                 "camera_raw"
             ] = packet
 
+        disturbance = self._packet_to_array(
+            packet
+        )
+
+        if disturbance is not None:
+
+            if hasattr(
+                self.planet,
+                "receive"
+            ):
+
+                self.planet.receive(
+                    disturbance
+                )
 
         #
         # Broadcast unchanged packet.
@@ -301,6 +347,43 @@ class InternalDynamics:
                     )
         return clouds  
 
+    def _packet_to_array(
+        self,
+        packet
+    ):
+
+        if packet is None:
+            return None
+
+        if packet.data is None:
+            return None
+
+        if packet.shape is None:
+            return None
+
+        if packet.dtype is None:
+            return None
+
+        try:
+
+            array = np.frombuffer(
+                packet.data,
+                dtype=np.dtype(packet.dtype)
+            )
+
+            array = array.reshape(
+                packet.shape
+            )
+
+            return array.copy()
+
+        except (
+            TypeError,
+            ValueError
+        ):
+
+            return None
+
                                
     #
     # main evolution cycle
@@ -321,11 +404,12 @@ class InternalDynamics:
 
         #
         # -------------------------------------------------
-        # 2. existing Planet continues its own evolution
+        # 2. Planet evolves according to its own internal clock
         # -------------------------------------------------
         #
-
-        self._planet_step()
+        
+        if self.planet_clock.due():
+            self._planet_step()
 
 
 
@@ -1019,15 +1103,25 @@ class InternalDynamics:
         self
     ):
         """
-        Give the endogenous PlanetField an opportunity
-        to expose its current internal candidate.
+        Advance PlanetField according to its own clock,
+        then expose its current internal candidate.
 
-        InternalDynamics does not choose a region and does
-        not force a full Planet.step().
+        InternalDynamics does not choose a region.
         """
 
         if self.planet is None:
             return None
+
+        if not self.planet_clock.due():
+            return None
+
+        if not hasattr(
+            self.planet,
+            "step"
+        ):
+            return None
+
+        self.planet.step()
 
         if not hasattr(
             self.planet,
@@ -1036,7 +1130,7 @@ class InternalDynamics:
             return None
 
         result = self.planet.glimpse()
-        
+
         if result is None:
             return None
 
