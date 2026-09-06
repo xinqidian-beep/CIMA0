@@ -4127,3 +4127,53 @@ Compute:
 Planet:
 ───────────────●──────────────────────────●────>
                evolution                  evolution
+
+
+一个更合理的 PlanetField 内部结构
+                    PlanetField
+                         │
+          ┌──────────────┴──────────────┐
+          │                             │
+       Observe                       Evolve
+          │                             │
+          ▼                             ▼
+      glimpse()                    Planet.step()
+          │                             │
+          ▼                             ▼
+ observation record              state changes
+          │                             │
+          └──────────────┬──────────────┘
+                         ▼
+                  Planet trajectory
+				  
+self.previous_state	应该理解为：上一次 Planet 演化完成后的状态快照。			  
+未来 PlanetField 的“观察”实际上可以形成：内部自动举手。
+                    PlanetField
+                         │
+             ┌───────────┼───────────┐
+             │           │           │
+           state       delta     disturbance
+             │           │           │
+             └───────────┼───────────┘
+                         ▼
+                   local hand-up
+                         │
+                         ▼
+                      glimpse
+
+PlanetField.step()
+✓ PlanetField 持有 Planet 状态边界
+✓ PlanetField 可以观察局部结构
+✓ PlanetField 可以观察 temporal delta
+✓ PlanetField 可以产生 sparse glimpse
+✓ glimpse 不接受外部 region
+✓ _split_region() 纯空间分解
+✓ _region_hand() 产生内部候选
+✓ _local_exact() 形成有限观察
+✓ Planet evolution 委托给 Planet
+✓ Compute 不应该控制 Planet evolution
+✓ collision disturbance 仍由 PlanetField 承接
+
+
+
+					  

@@ -207,6 +207,27 @@ def main():
             observation
         )
     
+    print("=" * 60)
+    print("PLANET EVOLUTION TEST")
+    print("=" * 60)
+
+    for i in range(10):
+
+        planet.step()
+
+        observation = planet.glimpse()
+
+        print(
+            "STEP:",
+            i,
+            "AGE:",
+            planet.age
+        )
+
+        print(
+            "GLIMPSE:",
+            observation
+        )
 
     #
     # Compute
