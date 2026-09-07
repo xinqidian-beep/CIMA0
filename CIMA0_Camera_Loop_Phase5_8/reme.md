@@ -4307,6 +4307,21 @@ _planet_evolve()
 _planet_observe()
     → planet.glimpse()
 
+_region_hand()
+是：
 
+选择机制
+
+_local_exact()
+是：
+
+观察机制
+
+ObservationCache
+是：
+
+跨 observation 的变化比较机制
+
+这三个职责现在其实已经非常清楚了。
 
 	   
