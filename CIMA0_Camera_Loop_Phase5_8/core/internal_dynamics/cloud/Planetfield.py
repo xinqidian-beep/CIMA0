@@ -798,7 +798,12 @@ class PlanetField:
         """
         Sparse internal hand-up signal.
 
-        Only a few positions are inspected.
+        Diagnostic version: 
+            current contribution 
+            temporal change contribution 
+            disturbance contribution 
+            
+        Calculation semantics are unchanged.
         """
 
         x0, y0, x1, y1 = region
@@ -826,6 +831,12 @@ class PlanetField:
         ]
 
         signal = 0.0
+        
+        current_total = 0.0 
+        
+        temporal_total = 0.0 
+        
+        disturbance_total = 0.0
 
         count = 0
 
@@ -835,13 +846,19 @@ class PlanetField:
                 self.state[x, y]
             )
 
-            value = abs(
-                current
+            # 
+            # current state contribution 
+            # 
+            
+            current_value = abs( 
+                current 
             )
 
             #
             # local temporal change
             #
+            
+            temporal_value = 0.0
 
             if self.previous_state is not None:
  
@@ -849,19 +866,21 @@ class PlanetField:
                     self.previous_state[x, y]
                 )
 
-                value += abs(
+                temporal_value = abs(
                     current - previous
                 )
 
             #
             # external disturbance
             #
+            
+            disturbance_value = 0.0
 
             if self.pending_disturbance is not None:
 
                 try:
 
-                    value += abs(
+                    disturbance_value = abs(
                         float(
                             self.pending_disturbance[
                                 x,
@@ -875,16 +894,59 @@ class PlanetField:
                     IndexError,
                     ValueError
                 ):
-                    pass
+                    disturbance_value = 0.0
 
-            signal += value
-
-            count += 1
-
-        if count == 0:
-            return 0.0
-
-        return signal / count
+            # 
+            # original total 
+            # 
+            
+            value = ( 
+                current_value 
+                + 
+                temporal_value 
+                + 
+                disturbance_value 
+            ) 
+            
+            current_total += current_value 
+            temporal_total += temporal_value 
+            disturbance_total += disturbance_value 
+            
+            signal += value 
+            count += 1 
+        if count == 0: 
+            return 0.0 
+            
+        current_average = ( 
+            current_total / count 
+        ) 
+        
+        temporal_average = ( 
+            temporal_total / count 
+        ) 
+        
+        disturbance_average = ( 
+            disturbance_total / count 
+        ) 
+        
+        signal_average = ( 
+            signal / count 
+        ) 
+        
+        #print( 
+        #    "REGION HAND:", 
+        #    region, 
+        #    "current=", 
+        #    current_average, 
+        #    "temporal=", 
+        #    temporal_average, 
+        #    "disturbance=", 
+        #    disturbance_average, 
+        #    "total=", 
+        #    signal_average 
+        #) 
+        
+        return signal_average
         
     
         

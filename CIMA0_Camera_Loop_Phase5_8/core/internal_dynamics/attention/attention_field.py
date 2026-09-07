@@ -261,20 +261,166 @@ class AttentionField:
         self,
         delta
     ):
-        """
-        Convert change into attention strength.
 
-        Keep spatial structure.
-        """
+        if delta is None:
+
+            return np.zeros(
+                1,
+                dtype=np.float32
+            )
+
+
+        #
+        # structured data
+        #
+
+        if isinstance(delta, dict):
+
+            values = []
+
+            for key, value in delta.items():
+
+                #
+                # structural information
+                #
+
+                if key == "shape":
+
+                    continue
+
+
+                #
+                # nested structure
+                #
+
+                if isinstance(
+                    value,
+                    dict
+                ):
+
+                    nested = self._extract_intensity(
+                        value
+                    )
+
+                    if nested is not None:
+
+                        values.append(
+                            nested
+                        )
+
+                    continue
+
+
+                #
+                # numeric information
+                #
+
+                try:
+
+                    arr = np.asarray(
+                        value,
+                        dtype=np.float32
+                    )
+
+                except Exception:
+
+                    continue
+
+
+                if arr.size == 0:
+
+                    continue
+
+
+                values.append(
+                    np.abs(arr)
+                )
+
+
+            #
+            # nothing usable
+            #
+
+            if not values:
+
+                return np.zeros(
+                    1,
+                    dtype=np.float32
+                )
+
+
+            #
+            # one usable spatial field
+            #
+
+            spatial = []
+
+            for value in values:
+
+                arr = np.asarray(
+                    value,
+                    dtype=np.float32
+                )
+
+                if arr.ndim >= 1:
+
+                    spatial.append(
+                        arr
+                    )
+
+
+            if spatial:
+
+                reference = spatial[0]
+
+                intensity = np.zeros_like(
+                    reference,
+                    dtype=np.float32
+                )
+
+                for value in spatial:
+
+                    if value.shape == intensity.shape:
+
+                        intensity += np.abs(
+                            value
+                        )
+
+                return intensity
+
+
+            #
+            # scalar values
+            #
+
+            intensity = np.array(
+                [
+                    float(
+                        np.max(
+                            np.abs(
+                                value
+                            )
+                        )
+                    )
+                    for value in values
+                ],
+                dtype=np.float32
+            )
+
+            return intensity
+
+
+        #
+        # ordinary numeric data
+        #
 
         arr = np.asarray(
-            delta
+            delta,
+            dtype=np.float32
         )
 
 
         if arr.ndim == 3:
-
-            # BGR/RGB
 
             intensity = np.mean(
                 np.abs(arr),
@@ -285,6 +431,17 @@ class AttentionField:
 
             intensity = np.abs(
                 arr
+            )
+
+
+        #
+        # scalar → 1D field
+        #
+
+        if intensity.ndim == 0:
+
+            intensity = intensity.reshape(
+                1
             )
 
 

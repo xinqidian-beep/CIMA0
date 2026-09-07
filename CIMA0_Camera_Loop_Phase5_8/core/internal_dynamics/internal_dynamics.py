@@ -151,6 +151,8 @@ class InternalDynamics:
         #
 
         self.internal_fields = {}
+        self.planet_glimpse_version = 0
+        self.planet_glimpse_observed_version = -1
         
         #
         # raw external packet cache
@@ -410,9 +412,8 @@ class InternalDynamics:
         
         if self.planet_clock.due():
             self._planet_step()
-
-
-
+            
+        
         #
         # -------------------------------------------------
         # 3. observe current state
@@ -515,46 +516,101 @@ class InternalDynamics:
             "planet_glimpse"
         )
 
-        if glimpse is not None:
+        if (
+            glimpse is not None
+            and
+            self.planet_glimpse_version 
+            != 
+            self.planet_glimpse_observed_version
+        ):
+            observed = None
             
-            print(
-                "PLANET GLIMPSE OBSERVED:",
-                glimpse["region"],
-                glimpse["level"],
-                glimpse["exact"]
+            
+            #
+            # Observer
+            #
+
+            if self.observer is not None:
+
+                observed = self.observer.observe(
+                    {
+                        "planet": glimpse
+                    }
+                )
+
+                print(
+                    "OBSERVER:observed received"
+                )
+
+
+            #
+            # complete observation
+            #
+
+            observation = None
+
+            if (
+                observed is not None
+                and
+                "observation" in observed
+            ):
+
+                observation = observed["observation"]
+
+
+            #
+            # ObservationCache
+            #
+
+            change = None
+
+            if (
+                observation is not None
+                and
+                self.observation_cache is not None
+            ):
+                
+                print(
+                    "OBSERVATION AGE:",
+                    observation["planet"]["age"]
+                )
+
+                change = self.observation_cache.step(
+                    observation
+                )
+                
+                print(
+                    "PLANET CHANGE:",
+                    change["changed"],
+                    change["signal"]
+                )
+                
+            #
+            # AttentionField
+            #    
+                
+            if (
+                change is not None
+                and
+                self.attention_field is not None
+                and
+                change.get("changed", False)
+            ):
+
+                self.attention_field.receive(
+                    {
+                        "source": "planet",
+                        "change": change
+                        
+                    }
+                )
+
+                self.attention_field.step()
+                
+            self.planet_glimpse_observed_version = (
+                self.planet_glimpse_version
             )
-
-            signals.append(
-                {
-                    "name":
-                        "planet",
-
-                    "organ":
-                        self.planet,
-
-                    "state":
-                        {
-                            "observation":
-                                glimpse,
-
-                            "activity":
-                                0.0,
-
-                            "signal":
-                                0.0,
-
-                            "changed":
-                                False,
-
-                            "source":
-                                "planet",
-
-                            "request":
-                                False
-                        }
-                }
-            )
-    
+                
         #
         # -------------------------------------------------
         # organs
@@ -1112,9 +1168,6 @@ class InternalDynamics:
         if self.planet is None:
             return None
 
-        if not self.planet_clock.due():
-            return None
-
         if not hasattr(
             self.planet,
             "step"
@@ -1137,6 +1190,8 @@ class InternalDynamics:
         self.internal_fields[
             "planet_glimpse"
         ] = result
+        
+        self.planet_glimpse_version += 1
 
         return result
 
