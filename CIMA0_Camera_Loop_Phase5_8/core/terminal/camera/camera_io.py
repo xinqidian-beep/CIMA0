@@ -23,13 +23,6 @@ class CameraIO:
             return None
 
 
-        print(
-            "CAMERA IO INPUT:",
-            type(observation),
-            observation.keys()
-        )
-
-
         if "field" not in observation:
 
             return None
@@ -37,14 +30,6 @@ class CameraIO:
 
 
         field = observation["field"]
-
-
-        print(
-            "CAMERA FIELD:",
-            type(field),
-            field.shape,
-            field.dtype
-        )
 
 
         if not isinstance(

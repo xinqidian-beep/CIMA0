@@ -177,23 +177,6 @@ class ObservationCache:
         output signal
 
         """
-        print(
-            "CACHE CURRENT AGE:",
-            snapshot["planet"]["age"]
-        )
-
-        if self.previous is not None:
-
-            print(
-                "CACHE PREVIOUS AGE:",
-                self.previous["planet"]["age"]
-            )
-
-            print(
-                "CACHE PREVIOUS PLANET TYPE:",
-                type(self.previous["planet"])
-            )
-        
 
         result = self.compare(
             snapshot

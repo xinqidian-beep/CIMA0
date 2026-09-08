@@ -210,15 +210,6 @@ class InternalDynamics:
             return
 
 
-        print(
-            "INTERNAL RECEIVE:",
-            packet.source,
-            packet.tag,
-            packet.schema,
-            packet.shape
-        )
-
-
         #
         # preserve original physical stream
         #
@@ -585,6 +576,11 @@ class InternalDynamics:
                     change["signal"]
                 )
                 
+                print(
+                    "PLANET DELTA:",
+                    change["delta"]
+                )
+                
             #
             # AttentionField
             #    
@@ -607,6 +603,11 @@ class InternalDynamics:
 
                 self.attention_field.step()
                 
+                print(
+                    "ATTENTION STATE:",
+                    self.attention_field.snapshot()
+                )
+                
             self.planet_glimpse_observed_version = (
                 self.planet_glimpse_version
             )
@@ -627,6 +628,12 @@ class InternalDynamics:
                 state = organ.activity()
 
                 if state is not None:
+                    
+                    print(
+                        "ORGAN ACTIVITY:",
+                        name,
+                        state
+                    )
 
                     signals.append(
                         {

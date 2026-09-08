@@ -64,21 +64,8 @@ class AttentionField:
         self,
         signal
     ):
-        """
-        Receive observation result.
-
-        Expected:
-
-        {
-            "changed": bool,
-            "delta": ndarray,
-            "signal": float
-        }
-
-        """
 
         if signal is None:
-
             return
 
 
@@ -86,21 +73,42 @@ class AttentionField:
             "source",
             "unknown"
         )
-        
+
+
         #
-        # old spatial mode
+        # -------------------------------------------------
+        # ObservationCache change envelope
+        # -------------------------------------------------
         #
 
-        delta = signal.get(
-            "delta"
+        change = signal.get(
+            "change"
         )
-        
-        if delta is not None:
+
+        if change is not None:
+
+            delta = change.get(
+                "delta"
+            )
+
+            if delta is None:
+                return
 
             intensity = self._extract_intensity(
                 delta
             )
-
+            
+            print(
+                "ATTENTION INPUT:",
+                source,
+                type(intensity),
+                getattr(
+                    intensity,
+                    "shape",
+                    None
+                ),
+                intensity
+            )
 
             self._update_source(
                 source,
@@ -109,8 +117,35 @@ class AttentionField:
 
             return
 
+
         #
-        # new envelope mode
+        # -------------------------------------------------
+        # old spatial mode
+        # -------------------------------------------------
+        #
+
+        delta = signal.get(
+            "delta"
+        )
+
+        if delta is not None:
+
+            intensity = self._extract_intensity(
+                delta
+            )
+
+            self._update_source(
+                source,
+                intensity
+            )
+
+            return
+
+
+        #
+        # -------------------------------------------------
+        # scalar mode
+        # -------------------------------------------------
         #
 
         activity = signal.get(
@@ -118,11 +153,8 @@ class AttentionField:
             0.0
         )
 
-
         if activity <= 0:
-
             return
-
 
         self._update_scalar(
             source,
