@@ -177,6 +177,23 @@ class ObservationCache:
         output signal
 
         """
+        print(
+            "CACHE CURRENT AGE:",
+            snapshot["planet"]["age"]
+        )
+
+        if self.previous is not None:
+
+            print(
+                "CACHE PREVIOUS AGE:",
+                self.previous["planet"]["age"]
+            )
+
+            print(
+                "CACHE PREVIOUS PLANET TYPE:",
+                type(self.previous["planet"])
+            )
+        
 
         result = self.compare(
             snapshot
@@ -332,37 +349,48 @@ class ObservationCache:
         self,
         data
     ):
-        """
-        Defensive copy.
 
-        Prevent external mutation.
-        """
+        if isinstance(
+            data,
+            dict
+        ):
 
-        if isinstance(data, dict):
-
-            output = {}
-
-
-            for k, v in data.items():
-
-                try:
-
-                    output[k] = np.copy(v)
-
-                except Exception:
-
-                    output[k] = v
+            return {
+                k: self._copy(v)
+                for k, v in data.items()
+            }
 
 
-            return output
+        if isinstance(
+            data,
+            list
+        ):
+
+            return [
+                self._copy(v)
+                for v in data
+            ]
 
 
+        if isinstance(
+            data,
+            tuple
+        ):
 
-        try:
+            return tuple(
+                self._copy(v)
+                for v in data
+            )
 
-            return np.copy(data)
+
+        if isinstance(
+            data,
+            np.ndarray
+        ):
+
+            return np.copy(
+                data
+            )
 
 
-        except Exception:
-
-            return data
+        return data
