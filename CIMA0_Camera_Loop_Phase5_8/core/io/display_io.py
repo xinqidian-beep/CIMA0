@@ -272,12 +272,6 @@ class DisplayIO:
         if packet is None: 
             return None
 
-        print(
-            "DISPLAY RECEIVE:",
-            packet.source,
-            packet.tag,
-            packet.schema
-        )
         
         frame = self.encode(
             packet
@@ -290,13 +284,7 @@ class DisplayIO:
             ) 
             
             return None
-            
-        print( 
-            "DISPLAY FRAME:", 
-            type(frame), 
-            frame.shape, 
-            frame.dtype 
-        )    
+        
 
         # 
         # single display framebuffer 

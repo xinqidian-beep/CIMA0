@@ -4324,4 +4324,186 @@ ObservationCache
 
 这三个职责现在其实已经非常清楚了。
 
-	   
+Camera
+   │
+   ▼
+InternalDynamics.receive()
+   │
+   ▼
+PlanetField / CLIPField
+   │
+   ▼
+InternalDynamics.step()
+   │
+   ├── compute.step()
+   ├── _planet_step()
+   ├── _evolve()
+   ├── _observe()
+   ├── _compute(signals)
+   ├── commit(result)
+   ├── _collision(result)
+   ├── _apply_collision(collision)
+   └── _sample()
+
+输入发生变化
+    ≠
+内部形成响应
+    ≠
+形成竞争结果
+    ≠
+产生候选
+    ≠
+值得 Compute   
+
+扰动存在，不代表一定产生显著变化；变化存在，也不代表一定形成候选；候选形成以后，才进入选择。
+CLIP 内部至少存在四种不同性质的状态
+
+外部输入
+   │
+   ▼
+┌─────────────────────┐
+│ Input State          │
+│ 输入来了 / 发生变化    │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Response State       │
+│ 各局部层产生响应       │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Competition State    │
+│ 响应之间形成相对优势    │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Candidate State      │
+│ 出现值得进一步计算的候选 │
+└─────────────────────┘
+
+“局部状态不是全局状态”
+它首先只拥有：
+
+“我变了。”
+
+而不是：
+
+“我发现了什么。”
+
+更不是：
+
+“我应该获得一次计算。”
+
+这对 CIMA0 很重要。dirty=True 其实应该被理解成“未完成的局部演化”
+                CLIPField
+                   │
+          ┌────────┴────────┐
+          │                 │
+      input state       internal state
+          │                 │
+        dirty          layer responses
+                            │
+                     ┌──────┴──────┐
+                     │             │
+                  weak         strong
+                  response     response
+                     │             │
+                 无 candidate   candidate
+dirty=True
+winner_layer=None
+表示：这个局部系统已经受到新的刺激，但目前没有形成可以提交给 Compute 的局部优势。
+日志看起来有一点“奇怪”
+ORGAN ACTIVITY: clip
+
+activity: 0.0
+signal: 0.0
+changed: True
+request: compute
+candidate: None
+candidate_value: 0.0
+layer: None
+
+把它放回当前架构：
+CLIP：
+    dirty = True
+    ↓
+    activity()
+    ↓
+    告诉 Observer：
+    “我有新的状态可以被观察”
+
+这件事本身是合理的。
+
+准确解释成：
+
+CLIP 收到了新的 camera input，已经 dirty，但在这一刻还没有获得 compute opportunity，因此尚未对这个输入进行 forward。
+
+                  ┌──────────────────────┐
+                  │       CLIPField      │
+                  └──────────┬───────────┘
+                             │
+                      camera packet
+                             │
+                             ▼
+                    ┌────────────────┐
+                    │    receive     │
+                    │                │
+                    │ dirty = True   │
+                    └───────┬────────┘
+                            │
+                            ▼
+                    ┌────────────────┐
+                    │    activity    │
+                    │                │
+                    │ request=compute│
+                    │ candidate=旧状态│
+                    └───────┬────────┘
+                            │
+                            ▼
+                     ComputeSystem
+                            │
+                       allocation
+                            │
+                            ▼
+                    ┌────────────────┐
+                    │      step      │
+                    └───────┬────────┘
+                            │
+                         _forward
+                            │
+             ┌──────────────┼──────────────┐
+             ▼              ▼              ▼
+         12 layers     local response   complete cloud
+                            │
+                            ▼
+                         winner
+                            │
+             ┌──────────────┴──────────────┐
+             ▼                             ▼
+      winner_layer                   winner_response
+             │                             │
+             └──────────────┬──────────────┘
+                            ▼
+                      dirty = False
+					  
+输入不是计算。变化不是候选。候选不是选择。选择之后才消耗一次计算。					  
+					  
+整个 CIMA0 可以用一句非常简单的话描述
+不是一堆模块组成一个程序，而是一群具有内部时间、内部状态、内部响应规则和自主权的个体，在一个共同环境中持续相互作用。
+
+审代码时，第一反应就应该是检查四件事：
+一个模块
+│
+├── ① 它自己的状态在哪里？
+│
+├── ② 它自己的时间在哪里？
+│
+├── ③ 它自己的响应/演化规则在哪里？
+│
+└── ④ 它有没有真正的自主权？
+第五个问题才是：它和其他个体怎么发生关系？
+下一步看代码时，不应该先画调用图，而应该先画“个体图 + 各自内部时序”，再把它们之间的 interaction 接起来。
+					  

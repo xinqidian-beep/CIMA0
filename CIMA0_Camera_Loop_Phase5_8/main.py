@@ -412,12 +412,7 @@ def main():
 
             if ret and frame is not None:
 
-                print(
-                    "CAMERA FRAME:",
-                    type(frame),
-                    frame.shape,
-                    frame.dtype
-                )
+                
                 camera_state = {
 
                     "field":
@@ -430,11 +425,7 @@ def main():
                 packet = camera_io.encode(
                     camera_state
                 )
-                print(
-                    "CAMERA PACKET:",
-                    packet
-                )
-
+                
 
                 if packet is not None:
 
@@ -469,12 +460,7 @@ def main():
 
             if display.frame is not None:
                 
-                print( 
-                    "IMSHOW:", 
-                    display.frame.shape, 
-                    display.frame.dtype 
-                )
-
+                
                 cv2.imshow(
                     "CIMA0",
                     display.frame
