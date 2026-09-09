@@ -372,21 +372,21 @@ class CameraObserver:
 
             return None
 
-
+        return frame
 
         #
         # pixel field
 
         #
 
-        return frame.reshape(
+        #return frame.reshape(
 
-            -1,
+        #    -1,
 
-            3
+        #    3
 
-        )
-
+        #)
+        
 
 
     def encode_field(

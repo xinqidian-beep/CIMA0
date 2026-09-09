@@ -4506,4 +4506,281 @@ CLIP 收到了新的 camera input，已经 dirty，但在这一刻还没有获�
 └── ④ 它有没有真正的自主权？
 第五个问题才是：它和其他个体怎么发生关系？
 下一步看代码时，不应该先画调用图，而应该先画“个体图 + 各自内部时序”，再把它们之间的 interaction 接起来。
-					  
+					
+┌──────────────────────────────────────┐
+│              PLANET                  │
+│                                      │
+│       无限 / 持续内部演化             │
+│       不存在完整同时测量              │
+└──────────────────┬───────────────────┘
+                   │
+                   ▼
+┌──────────────────────────────────────┐
+│           PlanetField                │
+│                                      │
+│       理论全局状态表示                │
+│       continuous state field         │
+└──────────────────┬───────────────────┘
+                   │
+                   │ endogenous glimpse
+                   ▼
+┌──────────────────────────────────────┐
+│             glimpse                  │
+│                                      │
+│       有限局部测量                    │
+└──────────────────┬───────────────────┘
+                   │
+                   ▼
+┌──────────────────────────────────────┐
+│             Observer                 │
+│                                      │
+│       测量结果 / observation          │
+└──────────────────┬───────────────────┘
+                   │
+                   ▼
+┌──────────────────────────────────────┐
+│         ObservationCache             │
+│                                      │
+│       observation(t)                 │
+│              vs                      │
+│       observation(t-1)               │
+│                                      │
+│              ↓                       │
+│            change Δ                  │
+└──────────────────┬───────────────────┘
+                   │
+                   ▼
+              Attention
+把动力学、状态表示、测量、比较彻底分开了。
+
+同构的是信息载体的结构连续性，不是要求所有层级的数据具有相同语义。
+Planet
+≠ PlanetField
+≠ glimpse
+≠ observation
+≠ change
+但是它们之间传递的信息必须保持：
+身份连续
+结构连续
+必要信息不无故丢失
+局部模块只取自己需要的字段
+产生的新状态可以回填
+
+语义可以分层，载体结构不能无理由断裂。
+
+异构 payload + 同构 envelope
+                 Unified BitPacket
+                       │
+              ┌────────┴────────┐
+              │                 │
+          Camera             Planet
+              │                 │
+       Camera Payload      Planet Payload
+              │                 │
+              │                 │
+       ┌──────┴──────┐    ┌─────┴───────┐
+       │ raw        │    │ region      │
+       │ field      │    │ path        │
+       │ delta      │    │ level       │
+       │ age        │    │ exact       │
+       │ activity   │    │ age         │
+       │ request    │    │ ...         │
+       └────────────┘    └─────────────┘
+Payload 异构。Packet 结构同构。	 
+
+
+Transport Carrier 已经升级成 BitPacket，但 CameraObserver 仍停留在旧的裸字典接口。
+
+                       外部 Camera
+                            │
+                            ▼
+                       BitPacket
+                            │
+                   camera_raw payload
+                            │
+                            ▼
+                    CameraObserver
+                            │
+          ┌─────────────────┼─────────────────┐
+          │                 │                 │
+         raw              field             delta
+          │                 │                 │
+          └─────────────────┼─────────────────┘
+                            │
+                     + age/activity
+                     + compute request
+                            │
+                            ▼
+                    Camera Observation
+                            │
+                            │
+                            │
+                 ───────────┼───────────
+                            │
+                       同构载体
+                            │
+                 ───────────┼───────────
+                            │
+                            ▼
+                    Planet Observation
+                            │
+          ┌─────────────────┼─────────────────┐
+          │                 │                 │
+        region             path             exact
+          │                 │                 │
+          └─────────────────┼─────────────────┘
+                            │
+                       + level/age
+                            │
+                            ▼
+                      同一运输结构
+“同构”发生在最外层；“异构”保留在 payload 内部。
+
+原始数据的主权应该仍然属于 CameraPlanet / transport packet；Observer 的 ndarray 是自己的 view/cache。  
+
+                         外部世界
+                            │
+                            ▼
+                     Camera ndarray
+                            │
+                            ▼
+                     CameraPlanet
+                            │
+                     native media state
+                            │
+                            ▼
+                       ┌─────────┐
+                       │BitPacket│
+                       └────┬────┘
+                            │
+                            │
+                    ===== Transport =====
+                            │
+                            │
+                       ┌────┴────┐
+                       │BitPacket│
+                       └────┬────┘
+                            │
+                       CameraObserver
+                            │
+             ┌──────────────┼──────────────┐
+             ▼              ▼              ▼
+            raw           field           delta
+                                           │
+                                           ▼
+                                      attention/request
+
+
+                         Planet
+                    无限内部演化
+                            │
+                            ▼
+                      PlanetField
+                            │
+                    theoretical field
+                            │
+                            ▼
+                         glimpse
+                            │
+                    native observation
+                            │
+                            ▼
+                       ┌─────────┐
+                       │BitPacket│
+                       └────┬────┘
+                            │
+                    ===== Transport =====
+                            │
+                            ▼
+                         Observer
+
+两个世界的内容不对称
+Camera → media
+Planet → internal glimpse
+但两个世界的运输方式应该对称
+Camera payload → BitPacket
+Planet payload → BitPacket
+这就是我们真正想要的“同构”。同构保证“可传递”，而不是保证“必须使用”。
+传递 ≠ 观察 ≠ 生效。
+
+简单的模块审计表：
+| 模块           | 输入                 | 自己负责    | 输出/回填           | 是否越权 | 是否丢数据 |
+| ------------ | ------------------ | ------- | --------------- | ---- | ----- |
+| Camera       | 外部世界               | 局部采样    | Camera payload  |      |       |
+| CameraPlanet | frame              | 原生封装    | media packet    |      |       |
+| Router       | BitPacket          | 传递      | 原 packet        |      |       |
+| Planet       | disturbance        | 无限演化    | PlanetField     |      |       |
+| PlanetField  | Planet state       | glimpse | glimpse payload |      |       |
+| Observer     | glimpse            | 当前观察    | observation     |      |       |
+| Cache        | observation        | diff    | change          |      |       |
+| Attention    | change             | 注意场     | attention state |      |       |
+| Compute      | candidates         | 竞争/资源   | winner          |      |       |
+| CLIP         | input + allocation | 精算      | CLIPCloud       |      |       |
+
+外部世界
+   │
+   ▼
+Camera
+   │
+   │ 生物式局部采样
+   ▼
+CameraPlanet
+   │
+   │ 忠实封装
+   ▼
+BitPacket
+   │
+   │ 只是进入内部
+   ▼
+InternalDynamics
+   │
+   │ 可被取用
+   ▼
+┌─────────────────────────────┐
+│       Internal Space        │
+│                             │
+│  Planet     CLIP     Organ  │
+│    │         │        │     │
+│    │         │        │     │
+│    └──────┬──┴────────┘     │
+│           │                 │
+│       各自决定是否需要        │
+└───────────┬─────────────────┘
+            │
+            ▼
+        真正的内部作用
+
+ObservationCache 正确地产生了一个“整个 observation 的结构变化”，而 AttentionField 是否应该把这个结构变化解释为 attention intensity，需要由 AttentionField 自己的职责决定。
+
+                         Observation
+                              │
+             ┌────────────────┼────────────────┐
+             │                │                │
+           region            path             exact
+             │                │                │
+       空间位置变化       选择路径变化       局部内容变化
+             │                │                │
+             └────────────────┼────────────────┘
+                              │
+                              ▼
+                         ObservationCache
+                              │
+                              ▼
+                         signed Change
+                              │
+          ┌───────────────────┼───────────────────┐
+          │                   │                   │
+     region Δ             path Δ             exact Δ
+          │                   │                   │
+          └───────────────────┼───────────────────┘
+                              │
+                              ▼
+                       AttentionField
+                              │
+                    自己决定取什么
+这才符合我们现在确定的模块自治原则。					
+					
+					
+					
+					
+					
