@@ -248,10 +248,6 @@ class DisplayIO:
 
             )
             
-            data = raw.reshape(
-                packet.shape
-            )
-            
         except Exception as e:
             
             print(
@@ -294,18 +290,10 @@ class DisplayIO:
         
         return self.frame
 
-
     def render(
         self
     ):
- 
-        if self.media_frame is not None:
-
-            return self.media_frame
-
-
-        return self.field_frame
-
+        return self.frame
 
     #
     # internal field visualization

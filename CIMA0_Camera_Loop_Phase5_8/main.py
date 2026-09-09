@@ -324,6 +324,10 @@ def main():
         dynamics
 
     )
+    transport.subscribe(
+        "camera_raw",
+        display
+    )
 
 
     #
@@ -430,13 +434,13 @@ def main():
                 if packet is not None:
 
 
-                    dynamics.receive(
+                    transport.publish(
                         packet
                     )
                     
-                    display.receive(
-                        packet
-                    )
+                    #display.receive(
+                    #    packet
+                    #)
 
 
 
@@ -446,7 +450,17 @@ def main():
 
         dynamics.step()
 
+        #
+        # Planet visual output to display
+        #
 
+        #packet = planet.packet()
+
+        #if packet is not None:
+
+        #    transport.publish(
+        #        packet
+        #    )
 
         #
         # display

@@ -95,7 +95,15 @@ class PlanetField:
         size=128,
         initial_state=None
     ):
-
+        
+        print(
+            "LOADED PLANETFIELD:",
+            __file__
+        )
+        print(
+            "PLANETFIELD FILE:",
+            __file__
+        )
 
         self.planet = planet
 

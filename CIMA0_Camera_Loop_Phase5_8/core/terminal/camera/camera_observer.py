@@ -112,7 +112,7 @@ class CameraObserver:
 
             self.previous = pixels.copy()
 
-            self.field = pixels.copy()
+            self.field = frame.copy()
 
 
             self.age = np.zeros(
@@ -157,11 +157,17 @@ class CameraObserver:
 
             )
 
-
+            # subsequent frames
 
             self.previous = pixels.copy()
-
-
+            
+            #
+            # maintain complete field
+            #
+            # no sampling here
+            #
+            
+            self.field = frame.copy()
 
             self.age += 1
 
@@ -172,13 +178,6 @@ class CameraObserver:
 
             self.age[active] = 0
 
-
-
-            #
-            # maintain complete field
-            #
-            # no sampling here
-            #
 
         activity = delta + 1e-6
 
