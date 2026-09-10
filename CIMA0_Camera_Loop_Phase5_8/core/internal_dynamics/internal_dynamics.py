@@ -522,17 +522,14 @@ class InternalDynamics:
             #
 
             if self.observer is not None:
+                
 
                 observed = self.observer.observe(
                     {
                         "planet": glimpse
                     }
                 )
-
-                print(
-                    "OBSERVER:observed received"
-                )
-
+                
 
             #
             # complete observation
@@ -560,26 +557,11 @@ class InternalDynamics:
                 and
                 self.observation_cache is not None
             ):
-                
-                print(
-                    "OBSERVATION AGE:",
-                    observation["planet"]["age"]
-                )
 
                 change = self.observation_cache.step(
                     observation
                 )
                 
-                print(
-                    "PLANET CHANGE:",
-                    change["changed"],
-                    change["signal"]
-                )
-                
-                print(
-                    "PLANET DELTA:",
-                    change["delta"]
-                )
                 
             #
             # AttentionField
@@ -603,10 +585,7 @@ class InternalDynamics:
 
                 self.attention_field.step()
                 
-                print(
-                    "ATTENTION STATE:",
-                    self.attention_field.snapshot()
-                )
+                
                 
             self.planet_glimpse_observed_version = (
                 self.planet_glimpse_version
@@ -629,11 +608,7 @@ class InternalDynamics:
 
                 if state is not None:
                     
-                    print(
-                        "ORGAN ACTIVITY:",
-                        name,
-                        state
-                    )
+                    
 
                     signals.append(
                         {
@@ -710,12 +685,7 @@ class InternalDynamics:
         # It is NOT yet a candidate.
         #
 
-        if comparison is not None:
-
-            print(
-                "COMPUTE COMPARISON:",
-                comparison
-            )
+        
 
         #
         # -------------------------------------------------
@@ -816,16 +786,7 @@ class InternalDynamics:
             return
 
 
-        winner = result.get(
-            "winner"
-        )
-
-        if winner is None:
-
-            return
-
-
-        allocation = winner.get(
+        allocation = result.get(
             "allocation"
         )
 
@@ -834,6 +795,7 @@ class InternalDynamics:
             return
 
 
+        
         print(
             "COMMIT ORGAN:",
             type(organ).__name__
@@ -1190,6 +1152,7 @@ class InternalDynamics:
             return None
 
         result = self.planet.glimpse()
+        
 
         if result is None:
             return None
