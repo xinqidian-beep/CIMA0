@@ -98,17 +98,6 @@ class AttentionField:
                 delta
             )
             
-            print(
-                "ATTENTION INPUT:",
-                source,
-                type(intensity),
-                getattr(
-                    intensity,
-                    "shape",
-                    None
-                ),
-                intensity
-            )
 
             self._update_source(
                 source,
@@ -316,8 +305,13 @@ class AttentionField:
                 # structural information
                 #
 
-                if key == "shape":
-
+                if key in (
+                    "shape",
+                    "region",
+                    "level",
+                    "age",
+                    "path"
+                ):
                     continue
 
 

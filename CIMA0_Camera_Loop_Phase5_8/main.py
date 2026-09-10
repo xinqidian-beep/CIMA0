@@ -130,16 +130,6 @@ def main():
         planet_rule
     )
     
-    # ------------------------------------------------
-    # Planet observation test
-    # ------------------------------------------------
-    
-    region = (
-        0,
-        0,
-        128,
-        128
-    )
     
     # 
     # Observation cache
@@ -150,84 +140,6 @@ def main():
     observation_memory = ObservationMemory()
 
 
-    observation = planet.observe_region(
-        region
-    )
-
-    print(
-        "PLANET OBSERVATION:",
-        observation
-    )
-    
-    # ------------------------------------------------
-    # Planet sparse glimpse test
-    # ------------------------------------------------
-
-    observation = planet.glimpse()
-
-    print(
-        "PLANET GLIMPSE:",
-        observation
-    )
-
-    print(
-        "GLIMPSE STATE:",
-        planet.glimpse_state
-    )
-    
-    observation_memory.record_observation(
-        observation
-    )
-    
-    # ------------------------------------------------
-    # ObservationMemory test
-    # ------------------------------------------------
-    
-    for i in range(5):
-
-        observation = planet.glimpse()
-
-        observation_memory.record_observation(
-            observation
-        )
-    
-    print(
-        "GLIMPSE MEMORY COUNT:",
-        len(
-            observation_memory.recent_observations()
-        )
-    )
-
-    print(
-        "GLIMPSE MEMORY:",
-    )
-    for observation in observation_memory.recent_observations():
-
-        print(
-            observation
-        )
-    
-    print("=" * 60)
-    print("PLANET EVOLUTION TEST")
-    print("=" * 60)
-
-    for i in range(10):
-
-        planet.step()
-
-        observation = planet.glimpse()
-
-        print(
-            "STEP:",
-            i,
-            "AGE:",
-            planet.age
-        )
-
-        print(
-            "GLIMPSE:",
-            observation
-        )
 
     #
     # Compute
@@ -454,13 +366,13 @@ def main():
         # Planet visual output to display
         #
 
-        #packet = planet.packet()
+        packet = planet.packet()
 
-        #if packet is not None:
+        if packet is not None:
 
-        #    transport.publish(
-        #        packet
-        #    )
+            transport.publish(
+                packet
+            )
 
         #
         # display

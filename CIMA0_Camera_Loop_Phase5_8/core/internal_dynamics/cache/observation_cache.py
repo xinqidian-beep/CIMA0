@@ -213,17 +213,22 @@ class ObservationCache:
         b
     ):
 
-        if isinstance(a, dict) and isinstance(b, dict):
+        if (
+            isinstance(a, dict)
+            and
+            isinstance(b, dict)
+        ):
 
             return self._dict_difference(
                 a,
                 b
             )
 
-
-        return np.asarray(b) - np.asarray(a)
-
-
+        return (
+            np.asarray(b)
+            -
+            np.asarray(a)
+        )
 
     def _dict_difference(
         self,
@@ -233,20 +238,16 @@ class ObservationCache:
 
         result = {}
 
-
         keys = (
             set(a.keys())
             &
             set(b.keys())
         )
 
-
         for key in keys:
-            
+
             old = a[key]
-
             new = b[key]
-
 
             #
             # recursive structure
@@ -263,33 +264,71 @@ class ObservationCache:
                     new
                 )
 
-                if len(sub)>0:
-
-                    result[key]=sub
-
+                if len(sub) > 0:
+                    result[key] = sub
 
                 continue
 
-
-
             #
-            # numeric field
+            # numeric value
             #
+
+            if not self._is_numeric(old):
+                continue
+
+            if not self._is_numeric(new):
+                continue
 
             try:
 
-                result[key] = (
-                    np.asarray(b[key])
+                delta = (
+                    np.asarray(new)
                     -
-                    np.asarray(a[key])
+                    np.asarray(old)
                 )
+
+                result[key] = delta
 
             except Exception:
 
                 continue
 
-
         return result
+
+    def _is_numeric(
+        self,
+        value
+    ):
+
+        if isinstance(
+            value,
+            (bool, str, bytes)
+        ):
+            return False
+
+        if isinstance(
+            value,
+            (int, float, complex)
+        ):
+            return True
+
+        if isinstance(
+            value,
+            np.ndarray
+        ):
+            return np.issubdtype(
+                value.dtype,
+                np.number
+            )
+
+        if isinstance(
+            value,
+            np.number
+        ):
+            return True
+
+        return False
+
         
     def _magnitude(
         self,
