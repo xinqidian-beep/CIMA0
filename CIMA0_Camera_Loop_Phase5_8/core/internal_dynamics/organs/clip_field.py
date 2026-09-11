@@ -1004,14 +1004,6 @@ class CLIPField:
 
         responses = {}
         
-        print(
-            "CLIP RESPONSE INPUT:",
-            new_cloud.shape,
-            None
-            if self.cloud is None
-            else self.cloud.shape
-        )
-
         #
         # first cloud
         #
@@ -1075,10 +1067,6 @@ class CLIPField:
 
             self.internal_activity = 0.0
             
-            print(
-                "CLIP LOCAL RESPONSE: EMPTY"
-            )
-
             return False
             
         self.layer_activity = responses
@@ -1102,17 +1090,6 @@ class CLIPField:
 
         self.internal_activity = (
             self.winner_response
-        )
-
-
-        print(
-            "CLIP LOCAL RESPONSE:",
-            self.layer_activity
-        )
-
-        print(
-            "CLIP LOCAL WINNER:",
-            self.winner_layer
         )
 
         return True    
