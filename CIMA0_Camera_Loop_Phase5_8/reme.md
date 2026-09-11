@@ -4780,7 +4780,17 @@ ObservationCache 正确地产生了一个“整个 observation 的结构变化�
                     自己决定取什么
 这才符合我们现在确定的模块自治原则。					
 					
-					
+                    PlanetField                     CLIPField
+                    ──────────                     ─────────
+自身状态               state                         cloud/layers/...
+自身时间               age + step                    无自主连续时间
+自身演化               planet.evolve()              无
+外部触发               disturbance                  camera/input packet
+compute_budget         非动力机制                    真正的执行门槛
+compute allocation     inert                         必须获得
+step()                 自主执行                      有 budget 才执行
+演化结束               继续存在                      dirty → false
+下一次演化              自动继续                      等待新的输入					
 					
 					
 					
