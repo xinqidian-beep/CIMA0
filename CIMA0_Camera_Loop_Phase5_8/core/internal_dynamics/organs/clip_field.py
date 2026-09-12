@@ -284,7 +284,10 @@ class CLIPField:
         )
 
         self.compute_budget += amount
-
+        print(
+            "CLIP COMPUTE BUDGET:",
+            self.compute_budget
+        )
     # =====================================================
     # activity
     # =====================================================
@@ -349,7 +352,12 @@ class CLIPField:
         If another computation is needed, the organ
         becomes dirty and waits for another allocation.
         """
-
+        print(
+            "CLIP STEP:",
+            "dirty=", self.dirty,
+            "budget=", self.compute_budget,
+            "input=", self.input_packet is not None
+        )
         #
         # no compute
         #
@@ -572,7 +580,12 @@ class CLIPField:
             CloudCollision will later use the winner to discover
             the associated local cloud.
         """
-
+        print(
+            "CLIP RESPONSE:",
+            "winner_layer=", self.winner_layer,
+            "winner_response=", self.winner_response,
+            "activity=", self.internal_activity
+        )
         #
         # ---------------------------------------------------------
         # 1. clear previous forward capture

@@ -367,7 +367,11 @@ def main():
         #
 
         packet = planet.packet()
-
+        print(
+            "PLANET PACKET:",
+            packet is not None,
+            getattr(packet, "schema", None)
+        )
         if packet is not None:
 
             transport.publish(

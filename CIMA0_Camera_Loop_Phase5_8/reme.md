@@ -4792,5 +4792,153 @@ step()                 自主执行                      有 budget 才执行
 演化结束               继续存在                      dirty → false
 下一次演化              自动继续                      等待新的输入					
 					
-					
-					
+PHASE5_8 OUTPUT CHECKPOINT
+
+Camera → Display          ✓
+Planet → Display          ✓
+
+Planet internal evolution ✓
+Planet observation        ✓
+Planet packet             ✓
+Transport routing         ✓
+Display reception         ✓
+
+CLIP                      ⏸
+Compute                   ⏸
+Commit                    ⏸
+Collision                 ⏸
+Memory / Sampler          ⏸
+Output fusion             ⏸					
+
+
+while True
+│
+├─ Camera
+│    ↓
+│  CameraIO.encode()
+│    ↓
+│  Transport.publish(camera_raw)
+│    ├──────────────→ DisplayIO
+│    │
+│    └──────────────→ InternalDynamics.receive()
+│
+├─ dynamics.step()
+│    │
+│    ├─ ComputeSystem.step()       ← 暂时保留，但不处理
+│    │
+│    ├─ Planet clock
+│    │    ↓
+│    │  PlanetField.step()
+│    │    ↓
+│    │  PlanetField.glimpse()
+│    │    ↓
+│    │  planet_glimpse
+│    │
+│    ├─ Observer
+│    │    ↓
+│    │  ObservationCache
+│    │    ↓
+│    │  AttentionField
+│    │
+│    ├─ CLIP activity              ← 暂停研究
+│    ├─ Compute winner             ← 暂停研究
+│    ├─ CLIP step                  ← 暂停研究
+│    └─ Collision                  ← 暂停研究
+│
+├─ planet.packet()
+│    ↓
+│  Transport.publish(visual)
+│    ↓
+│  DisplayIO.receive()
+│
+└─ cv2.imshow()
+其中两条输出路径真的在跑。
+
+Phase A — 固定当前基线Phase5_8 Planet + Camera Runtime Baseline
+Planet 线路不再修改
+Camera 线路不再修改
+Display 边界不再修改
+archive/planet.py 不动
+之后如果 Compute / CLIP 出现问题，不能回头改 Planet 来配合它们。
+
+多个独立信息流已经到达输出边界，但“输出端合流规则”尚未设计。内部不合流，输出才合流。
+所以未来可以研究 Display 的最终输出策略，但现在不新增 FusionEngine、ColorField、OutputAdapter 等模块。
+
+Phase B：下一条只接 Compute
+CLIP.receive()
+    ↓
+dirty=True
+    ↓
+activity()
+    ↓
+request="compute"
+candidate=None
+    ↓
+ComputeSystem.select()
+    ↓
+None
+    ↓
+allocation=None
+    ↓
+CLIP.compute_budget=0
+    ↓
+CLIP.step()
+    ↓
+无法 forward
+    ↓
+candidate 仍然 None
+CLIP被外部状态云冲撞后产生局部快速响应的结构。 第一次局部响应到底应该由什么真实的内部状态/外部状态触发？
+
+最后再重新打开 Collision	
+Planet local state
+       ↕
+   CloudCollision
+       ↕
+CLIP local state
+最后才重新打开 Memory / Sampler
+Planet ✓
+Camera ✓
+Display ✓
+      ↓
+Compute
+      ↓
+CLIP response
+      ↓
+Collision
+      ↓
+Memory / Sampler
+
+当前最重要的架构原则
+Planet
+    自己演化
+    自己产生 glimpse
+    自己产生 visual packet
+
+Observer
+    只观察
+
+ObservationCache
+    只保存/比较观察变化
+
+AttentionField
+    接收变化
+
+ComputeSystem
+    将来负责计算资源选择/分配
+
+CLIP
+    局部快速响应
+    不成为第二个 Planet
+
+Collision
+    将来负责已有状态之间的相互作用
+
+Display
+    只负责输出边界
+数据原则：
+
+取所需。留其余。产生响应。重新封装，继续传递。
+和：
+模块拥有局部使用权，不拥有全局删除权。				
+
+

@@ -260,7 +260,11 @@ class InternalDynamics:
         #
 
         for organ in self.organs.values():
-
+            print(
+                "INTERNAL RECEIVE:",
+                packet.source,
+                packet.tag
+            )
             if hasattr(
                 organ,
                 "receive"
@@ -277,23 +281,14 @@ class InternalDynamics:
     def _collect_clouds(
         self
     ):
-        print(
-            "PLANET COLLISION METHOD:",
-            hasattr(
-                self.planet,
-                "collision_projection"
-            )
-        )
+        
         clouds = {}
         #
         # planet
         #
 
         if self.planet is not None:
-            print(
-                "PLANET FOR CLOUD:",
-                self.planet.collision_projection()
-            )
+           
 
             if hasattr(
                 self.planet,
@@ -333,11 +328,7 @@ class InternalDynamics:
                     "debug_state"
                 ):
                     state = organ.debug_state()
-                    print(
-                        "CLOUD:",
-                        name,
-                        organ.debug_state()
-                    )
+
         return clouds  
 
     def _packet_to_array(
@@ -457,23 +448,26 @@ class InternalDynamics:
         # No Observer here.
         # -------------------------------------------------
         #
-        #
-        #collision = self._collision(
-        #    result
-        #)
-        #
-
+        
+        collision = self._collision(
+            result
+        )
+        
+        print(
+            "COLLISION RESULT:",
+            collision
+        )
 
         #
         # -------------------------------------------------
         # 9. collision result enters PlanetField
         # -------------------------------------------------
         #
-        #
-        #self._apply_collision(
-        #    collision
-        #)
-        #
+        
+        self._apply_collision(
+            collision
+        )
+        
 
 
         #
@@ -605,7 +599,11 @@ class InternalDynamics:
             ):
 
                 state = organ.activity()
-
+                print(
+                    "OBSERVE:",
+                    name,
+                    state
+                )
                 if state is not None:
                     
                     
@@ -725,7 +723,10 @@ class InternalDynamics:
         winner = self.compute.select(
             requests
         )
-
+        print(
+            "COMPUTE WINNER:",
+            winner
+        )
         if winner is None:
 
             return None
@@ -796,15 +797,7 @@ class InternalDynamics:
 
 
         
-        print(
-            "COMMIT ORGAN:",
-            type(organ).__name__
-        )
-
-        print(
-            "COMMIT ALLOCATION:",
-            allocation
-        )
+        
 
 
         #
@@ -816,22 +809,19 @@ class InternalDynamics:
         consumed = self.compute.consume(
             allocation
         )
-
+        print(
+            "COMMIT:",
+            type(organ).__name__,
+            "ALLOCATION:",
+            allocation,
+            "CONSUMED:",
+            consumed
+        )
 
         if consumed <= 0.0:
 
             return
 
-
-        print(
-            "COMPUTE CONSUME:",
-            consumed
-        )
-
-        print(
-            "COMPUTE AVAILABLE AFTER:",
-            self.compute.available
-        )
 
 
         #
@@ -845,11 +835,6 @@ class InternalDynamics:
             "apply_compute"
         ):
 
-            print(
-                "APPLY COMPUTE:",
-                type(organ).__name__,
-                consumed
-            )
 
             organ.apply_compute(
                 consumed
@@ -869,11 +854,6 @@ class InternalDynamics:
             "execute_compute"
         ):
 
-            print(
-                "EXECUTE COMPUTE:",
-                type(organ).__name__,
-                consumed
-            )
 
             organ.execute_compute(
                 {
@@ -885,11 +865,6 @@ class InternalDynamics:
             return
 
 
-        print(
-            "COMPUTE DISPATCH:",
-            type(organ).__name__,
-            "NO EXECUTION INTERFACE"
-        )
 
     def _collision(
         self,
@@ -940,10 +915,6 @@ class InternalDynamics:
         planet_cloud = self.planet.state
 
 
-        print(
-            "COLLISION ENTRANCE:",
-            winner
-        )
 
 
         collision_result = self.collision.collide(
@@ -955,23 +926,6 @@ class InternalDynamics:
 
         if collision_result is None:
             return None
-
-
-        print(
-            "COLLISION:",
-            collision_result.get(
-                "collision"
-            )
-        )
-
-
-        print(
-            "COLLISION RESULT:",
-            collision_result.get(
-                "collision_result"
-            )
-        )
-
 
         return collision_result
 
@@ -1037,13 +991,6 @@ class InternalDynamics:
             disturbance
         )
 
-
-        print(
-            "PLANETFIELD DISTURBANCE:",
-            float(
-                disturbance
-            )
-        )
 
 
         self.planet.receive(
