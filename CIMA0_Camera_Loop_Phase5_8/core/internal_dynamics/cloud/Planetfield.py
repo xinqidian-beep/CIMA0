@@ -96,14 +96,6 @@ class PlanetField:
         initial_state=None
     ):
         
-        print(
-            "LOADED PLANETFIELD:",
-            __file__
-        )
-        print(
-            "PLANETFIELD FILE:",
-            __file__
-        )
 
         self.planet = planet
 
@@ -356,11 +348,6 @@ class PlanetField:
 
         self.compute_budget += amount
         
-        print(
-            "APPLY COMPUTE:",
-            type(self).__name__,
-            amount
-        )
 
 
         
@@ -444,14 +431,6 @@ class PlanetField:
         #
         disturbance_array[...] = np.float32(
             disturbance
-        )
-
-
-        print(
-            "PLANETFIELD DISTURBANCE:",
-            float(
-                disturbance
-            )
         )
 
 
@@ -1136,16 +1115,6 @@ class PlanetField:
 
 
 
-        print(
-
-            "PLANETFIELD DELTA:",
-
-            float(delta)
-
-        )
-
-
-
         self.previous_state = old_state
 
 
@@ -1173,11 +1142,6 @@ class PlanetField:
     def packet(
         self
     ):
-
-
-        print(
-            "PLANET PACKET CREATED"
-        )
 
 
         field = (

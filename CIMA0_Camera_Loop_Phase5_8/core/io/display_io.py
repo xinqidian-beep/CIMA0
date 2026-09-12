@@ -66,7 +66,12 @@ class DisplayIO:
         self,
         packet
     ):
-
+        print(
+            "DISPLAY RECEIVE:",
+            packet.source,
+            packet.tag,
+            packet.schema
+        )
         if packet is None:
             return None
 
