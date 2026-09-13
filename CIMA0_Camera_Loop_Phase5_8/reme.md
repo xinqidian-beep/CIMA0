@@ -4941,4 +4941,426 @@ Display
 和：
 模块拥有局部使用权，不拥有全局删除权。				
 
+ComputeSystem 并没有拒绝一个已经形成的 candidate；它是在 candidate 尚未形成的时候，把 request 挡在了竞争场之外。
+
+CLIP 当前有没有另一条“不需要 Compute 权限”的外部状态入口，可以自然产生第一次局部状态。
+
+Planet time
+──────────────────────────────────────→
+ P1 → P2 → P3 → P4 → P5 → P6 → ...
+
+Camera time
+──────────────────────────────────────→
+ C1 → C2 → C3 → C4 → C5 → C6 → ...
+
+CLIP compute time
+──────────────────────────────────────→
+       F1          F2              F3
+       ↑           ↑               ↑
+    allocation  allocation      allocation
+这三个时间不能混成一个 step。尤其：Planet 不应该因为 CLIP 没有 compute budget 就停止。
+	
+Planet
+  │
+  │ 自己演化
+  ▼
+Planet state
+  │
+  │ 对内部环境产生影响
+  ▼
+某种状态进入/作用于 CLIP
+  │
+  ▼
+CLIP 获得局部状态
+  │
+  ▼
+local response
+  │
+  ▼
+candidate
+然后：
+candidate
+   ↓
+ComputeSystem
+   ↓
+allocation
+   ↓
+CLIP forward
+   ↓
+新的 cloud
+   ↓
+新的 response
+第一次“状态产生”和后续“计算机会”可能是两个不同层次。
+	
+① Planet 自主演化
+
+        ↓
+
+② 外部/内部状态进入某个响应体
+
+        ↓
+
+③ 响应体产生自己的局部 response
+
+        ↓
+
+④ response 成为 candidate
+
+        ↓
+
+⑤ ComputeSystem 分配有限计算
+
+        ↓
+
+⑥ CLIP forward
+
+        ↓
+
+⑦ CLIP cloud
+
+        ↓
+
+⑧ CloudCollision
+
+        ↓
+
+⑨ collision result
+
+        ↓
+
+⑩ 后续内部变化	
+
+
+                    ┌──────────────┐
+                    │    Planet    │
+                    │ 自主演化     │
+                    └──────┬───────┘
+                           │
+                           ▼
+                    Planet local state
+                           │
+                           │
+Camera ───────────────────┤
+                           ▼
+                    ┌──────────────┐
+                    │     CLIP     │
+                    │ 局部响应体    │
+                    └──────┬───────┘
+                           │
+                      local response
+                           │
+                           ▼
+                       candidate
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │ ComputeSystem │
+                    └──────┬───────┘
+                           │
+                       allocation
+                           │
+                           ▼
+                       CLIP forward
+                           │
+                           ▼
+                     complete cloud
+                           │
+                           ▼
+                    CloudCollision
+                           │
+                           ▼
+                    collision result
+                           │
+                           ▼
+                    Planet disturbance
+                           │
+                           ▼
+                    Planet继续演化
+Planet 有自己的时间。CLIP 没有自己的时间。ComputeSystem 有自己的有限资源时间。
+Collision 是关系发生时才出现。这四个时间/机制终于分开了。					
+					
+                    Planet
+                      │
+                持续自主演化
+                      │
+                      ▼
+                当前完整状态
+                      │
+                      ▼
+              ┌──────────────┐
+              │ Planet内部筛选 │
+              └──────┬───────┘
+                     │
+                 candidate
+                     │
+                 local region
+                     │
+                     ▼
+              Planet local cloud
+                     │
+                     │
+                     ▼
+                   CLIP
+                     │
+              local response
+                     │
+                     ▼
+                winner/candidate
+                     │
+                     ▼
+               ComputeSystem
+                     │
+                 allocation
+                     │
+                     ▼
+                CLIP forward
+                     │
+                     ▼
+                complete cloud
+                     │
+                     ▼
+              CloudCollision
+                     │
+                     ▼
+              local relation
+                     │
+                     ▼
+              local disturbance
+                     │
+                     ▼
+                 PlanetField
+                     │
+                     ▼
+                继续演化
+
+Planet产生动力。
+持续演化
+Planet 内部筛选,减少需要暴露/交互的状态空间。
+全场
+ ↓
+局部
+ ↓
+更局部
+ ↓
+candidate
+CLIP对被作用的状态产生局部响应。
+不是自主动力系统。
+ComputeSystem
+只决定有限计算机会给谁。不是动力来源。
+***************************----------------**********************
+最终 collision 要成为真正的局部动力学交互，那么以后	
+region
++
+local state
++
+local temporal state
++
+local disturbance	
+这里现在不要改。因为我们还没有审完 interaction 的实际需求。	
+***************************----------------**********************
+整个结构可以重新理解成四个不同的“时间”
+Planet time
+    ↓
+连续 endogenous evolution
+    ↓
+glimpse
+    ↓
+内部空间筛选
+
+
+Camera time
+    ↓
+外部输入到达
+    ↓
+CLIP dirty
+
+
+CLIP response time
+    ↓
+获得 compute opportunity
+    ↓
+forward
+    ↓
+local response
+
+
+Compute time
+    ↓
+Sampler
+    ↓
+选择谁获得有限计算
+四个时间不能压成一个 step 的意义。
+
+Planet 已经拥有自己的内部筛选机制，但这个筛选机制目前只产生 observation，还没有成为内部 interaction 的局部入口。
+现在：
+
+Planet
+ ├── evolve
+ ├── glimpse ─────→ Observer
+ └── state ───────→ Collision   ← 绕过 glimpse
+
+
+应该逐渐形成：
+
+Planet
+ └── evolve
+       ↓
+    glimpse
+       ↓
+ internal selection
+       ↓
+  local Planet state
+       ↓
+   interaction
+       ↓
+      CLIP
+       ↓
+    response
+       ↓
+   Compute/Sampler
+       ↓
+      commit
+       ↓
+ Planet continues
+这里没有必要新增模块。
+
+PlanetField--"committed": True, TODO：删除/重新定义 committed=True，避免 Collision 声称自己已经 commit。先不要动，
+ 
+ 审计顺序
+① Planet glimpse
+      ↓
+② exact 到底应该暴露什么
+      ↓
+③ collision 需要什么最小 Planet material
+      ↓
+④ _extract_planet_local_states()
+      ↓
+⑤ CloudCollision.collide()
+      ↓
+⑥ collision_result
+      ↓
+⑦ PlanetField._apply_collision()
+
+让同一个 glimpse 快照同时携带“描述”和“状态材料”。
+glimpse snapshot
+│
+├── region
+├── path
+├── age
+│
+├── observation
+│    └── statistics
+│
+└── local_state
+     └── raw local Planet state
+
+整个数据生命周期可以画成
+                         PlanetField
+                             │
+                         self.state
+                             │
+                    唯一持续内部状态
+                             │
+                    ┌────────┴────────┐
+                    │                 │
+               Planet.step()      glimpse()
+                    │                 │
+                    │          endogenous selection
+                    │                 │
+                    │          selected region
+                    │                 │
+                    │          local snapshot
+                    │                 │
+                    │       ┌─────────┴─────────┐
+                    │       │                   │
+                    │   observation          local_state
+                    │       │                   │
+                    │       ▼                   ▼
+                    │    Observer          Collision
+                    │                           │
+                    │                           │
+                    └───────────────┐           │
+                                    │           │
+                              continue          │
+                              evolution         │
+                                                ▼
+                                      Planet local ×
+                                      CLIP local
+                                                │
+                                                ▼
+                                           collision
+                                                │
+                                                ▼
+                                         disturbance
+                                                │是唯一重新进入 Planet 的地方。
+                                                ▼
+                                           PlanetField
+
+
+| 部分                             | 当前状态               | 判断 |
+| ------------------------------ | ------------------ | -- |
+| Planet.step                    | 内生演化               | ✅  |
+| Planet.glimpse                 | Planet 自己选择局部      | ✅  |
+| glimpse → Observer             | 当前观察               | ✅  |
+| glimpse → Collision            | **尚未接上**           | ⚠️ |
+| Collision → CLIP               | 12层局部状态            | ✅  |
+| CLIP × Planet                  | Cartesian relation | ✅  |
+| Collision → candidate          | 关系产生               | ✅  |
+| candidate → scalar disturbance | **过早压缩**           | ⚠️ |
+| scalar → 整个 Planet             | **全局广播**           | ⚠️ |
+
+真实结构非常干净：
+PlanetField
+    └── endogenous Planet state
+
+
+CLIP
+    └── 12 image-layer state clouds
+
+
+CloudField
+    └── local Cell state
+    └── collision() 生命周期入口
+    └── inject_local_response() 结果承接入口
+
+
+Sampler
+    └── 从大量候选中竞争有限注意力
+
+
+ComputeSystem
+    └── 有限计算资源
+
+暂时把架构原则写成这样
+CIMA0 Attention Principle
+
+1. Internal state may be large and continuously evolving.
+
+2. Existence does not imply observation.
+
+3. Observation is local and limited.
+
+4. Unobserved state continues to evolve.
+
+5. Potential relations remain open;
+   they are not globally pre-filtered.
+
+6. Only currently contacted states enter actual observation.
+
+7. Compute is finite and selective.
+
+8. Commit is the only explicit state-changing decision.
+
+9. Temporary observations and collision material
+   do not become independent long-term state sources.	
+   
+CIMA0 的“注意力有限”不是性能优化。
+它是认识世界的方式。永远只能接触一小部分，而系统的长期演化决定下一次可能接触哪里。
+是一个有限注意力参与其中的持续动力系统。   
+
+
+CIMA0 当前的方向浓缩成一句话
+状态可以巨大而持续演化，潜在关系保持开放，但有限注意力只能接触极小的一部分，有限 Compute 再从这些实际接触中产生一次改变。
+
+或者更简洁：无限状态，开放关系，有限注意力，有限计算。
 
