@@ -517,10 +517,13 @@ class InternalDynamics:
 
             if self.observer is not None:
                 
+                observation = glimpse.get(
+                    "observation"
+                )
 
                 observed = self.observer.observe(
                     {
-                        "planet": glimpse
+                        "planet": observation
                     }
                 )
                 
@@ -745,6 +748,11 @@ class InternalDynamics:
 
             "winner":
                 winner,
+                
+            "allocation":
+                winner.get(
+                    "allocation"
+                ),
 
             "comparison":
                 comparison
@@ -910,12 +918,25 @@ class InternalDynamics:
 
         if clip_cloud is None:
             return None
+        
+        #
+        # Planet local material
+        # selected by Planet.glimpse()
+        #
+        
+        glimpse = self.internal_fields.get(
+            "planet_glimpse"
+        )
 
+        if glimpse is None:
+            return None
 
-        planet_cloud = self.planet.state
-
-
-
+        planet_cloud = glimpse.get(
+            "local_state"
+        )
+    
+        if planet_cloud is None:
+            return None
 
         collision_result = self.collision.collide(
             planet_cloud,

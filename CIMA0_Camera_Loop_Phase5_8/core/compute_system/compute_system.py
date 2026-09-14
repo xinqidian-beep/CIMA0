@@ -430,8 +430,8 @@ class ComputeSystem:
             #     compute candidate.
             #
 
-            if candidate is None:
-                continue
+            #if candidate is None:
+            #    continue
 
             try:
                 candidate_value = float(
@@ -441,11 +441,12 @@ class ComputeSystem:
                 TypeError,
                 ValueError
             ):
-                continue
+                candidate_value = 0.0  
+            #    continue
 
-            if candidate_value <= 0.0:
-                continue
-
+            #if candidate_value <= 0.0:
+            #    continue
+            
 
             #
             # Candidate is now admitted into

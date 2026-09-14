@@ -533,12 +533,20 @@ class PlanetField:
         exact = self._local_exact(
             region
         )
+        
+        x0, y0, x1, y1 = region
+
+        local_state = self.state[
+            x0:x1,
+            y0:y1
+        ].copy()
 
         self.glimpse_state = {
             "pending": True,
             "path": path,
             "region": region,
             "level": level,
+            "local_state": local_state,
             "observation": {
                 "source": "planet",
                 "type": "glimpse",
@@ -550,7 +558,10 @@ class PlanetField:
             }
         }
 
-        return self.glimpse_state["observation"]
+        return {
+            "observation": self.glimpse_state["observation"],
+            "local_state": self.glimpse_state["local_state"]
+        }
         
         
     def _split_region(
