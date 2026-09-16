@@ -5430,5 +5430,269 @@ CLIP   ────────────────► 状态进入
 | Observer     | 观察关系         | 否         |
 | Memory       | 历史状态记录/关系    | 否         |
 
+                    ┌──────────────────┐
+                    │      Planet      │
+                    │  唯一动力来源    │
+                    └────────┬─────────┘
+                             │
+                         evolves/step
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │   PlanetField    │
+                    │   局部状态空间   │
+                    └────────┬─────────┘
+                             │
+                         glimpse
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │ CloudCollision   │
+                    │   状态关系机制   │
+                    └────────┬─────────┘
+                             │
+                      collision response
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │   PlanetField    │
+                    │ receive(disturb.)│
+                    └────────┬─────────┘
+                             │
+                     pending_disturbance
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │      Planet      │
+                    │ 下一次动力演化    │
+                    └──────────────────┘
+                             ↺
+							 
+              已确认
+                 │
+                 ▼
+Planet ─── 唯一动力源
+  │
+  ▼
+PlanetField ─── 状态承接
+  │
+  ▼
+CloudCollision ─── 状态关系
+  │
+  ▼
+collision response
+  │
+  ▼
+PlanetField.receive()
+  │
+  ▼
+pending_disturbance							 
+							 
+                 ┌──────────────────────┐
+                 │       Planet         │
+                 │                      │
+                 │  唯一内部动力来源    │
+                 │  state + local rule  │
+                 └──────────┬───────────┘
+                            │
+                          step()
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │     PlanetField      │
+                 │                      │
+                 │   Planet evolved     │
+                 │      local state     │
+                 └──────────┬───────────┘
+                            │
+                     glimpse / state
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │   CloudCollision     │
+                 │                      │
+                 │   state relation     │
+                 │   response relation  │
+                 └──────────┬───────────┘
+                            │
+                      transient response
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │     PlanetField      │
+                 │ pending_disturbance  │
+                 └──────────┬───────────┘
+                            │
+                    observation / effect
+                            │
+                            ▼
+                         discard
 
-			 
+| 层                                           | 当前状态          |
+| ------------------------------------------- | ------------- |
+| CLIP 完整 cloud                               | ✅ 保留          |
+| winner 作为入口                                 | ✅ 正确          |
+| CLIP 局部状态提取                                 | ✅ 保留拓扑        |
+| Planet 状态提取                                 | ✅ 保留自身坐标      |
+| Cartesian relation                          | ✅ 暂时保留        |
+| relation 集合                                 | ✅ 核心碰撞材料      |
+| `_make_candidate()`                         | ⚠️ 响应语义需要重新定义 |
+| `committed=True`                            | ❌ 语义错误        |
+| `_build_collision_result()` 的 `mean()`      | ⚠️ 第一次明显信息压缩  |
+| `_apply_collision()` scalar → uniform field | ⚠️ 第二次明显信息压缩  |
+| Planet 自身动力规则                               | ✅ 不应修改        |
+
+当前 CloudCollision 画出真实职责图：
+                    ┌─────────────────────┐
+                    │   CLIP complete     │
+                    │      state          │
+                    └──────────┬──────────┘
+                               │
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │  local state pair   │
+                    │     relation        │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ _collision_type()   │
+                    │                     │
+                    │ zero/nonzero        │
+                    │ same/opposite sign  │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ _make_candidate()   │
+                    │                     │
+                    │ hand-written        │
+                    │ response formula    │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ relations[]         │
+                    │                     │
+                    │ actually rich       │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ _build_collision_   │
+                    │ result()            │
+                    │                     │
+                    │ MEAN → scalar       │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ _apply_collision()  │
+                    │                     │
+                    │ scalar → full field│
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                         PlanetField
+
+CLIP
+│
+└── 提供完整 CLIP state
+        │
+        ▼
+CloudCollision
+│
+├── 认识 CLIP topology
+├── 认识 Planet topology
+├── 产生 state relations
+└── 产生 candidate responses
+        │
+        ▼
+Planet-shaped response
+        │
+        ▼
+PlanetField
+│
+├── receive disturbance
+├── 保存 pending state
+├── glimpse local state
+└── 承接 Planet dynamics
+        │
+        ▼
+Planet
+└── 唯一 dynamics source
+InternalDynamics应该只是：调用,传递,承接
+
+CloudCollision 实际上已经分成了三个层次
+第一层：发现状态
+────────────────────────
+CLIP cloud
+    ↓
+_extract_clip_local_states()
+
+Planet local state
+    ↓
+_extract_planet_local_states()
+
+
+第二层：建立关系
+────────────────────────
+CLIP state × Planet state
+    ↓
+_collision_type()
+    ↓
+relations[]
+
+
+第三层：产生响应
+────────────────────────
+relations[]
+    ↓
+_make_candidate()
+    ↓
+proposed_value
+    ↓
+_build_collision_result()
+    ↓
+一个 disturbance scalar
+
+
+CloudCollision
+────────────────────
+负责：
+
+CLIP state
++
+Planet state
+        ↓
+state relation
+        ↓
+candidate response
+        ↓
+Planet-compatible response material
+-------------------
+PlanetField
+────────────────────
+负责：
+
+接收 disturbance
+        ↓
+保存 pending disturbance
+        ↓
+交给 Planet dynamics
+        ↓
+产生下一状态		
+---------------
+InternalDynamics
+────────────────────
+只负责：
+
+调用
+ ↓
+传递
+ ↓
+承接		
+
+
+		 

@@ -395,9 +395,26 @@ class CloudCollision:
         Planet positions remain Planet positions.
         """
 
-        arr = self._extract_array(
-            planet_cloud
-        )
+        region = None
+
+        if isinstance(
+            planet_cloud,
+            dict
+        ):
+
+            region = planet_cloud.get(
+                "region"
+            )
+
+            arr = planet_cloud.get(
+                "local_state"
+            )
+
+        else:
+
+            arr = self._extract_array(
+                planet_cloud
+            )
 
         if arr is None:
             return []
@@ -443,6 +460,9 @@ class CloudCollision:
                 {
                     "source":
                         "planet",
+                        
+                    "region":
+                        region,    
 
                     "position":
                         position,
@@ -638,13 +658,12 @@ class CloudCollision:
                 "count":
                     0,
 
-                "disturbance":
-                    None
+                "responses":
+                    []
             }
 
 
-        proposed = []
-
+        responses = []
 
         for relation in relations:
 
@@ -655,27 +674,44 @@ class CloudCollision:
             if candidate is None:
                 continue
 
-
-            value = candidate.get(
+            if candidate.get(
                 "proposed_value"
+            ) is None:
+                continue
+
+            responses.append(
+                {
+                    "type":
+                        relation.get(
+                            "type"
+                        ),
+
+                    "planet":
+                        dict(
+                            relation.get(
+                                "planet",
+                                {}
+                            )
+                        ),
+
+                    "clip":
+                        dict(
+                            relation.get(
+                                "clip",
+                                {}
+                            )
+                        ),
+
+                    "candidate":
+                        dict(
+                            candidate
+                        )
+                }
             )
 
+            
 
-            if value is None:
-                continue
-
-
-            try:
-
-                proposed.append(
-                    float(value)
-                )
-
-            except Exception:
-                continue
-
-
-        if not proposed:
+        if not responses:
 
             return {
                 "exists":
@@ -684,38 +720,23 @@ class CloudCollision:
                 "count":
                     0,
 
-                "disturbance":
-                    None
+                "responses":
+                    []
             }
 
 
-        #
-        # For the first complete loop we create one scalar
-        # local disturbance from the actual collision result.
-        #
-        # This is NOT the CLIP cloud.
-        #
-        # This is the result of collision.
-        #
-
-        disturbance_value = float(
-            np.mean(
-                proposed
-            )
-        )
-
-
+        
         return {
             "exists":
                 True,
 
             "count":
                 int(
-                    len(proposed)
+                    len(responses)
                 ),
 
-            "disturbance":
-                disturbance_value
+            "responses":
+                responses
         }
 
 

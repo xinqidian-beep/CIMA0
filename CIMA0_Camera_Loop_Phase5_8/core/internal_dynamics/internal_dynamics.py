@@ -931,11 +931,23 @@ class InternalDynamics:
         if glimpse is None:
             return None
 
-        planet_cloud = glimpse.get(
-            "local_state"
-        )
-    
-        if planet_cloud is None:
+        planet_cloud = {
+            "region": glimpse.get(
+                "observation",
+                {}
+            ).get(
+                "region"
+            ),
+            "local_state": glimpse.get(
+                "local_state"
+            )
+        }
+
+        if (
+            planet_cloud["region"] is None
+            or
+            planet_cloud["local_state"] is None
+        ):
             return None
 
         collision_result = self.collision.collide(
@@ -949,6 +961,12 @@ class InternalDynamics:
             return None
 
         return collision_result
+
+    #
+    # Legacy duplicate implementation; not part of the current execution path.
+    # The only one actually in use is...
+    #
+
 
     def _apply_collision(
         self,
