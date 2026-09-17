@@ -38,7 +38,8 @@ class ComputeSystem:
         self,
         capacity=1024,
         memory_capacity=32,
-        recovery_rate=1.0
+        recovery_rate=1.0,
+        sampler=None
     ):
 
         self.capacity = float(
@@ -67,8 +68,11 @@ class ComputeSystem:
         self.memory = ObservationMemory(
             capacity=memory_capacity
         )
+        
+        if sampler is None:
+            sampler = Sampler()
 
-        self.sampler = Sampler()
+        self.sampler = sampler
 
         self.sampler.attach_memory(
             self.memory

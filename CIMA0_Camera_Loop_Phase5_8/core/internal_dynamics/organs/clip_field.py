@@ -85,13 +85,16 @@ class CLIPField:
     def __init__(
         self,
         weight_path,
-        device="cpu"
+        device="cpu",
+        sampler=None
     ):
 
         print(
             "LOAD CLIP:",
             __file__
         )
+        
+        self.sampler = sampler
 
         self.device = device
 
@@ -1107,6 +1110,105 @@ class CLIPField:
 
         return True    
         
+
+    def _sample_matrix_coordinate(
+        self,
+        layer
+    ):
+
+        if self.cloud is None:
+            return None
+
+        if self.previous_cloud is None:
+            return None
+
+        current = np.asarray(
+            self.cloud[layer]
+        )
+
+        previous = np.asarray(
+            self.previous_cloud[layer]
+        )
+
+        if current.shape != previous.shape:
+            return None
+
+        if current.ndim != 2:
+            return None
+
+        delta = (
+            current -
+            previous
+        )
+
+        candidates = []
+
+        for token in range(
+            current.shape[0]
+        ):
+
+            for dimension in range(
+                current.shape[1]
+            ):
+
+                value = float(
+                    delta[
+                        token,
+                        dimension
+                    ]
+                )
+
+                candidates.append(
+                    {
+                        "position": (
+                            int(token),
+                            int(dimension)
+                        ),
+                        "age": 0,
+                        "activity": abs(value),
+                        "delta": value
+                    }
+                )
+
+        indices = self.sampler.select(
+            candidates,
+            budget=1
+        )
+
+        if len(indices) == 0:
+            return None
+
+        index = int(
+            indices[0]
+        )
+
+        token, dimension = candidates[
+            index
+        ]["position"]
+
+        return {
+            "layer": int(layer),
+            "token": int(token),
+            "dimension": int(dimension),
+            "current": float(
+                current[
+                    token,
+                    dimension
+                ]
+            ),
+            "previous": float(
+                previous[
+                    token,
+                    dimension
+                ]
+            ),
+            "delta": float(
+                delta[
+                    token,
+                    dimension
+                ]
+            )
+        }
 
     # =====================================================
     # collision projection

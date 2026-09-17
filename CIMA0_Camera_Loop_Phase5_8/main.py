@@ -58,6 +58,11 @@ from core.compute_system.compute_system import (
     ComputeSystem
 )
 
+from core.compute_system.sampling.sampler import (
+    Sampler
+)
+
+
 from core.internal_dynamics.cloud_collision import CloudCollision
 #
 # io

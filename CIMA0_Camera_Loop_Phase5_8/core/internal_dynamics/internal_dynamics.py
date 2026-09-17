@@ -454,8 +454,18 @@ class InternalDynamics:
         )
         
         print(
-            "COLLISION RESULT:",
-            collision
+            "COLLISION:",
+            {
+                "clip_local_states":
+                    collision.get("clip_local_states"),
+                "planet_local_states":
+                    collision.get("planet_local_states"),
+                "response_count":
+                    collision.get(
+                        "collision_result",
+                        {}
+                    ).get("count")
+            }
         )
 
         #

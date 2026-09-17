@@ -5694,5 +5694,81 @@ InternalDynamics
  ↓
 承接		
 
-
+完整 CLIP Cloud
+12 × 50 × 768
+        │
+        │
+        ▼
+┌─────────────────────┐
+│ Level 1             │
+│ Layer Response      │
+│                     │
+│ 12 个 layer scalar  │
+└──────────┬──────────┘
+           │
+           ▼
+      winner_layer
+           │
+           │
+           ▼
+┌─────────────────────┐
+│ Level 2             │
+│ Matrix Cloud        │
+│ Response            │
+│                     │
+│ 50 × 768            │
+└──────────┬──────────┘
+           │
+           ▼
+   matrix coordinate
+   (token, dimension)
+           │
+           │
+           ▼
+┌─────────────────────┐
+│ Level 3             │
+│ Posterior           │
+│                     │
+│ perturbation cloud  │
+│ + collision         │
+│ + state change      │
+└──────────┬──────────┘
+           │
+           ▼
+      reverse calculation
+	  
+                    CLIP 完整状态云
+                    12 × 50 × 768
+                           │
+                           │
+                    【第一次采样】
+                           │
+                           ↓
+                    12 个 layer response
+                           │
+                           ↓
+                       winner_layer
+                           │
+                           │
+                    【第二次采样】
+                           │
+                           ↓
+                 winner layer 的 50×768
+                           │
+                           ↓
+                   matrix coordinate
+                      (token, dim)
+                           │
+                           │
+                    【后验回溯】
+                           │
+                           ↓
+                 扰动云参数 / 碰撞关系
+                           │
+                           ↓
+                    反向计算
+                           │
+                           ↓
+                 相关局部状态	  
+	  
 		 
