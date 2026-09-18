@@ -149,9 +149,12 @@ def main():
     #
     # Compute
     #
+    
+    sampler = Sampler()
 
     compute = ComputeSystem(
-        capacity=1024
+        capacity=1024,
+        sampler=sampler
     )
 
 
@@ -218,7 +221,8 @@ def main():
 
     clip_field = CLIPField(
 
-        weight_path=CLIP_WEIGHT
+        weight_path=CLIP_WEIGHT,
+        sampler=sampler
 
     )
 

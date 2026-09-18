@@ -135,9 +135,11 @@ class CLIPField:
         
         self.winner = None
         self.winner_layer = None
+        self.matrix_coordinate = None
         self.winner_response = 0.0
 
         self.internal_activity = 0.0
+        
 
         # -------------------------------------------------
         # compute
@@ -607,7 +609,7 @@ class CLIPField:
         #
 
         self.winner_layer = None
-
+        self.matrix_coordinate = None
         self.winner_response = 0.0
 
 
@@ -1078,6 +1080,8 @@ class CLIPField:
             self.layer_activity = {}
 
             self.winner_layer = None
+            
+            self.matrix_coordinate = None
 
             self.winner_response = 0.0
 
@@ -1106,6 +1110,12 @@ class CLIPField:
 
         self.internal_activity = (
             self.winner_response
+        )
+        
+        self.matrix_coordinate = (
+            self._sample_matrix_coordinate(
+                self.winner_layer
+            )
         )
 
         return True    
@@ -1299,6 +1309,13 @@ class CLIPField:
             "winner_response":
                 float(
                     self.winner_response
+                ),
+                
+            "matrix_coordinate":
+                None
+                if self.matrix_coordinate is None
+                else dict(
+                    self.matrix_coordinate
                 ),
 
             #

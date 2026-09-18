@@ -87,7 +87,8 @@ class CloudCollision:
         self,
         planet_cloud,
         clip_cloud,
-        winner
+        winner,
+        matrix_coordinate
     ):
         """
         Perform one local collision.
@@ -108,11 +109,15 @@ class CloudCollision:
 
         if winner is None:
             return None
+            
+        if matrix_coordinate is None:
+            return None    
 
 
         clip_states = self._extract_clip_local_states(
             clip_cloud,
-            winner
+            winner,
+            matrix_coordinate
         )
 
         planet_states = self._extract_planet_local_states(
@@ -165,27 +170,30 @@ class CloudCollision:
     def _extract_clip_local_states(
         self,
         cloud,
-        winner
+        winner,
+        matrix_coordinate
     ):
         """
-        Extract local CLIP cloud associated with winner.
+        Extract the precisely sampled CLIP state.
 
         Current CLIP topology:
 
             (12, 50, 768)
 
-        winner currently identifies a layer.
+        winner identifies the response layer.
 
-        Therefore the layer is the entrance coordinate.
-
-        We do NOT flatten the whole cloud.
-
-        We retain:
+        matrix_coordinate identifies the
+        precise coordinate inside that layer:
 
             layer
             token
             dimension
-            value
+
+        The coordinate has already been selected
+        by CLIPField's sampling process.
+
+        CloudCollision only reads that state.
+        It does not perform another sampling step.
         """
 
         arr = self._extract_array(
@@ -203,119 +211,100 @@ class CloudCollision:
         levels, tokens, dimensions = arr.shape
 
 
-        layer = self._winner_layer(
-            winner,
-            levels
-        )
-
-
-        if layer is None:
+        if matrix_coordinate is None:
             return []
 
 
-        radius = self.association_radius
-
-        start = max(
-            0,
-            layer - radius
+        layer = matrix_coordinate.get(
+            "layer"
         )
 
-        end = min(
-            levels,
-            layer + radius + 1
+        token = matrix_coordinate.get(
+            "token"
+        )
+
+        dimension = matrix_coordinate.get(
+            "dimension"
         )
 
 
-        states = []
-
-
-        for current_layer in range(
-            start,
-            end
+        if (
+            layer is None
+            or
+            token is None
+            or
+            dimension is None
         ):
+            return []
 
-            layer_data = arr[
-                current_layer
+
+        layer = int(layer)
+        token = int(token)
+        dimension = int(dimension)
+
+
+        if not (
+            0 <= layer < levels
+        ):
+            return []
+
+
+        if not (
+            0 <= token < tokens
+        ):
+            return []
+
+
+        if not (
+            0 <= dimension < dimensions
+        ):
+            return []
+
+
+        value = float(
+            arr[
+                layer,
+                token,
+                dimension
             ]
+        )
 
 
-            #
-            # A layer is a local cloud.
-            #
-            # Preserve token/dimension topology.
-            #
-
-            for token in range(
-                tokens
-            ):
-
-                vector = layer_data[
-                    token
-                ]
+        state = self._classify(
+            True,
+            value
+        )
 
 
-                #
-                # Collision requires scalar local values.
-                #
-                # We do not destroy the complete CLIP cloud.
-                #
-                # The collision material is derived only here.
-                #
-
-                for dimension in range(
-                    dimensions
-                ):
-
-                    value = float(
-                        vector[
-                            dimension
-                        ]
-                    )
+        if state in (
+            self.EMPTY_SLOT,
+            self.EMPTY_VALUE
+        ):
+            return []
 
 
-                    state = self._classify(
-                        True,
-                        value
-                    )
+        return [
+            {
+                "source":
+                    "clip",
 
+                "position":
+                    (
+                        layer,
+                        token,
+                        dimension
+                    ),
 
-                    if state in (
-                        self.EMPTY_SLOT,
-                        self.EMPTY_VALUE
-                    ):
-                        continue
+                "value":
+                    value,
 
+                "state":
+                    state,
 
-                    states.append(
-                        {
-                            "source":
-                                "clip",
-
-                            "position":
-                                (
-                                    current_layer,
-                                    token,
-                                    dimension
-                                ),
-
-                            "value":
-                                value,
-
-                            "state":
-                                state,
-
-                            "distance":
-                                abs(
-                                    current_layer
-                                    -
-                                    layer
-                                )
-                        }
-                    )
-
-
-        return states
-
+                "distance":
+                    0
+            }
+        ]
 
     def _winner_layer(
         self,

@@ -5771,4 +5771,56 @@ InternalDynamics
                            ↓
                  相关局部状态	  
 	  
-		 
+main.py
+   │
+   ▼
+Sampler
+  ├──────────────► ComputeSystem
+  │                    │
+  │                    └── compute selection
+  │
+  └──────────────► CLIPField
+                       │
+                       └── matrix coordinate selection
+
+ComputeSystem
+    └── sampler
+         └── ObservationMemory
+
+CLIPField
+    └── sampler
+
+CLIPField
+   │
+   ├── winner_layer
+   │
+   └── matrix_coordinate
+             │
+             ↓
+       CloudCollision
+             │
+             │ 关系计算
+             ↓
+       candidate response
+             │
+             ↓
+       后验回溯所需证据
+
+Camera perturbation cloud
+          │
+          └──────────────┐
+                         ↓
+                  CloudCollision
+                         ↑
+                         │
+                 matrix coordinate
+                         ↑
+                         │
+                    CLIP state
+
+这样就很漂亮：Camera 是动力来源之一。Planet 是动力来源之一。Collision 只是关系。
+CLIP 是预形成状态。Matrix coordinate 是观察入口。Memory 是历史证据。
+没有谁突然变成“大脑”。
+
+
+					
