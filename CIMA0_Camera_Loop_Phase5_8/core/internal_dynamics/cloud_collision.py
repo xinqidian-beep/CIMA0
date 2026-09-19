@@ -443,7 +443,11 @@ class CloudCollision:
                 self.EMPTY_VALUE
             ):
                 continue
-
+                
+            global_position = (
+                int(region[0]) + int(position[0]),
+                int(region[1]) + int(position[1])
+            )
 
             states.append(
                 {
@@ -454,7 +458,7 @@ class CloudCollision:
                         region,    
 
                     "position":
-                        position,
+                        global_position,
 
                     "value":
                         value,

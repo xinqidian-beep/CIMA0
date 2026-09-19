@@ -5822,5 +5822,271 @@ Camera perturbation cloud
 CLIP 是预形成状态。Matrix coordinate 是观察入口。Memory 是历史证据。
 没有谁突然变成“大脑”。
 
+Planet
+  ✓ 唯一内部动力源
+  ✓ 自己的 clock
+  ✓ evolve(state, disturbance)
+
+PlanetField
+  ✓ 保存当前 state
+  ✓ 保存 previous_state
+  ✓ 接收 pending disturbance
+  ✓ 产生 sparse glimpse
+  ✓ 粗→细→精确观察
+  ✓ 不负责解释
+
+CLIPField
+  ✓ 12-layer response
+  ✓ winner layer
+  ✓ 50×768 matrix coordinate
+  ✓ 保留 current / previous / delta
+
+CloudCollision
+  ✓ 1 CLIP local state
+  ✓ 1 Planet local state
+  ✓ 产生 relation
+  ✓ candidate → disturbance
+  ✓ 不拥有 dynamics
+
+InternalDynamics
+  ✓ 局部模块连接
+  ✓ Planet clock 不被强制改变
+  ✓ collision disturbance 延迟到下一次 Planet evolve
+
+Posterior
+  ? 等待确认已有 local evidence
+  
+              状态
+               │
+        ┌──────┴──────┐
+        │             │
+      Planet         CLIP
+        │             │
+   region response  layer response
+        │             │
+   winner region    winner layer
+        │             │
+   exact local     matrix coordinate
+        │             │
+   current/prev    current/prev
+   delta           delta
+        │             │
+        └──────┬──────┘
+               │
+          posterior  
+  
+Planet                          CLIP
+──────                          ────
+
+previous_state                  previous_cloud
+       │                              │
+       ▼                              ▼
+current_state                   current_cloud
+       │                              │
+       ▼                              ▼
+local delta                     layer delta
+       │                              │
+       ▼                              ▼
+winner region                   winner layer
+       │                              │
+       ▼                              ▼
+exact local                     matrix coordinate  
+  
+两个局部系统各自通过自己的规则，从完整状态中产生稀疏观察坐标。  
+  
+当 Planet 自己在下一时刻产生新的状态变化时，从新的局部状态及其时间差中回看“刚才发生了什么”。  
+t
+────────────────────────────
+
+CLIP matrix coordinate
+        ↓
+collision
+        ↓
+disturbance
+
+
+t+1
+────────────────────────────
+
+Planet.evolve(
+    previous state,
+    disturbance
+)
+        ↓
+new state
+        ↓
+previous_state
++
+current state
+        ↓
+local delta
+        ↓
+glimpse
+        ↓
+观察 winner   “胜出的坐标，引导观察者回溯那里发生的事情。”
+
+ InternalDynamics 不保存“发生了什么”；PlanetField 只保存自己的时间状态；
+ CloudCollision 只保存关系结果；Observer 只发现变化。
+ 后验应从这些局部证据的自然交汇中产生，而不是由一个新模块统一解释。 
+ 
+Planet
+  = 唯一内部动力源
+
+Camera
+  = 外部动力/扰动源
+
+CLIP
+  = 预形成状态
+
+CloudCollision
+  = 状态关系
+
+PlanetField
+  = Planet 的局部状态 + 自己的时间 + 自己的观察
+
+Observer
+  = 发现变化
+
+Sampler
+  = 选择关注点
+
+InternalDynamics
+  = 承接各模块，不拥有它们的历史
+
+ObservationCache
+  = 快照比较，不成为世界的唯一来源
+------------------
+自指链开始显现：
+Planet
+ ↓
+状态变化
+ ↓
+PlanetField 自己观察自己
+ ↓
+找到局部变化
+ ↓
+外部/内部状态关系进入
+ ↓
+产生扰动
+ ↓
+Planet 再次演化
+ ↓
+新的状态再次成为观察对象
+ ↺
+
+
+CLIP 一侧
+winner_layer
+matrix_coordinate
+current
+previous
+delta
+Collision 一侧
+planet position
+planet value
+clip position
+clip value
+collision type
+candidate
+proposed_value
+PlanetField 一侧
+previous_state
+state
+delta
+glimpse region
+local_state
+local_exact
+
+collision
+   │
+   ▼
+receive()
+   │
+   ▼
+pending_disturbance
+   │
+   │ 等待 Planet 时钟
+   ▼
+Planet.evolve()
+   │
+   ├──────────────► previous_state = 演化前
+   │
+   └──────────────► state = 演化后
+                         │
+                         ▼
+                 pending_disturbance 清空
+扰动只能改变状态，不能改变动力系统规则。
+
+真正架构升级是
+以前我们说：
+
+Planet 是封闭动力系统。
+
+现在应该改成：
+
+Planet 是自主动力系统，但观察上并不等于封闭系统。
+
+再进一步：
+
+Observer 的唯一性制造了“封闭”的假象。	
+			 
+Interaction may alter the state trajectory, but never defines the dynamics rule.
+交互可以改变状态轨迹，但不能定义动力学规则。
+
+CIMA0 可以第一次画出一个非常清楚的“时间拓扑”
+                  REAL DYNAMICS
+                       │
+                       ▼
+                ┌─────────────┐
+                │   Planet    │
+                │ own dynamics│
+                └──────┬──────┘
+                       │
+                 Planet clock
+                       │
+                       ▼
+                ┌─────────────┐
+                │ PlanetField │
+                │ observation │
+                │    window   │
+                └──────┬──────┘
+                       │
+                       │ sampled
+                       ▼
+                ┌─────────────┐
+                │  Observer   │
+                └──────┬──────┘
+                       │
+                       ▼
+                ┌─────────────┐
+                │   Sampler   │
+                │   winner    │
+                └──────┬──────┘
+                       │
+                       ▼
+                ┌─────────────┐
+                │   Compute   │
+                └──────┬──────┘
+                       │
+                       ▼
+                ┌─────────────┐
+                │    Organ    │
+                └──────┬──────┘
+                       │
+                       ▼
+                ┌─────────────┐
+                │ Interaction │
+                │ / Collision │
+                └──────┬──────┘
+                       │
+                       ▼
+                  disturbance
+                       │
+                       ▼
+                pending interaction
+                       │
+                       │ next Planet tick
+                       ▼
+                    Planet
 
 					

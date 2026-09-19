@@ -348,100 +348,7 @@ class PlanetField:
 
         self.compute_budget += amount
         
-
-
-        
-
-    def _apply_collision(
-        self,
-        collision
-    ):
-        """
-        Apply an already-produced collision result
-        to PlanetField.
-
-        CloudCollision does not modify PlanetField.
-
-        PlanetField remains the owner of disturbance intake.
-        """
-
-        if collision is None:
-            return False
-
-
-        if not collision.get(
-            "collision"
-        ):
-
-            return False
-
-
-        result = collision.get(
-            "collision_result"
-        )
-
-        if result is None:
-            return False
-
-
-        if not result.get(
-            "exists"
-        ):
-
-            return False
-
-
-        disturbance = result.get(
-            "disturbance"
-        )
-
-        if disturbance is None:
-            return False
-
-
-        #
-        # First complete loop:
-        #
-        # collision result is converted into a local
-        # disturbance field compatible with PlanetField.
-        #
-        # PlanetField still owns the actual state mutation.
-        #
- 
-        state = self.planet.state
-
-
-        if state is None:
-            return False
-
-
-        disturbance_array = np.zeros_like(
-            state,
-            dtype=np.float32
-        )
-
-
-        #
-        # For the first closed-loop execution we inject
-        # the collision result as a bounded global field.
-        #
-        # This is deliberately the LAST bridge.
-        #
-        # It does not mean CLIP was projected into Planet.
-        #
-        disturbance_array[...] = np.float32(
-            disturbance
-        )
-
-
-        self.planet.receive(
-            disturbance_array
-        )
-
-
-        return True
-        
-        
+    
     #
     # sparse recursive glimpse
     #
@@ -1122,6 +1029,11 @@ class PlanetField:
 
             )
 
+        )
+        
+        print(
+            "PLANETFIELD DELTA:",
+            float(delta)
         )
 
 

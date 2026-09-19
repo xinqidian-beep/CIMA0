@@ -1119,6 +1119,27 @@ class InternalDynamics:
         self.planet.receive(
             disturbance_field
         )
+        
+        
+        print(
+            "COLLISION DISTURBANCE:",
+            "applied=",
+            applied,
+            "nonzero=",
+            int(
+                np.count_nonzero(
+                    disturbance_field
+                )
+            ),
+            "magnitude=",
+            float(
+                np.mean(
+                    np.abs(
+                        disturbance_field
+                    )
+                )
+            )
+        )
 
         return True  
     
