@@ -656,54 +656,6 @@ class InternalDynamics:
 
             return None
 
-        #
-        # -------------------------------------------------
-        # collect observations
-        # -------------------------------------------------
-        #
-
-        observations = {}
-
-        for signal in signals:
-
-            name = signal.get(
-                "name"
-            )
-
-            state = signal.get(
-                "state",
-                {}
-            )
-
-            observation = state.get(
-                "observation"
-            )
-
-            if observation is not None:
-
-                observations[name] = observation
-
-        #
-        # -------------------------------------------------
-        # Compute performs comparison
-        # -------------------------------------------------
-        #
-
-        comparison = None
-
-        if observations:
-
-            comparison = self.compute.compare(
-                observations
-            )
-
-        #
-        # comparison is information.
-        #
-        # It is NOT yet a candidate.
-        #
-
-        
 
         #
         # -------------------------------------------------
@@ -758,17 +710,12 @@ class InternalDynamics:
         return {
             "organ":
                 organ,
-
-            "winner":
-                winner,
                 
             "allocation":
                 winner.get(
                     "allocation"
-                ),
+                )
 
-            "comparison":
-                comparison
         }
         
         

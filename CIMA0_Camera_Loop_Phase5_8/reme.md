@@ -6089,4 +6089,16 @@ CIMA0 可以第一次画出一个非常清楚的“时间拓扑”
                        ▼
                     Planet
 
+| 环节               | 当前实际职责                               |
+| ---------------- | ------------------------------------ |
+| Planet           | 自身演化                                 |
+| Observer / Cache | 观察与变化比较                              |
+| ComputeSystem    | selection / allocation / consumption |
+| commit           | 把计算资源交给 Organ                        |
+| Organ            | 消费计算机会、推进自身                          |
+| Collision        | 产生 disturbance                       |
+| `_sample()`      | 当前状态快照                               |
+
+
+
 					
