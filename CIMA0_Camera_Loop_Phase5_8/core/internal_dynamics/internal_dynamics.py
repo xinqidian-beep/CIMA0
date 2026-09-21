@@ -477,7 +477,10 @@ class InternalDynamics:
 
         #
         # -------------------------------------------------
-        # 9. collision result enters PlanetField
+        # 9. accept collision relation
+        #
+        # Collision describes a relation only.
+        # It does not enter or modify PlanetField.
         # -------------------------------------------------
         #
         
@@ -929,26 +932,19 @@ class InternalDynamics:
 
         return collision_result
 
-    #
-    # Legacy duplicate implementation; not part of the current execution path.
-    # The only one actually in use is...
-    #
+
 
     def _apply_collision(
         self,
         collision
     ):
         """
-        Apply collision responses to PlanetField.
+        Accept collision relations.
 
-        CloudCollision only describes relations.
+        Collision describes local relations only.
+        It does not define Planet dynamics.
 
-        PlanetField remains the owner of
-        disturbance intake.
-
-        The disturbance field keeps the full
-        Planet topology, but only collision
-        positions receive non-zero values.
+        No Planet disturbance is generated here.
         """
 
         if collision is None:
@@ -971,124 +967,14 @@ class InternalDynamics:
         ):
             return False
 
-        responses = collision_result.get(
+        relations = collision_result.get(
             "responses"
         )
 
-        if not responses:
+        if not relations:
             return False
 
-        state = self.planet.state
-
-        if state is None:
-            return False
-
-        disturbance_field = np.zeros_like(
-            state,
-            dtype=np.float32
-        )
-
-        applied = 0
-
-        for response in responses:
-
-            planet = response.get(
-                "planet"
-            )
-
-            candidate = response.get(
-                "candidate"
-            )
-
-            if planet is None:
-                continue
-
-            if candidate is None:
-                continue
-
-            position = planet.get(
-                "position"
-            )
-
-            proposed_value = candidate.get(
-                "proposed_value"
-            )
-
-            if position is None:
-                continue
-
-            if proposed_value is None:
-                continue
-
-            if len(position) != 2:
-                continue
-
-            x = int(
-                position[0]
-            )
-
-            y = int(
-                position[1]
-            )
-
-            if not (
-                0 <= x < disturbance_field.shape[0]
-                and
-                0 <= y < disturbance_field.shape[1]
-            ):
-                continue
-
-            planet_value = planet.get(
-                "value"
-            )
-
-            if planet_value is None:
-                continue
-
-            disturbance = (
-                float(proposed_value)
-                -
-                float(planet_value)
-            )
-
-            disturbance_field[
-                x,
-                y
-            ] = np.float32(
-                disturbance
-            )
-
-            applied += 1
-
-        if applied == 0:
-            return False
-
-        self.planet.receive(
-            disturbance_field
-        )
-        
-        
-        print(
-            "COLLISION DISTURBANCE:",
-            "applied=",
-            applied,
-            "nonzero=",
-            int(
-                np.count_nonzero(
-                    disturbance_field
-                )
-            ),
-            "magnitude=",
-            float(
-                np.mean(
-                    np.abs(
-                        disturbance_field
-                    )
-                )
-            )
-        )
-
-        return True  
+        return True
     
     #
     # internal organ evolution

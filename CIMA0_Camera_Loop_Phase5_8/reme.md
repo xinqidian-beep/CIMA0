@@ -6099,6 +6099,74 @@ CIMA0 可以第一次画出一个非常清楚的“时间拓扑”
 | Collision        | 产生 disturbance                       |
 | `_sample()`      | 当前状态快照                               |
 
+最小职责表
+| 模块               | 应该负责                               |
+| ---------------- | ---------------------------------- |
+| Planet           | 自己的内部演化                            |
+| PlanetField      | Planet 状态封装、glimpse、接收 disturbance |
+| CLIP Organ       | 输入处理、自己的动态、自己的 winner              |
+| ComputeSystem    | compute 资源、选择、commit 权限            |
+| Observer         | 描述当前状态                             |
+| ObservationCache | 快照之间比较                             |
+| Collision        | 两个局部状态的关系                          |
+| InternalDynamics | 串联过程、把合法 disturbance 送入 Planet     |
+| Display          | 最终输出重组                             |
+没有任何模块负责：“告诉 Planet 应该变成什么。”
+					
+                    ┌──────────────────┐
+                    │      CLIP        │
+                    │ local winner     │
+                    └────────┬─────────┘
+                             │
+                       collision_projection
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │ CloudCollision   │
+                    │                  │
+                    │ extract states   │
+                    │ classify relation│
+                    │ make candidate ⚠ │
+                    └────────┬─────────┘
+                             │
+                       collision_result
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │ InternalDynamics │
+                    │ _apply_collision │
+                    └────────┬─────────┘
+                             │
+                       disturbance
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │   PlanetField    │
+                    │                  │
+                    │ receive()        │
+                    │ pending          │
+                    └────────┬─────────┘
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │ archive/planet   │
+                    │ native evolution│
+                    └──────────────────┘
+
+代码审计结论定成这样
+| 部件                                   | 当前判断             |
+| ------------------------------------ | ---------------- |
+| `_extract_clip_local_states()`       | 保留，纯提取           |
+| `_extract_planet_local_states()`     | 保留，纯提取           |
+| `_collision_type()`                  | 暂时保留，关系分类        |
+| `_collide_local()`                   | 基本保留，关系组织        |
+| `_build_collision_result()`          | 需要随接口调整          |
+| `_make_candidate()`                  | **核心越界点**        |
+| `committed=True`                     | **错误语义，应删除**     |
+| `_apply_collision()`                 | 机制本身可保留，但输入语义需调整 |
+| `Planet.receive()`                   | **保留**           |
+| `CloudField.inject_local_response()` | 暂时不接，不凭空建立新路径    |
+
 
 
 					

@@ -557,15 +557,6 @@ class CloudCollision:
                     continue
 
 
-                candidate = (
-                    self._make_candidate(
-                        planet,
-                        clip,
-                        collision_type
-                    )
-                )
-
-
                 relations.append(
                     {
                         "type":
@@ -579,10 +570,7 @@ class CloudCollision:
                         "clip":
                             dict(
                                 clip
-                            ),
-
-                        "candidate_change":
-                            candidate
+                            )
                     }
                 )
 
@@ -660,18 +648,6 @@ class CloudCollision:
 
         for relation in relations:
 
-            candidate = relation.get(
-                "candidate_change"
-            )
-
-            if candidate is None:
-                continue
-
-            if candidate.get(
-                "proposed_value"
-            ) is None:
-                continue
-
             responses.append(
                 {
                     "type":
@@ -693,11 +669,6 @@ class CloudCollision:
                                 "clip",
                                 {}
                             )
-                        ),
-
-                    "candidate":
-                        dict(
-                            candidate
                         )
                 }
             )
@@ -880,83 +851,6 @@ class CloudCollision:
 
 
         return None
-
-
-    # ==========================================================
-    # candidate
-    # ==========================================================
-
-    def _make_candidate(
-        self,
-        planet,
-        clip,
-        collision_type
-    ):
-
-        p = float(
-            planet["value"]
-        )
-
-        c = float(
-            clip["value"]
-        )
-
-
-        if collision_type == self.CHANGE:
-
-            if abs(p) <= self.change_threshold:
-
-                proposed = c
-
-            elif abs(c) <= self.change_threshold:
-
-                proposed = p
-
-            else:
-
-                proposed = (
-                    p + c
-                ) / 2.0
-
-
-        elif collision_type == self.PENETRATE:
-
-            proposed = (
-                p + c
-            ) / 2.0
-
-
-        elif collision_type == self.BOUNCE:
-
-            proposed = (
-                p - c
-            )
-
-
-        else:
-
-            proposed = None
-
-
-        return {
-            "kind":
-                "collision_change",
-
-            "collision":
-                collision_type,
-
-            "planet_value":
-                p,
-
-            "clip_value":
-                c,
-
-            "proposed_value":
-                proposed,
-
-            "committed":
-                True
-        }
 
 
     # ==========================================================
