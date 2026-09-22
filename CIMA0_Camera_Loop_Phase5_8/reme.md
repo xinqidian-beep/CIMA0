@@ -6167,6 +6167,59 @@ CIMA0 可以第一次画出一个非常清楚的“时间拓扑”
 | `Planet.receive()`                   | **保留**           |
 | `CloudField.inject_local_response()` | 暂时不接，不凭空建立新路径    |
 
+CLIP step()有三个非常明确的状态结果。
+| 情况                    | budget | dirty | age |
+| --------------------- | -----: | ----: | --: |
+| 没资源                   |     不变 |  True |  不变 |
+| 有资源但 decode 失败        |     -1 |  True |  不变 |
+| decode 成功但 forward 失败 |     -1 |  True |  不变 |
+| forward 成功            |     -1 | False |  +1 |
+age 是成功次数，而 dirty 是未完成输入状态。
 
+职责地图
+| 模块                              | 当前实际职责                       |
+| ------------------------------- | ---------------------------- |
+| **CLIP**                        | 产生自己的输入需求和内部计算结果             |
+| **Organ.activity()**            | 把 Organ 当前可供选择的信息暴露成通用 state |
+| **InternalDynamics._observe()** | 收集 state，不解释                 |
+| **InternalDynamics._compute()** | 过滤 `request=="compute"`      |
+| **ComputeSystem**               | 管理计算资源 + 调用选择器               |
+| **Sampler**                     | 对通用数值进行排序/选择                 |
+| **commit()**                    | 消耗资源并把计算机会交给 Organ           |
+| **CLIP.step()**                 | 实际执行计算                       |
 
+状态表
+| 部分                            | 当前状态                               |
+| ----------------------------- | ---------------------------------- |
+| `Organ.activity()`            | **有孤立的 `input_activity`**          |
+| `dirty → request`             | **清楚、有效**                          |
+| `_observe()`                  | **只收集，不解释**                        |
+| `_compute()`                  | **只过滤 request + 委托 ComputeSystem** |
+| `ComputeSystem.select()`      | **资源/选择职责明确**                      |
+| `Sampler`                     | **通用选择器，当前输入退化**                   |
+| `commit()`                    | **资源消耗 + 授予计算机会**                  |
+| `CLIP.step()`                 | **真正执行计算**                         |
+| `internal_activity`           | **真实存在，但属于计算后状态**                  |
+| `internal_activity → Sampler` | **目前没有连接**                         |
+
+当前 ObservationMemory 是“记录型反馈记忆”，不是反馈控制器。
+                    ┌──────────────────┐
+                    │ ComputeSystem    │
+                    │                  │
+                    │ record_selection │
+                    └────────┬─────────┘
+                             │
+                             ▼
+                    pending_evaluation
+                             │
+                     下一轮 select()
+                             │
+                             ▼
+                    evaluate_pending()
+                             │
+                             ▼
+                     last_evaluation
+                             │
+                             X
+                         无消费者
 					

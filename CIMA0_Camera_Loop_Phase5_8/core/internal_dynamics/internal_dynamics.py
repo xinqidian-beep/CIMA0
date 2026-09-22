@@ -443,8 +443,8 @@ class InternalDynamics:
 
         #
         # -------------------------------------------------
-        # 8. collision happens AFTER computation
-        #
+        # 7. collision happens AFTER computation
+        # collision relation
         # No Observer here.
         # -------------------------------------------------
         #
@@ -477,7 +477,7 @@ class InternalDynamics:
 
         #
         # -------------------------------------------------
-        # 9. accept collision relation
+        # 8. accept collision relation
         #
         # Collision describes a relation only.
         # It does not enter or modify PlanetField.
@@ -492,7 +492,7 @@ class InternalDynamics:
 
         #
         # -------------------------------------------------
-        # 10. sample AFTER the event
+        # 9. sample AFTER the event
         #
         # The next observation is therefore post-event.
         # -------------------------------------------------
@@ -667,8 +667,6 @@ class InternalDynamics:
         #
 
         if self.compute.available <= 0:
-
-            self.compute.step()
 
             return None
 
