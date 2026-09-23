@@ -368,10 +368,7 @@ class ObservationMemory:
 
             "last_result":
                 self.last_result,
-                
-            "last_evaluation":
-                self.last_evaluation,
-
+                       
             "pending_evaluation":
                 self.pending_evaluation,
 
