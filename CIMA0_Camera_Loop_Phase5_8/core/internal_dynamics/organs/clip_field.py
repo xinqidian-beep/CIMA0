@@ -297,39 +297,72 @@ class CLIPField:
     # activity
     # =====================================================
     
-    def activity(
-        self
-    ):
+    def activity(self):
+        
+        #
+        # bootstrap
+        #
+        # The first computation cannot depend on
+        # a candidate produced by computation itself.
+        #
 
-        if not self.dirty:
+        if (
+            self.input_packet is not None
+            and self.dirty
+        ):
+            return {
+                "activity": float(self.input_activity),
+                "signal": float(self.input_activity),
+                "changed": True,
+                "source": "clip",
+                "request": "compute",
+                "candidate": self.winner_layer,
+                "candidate_value": 0.0,
+                "layer": self.winner_layer,
+            }
+
+        if self.cloud is None:
             return None
 
+        activity = float(
+            self.internal_activity
+        )
+
+        candidate = self.winner_layer
+
+        candidate_value = (
+            self.layer_activity.get(
+                candidate,
+                0.0
+            )
+            if candidate is not None
+            else 0.0
+        )
+
+        request = (
+            "compute"
+            if (
+                self.dirty
+                and candidate is not None
+                and candidate_value > 0.0
+            )
+            else None
+        )
+
         return {
-            "activity":
-                float(self.input_activity),
-
-            "signal":
-                float(self.input_activity),
-
-            "changed":
-                True,
-
-            "source":
-                "clip",
-
-            "request":
-                "compute",
-                
-            "candidate":
-                self.winner_layer,
-            
-            "candidate_value":
-                float(self.winner_response)
-                if self.winner_response is not None
-                else 0.0,
-            
-            "layer":
-                self.winner_layer
+            "activity": activity,
+            "signal": activity,
+            "changed": bool(
+                activity > 0.0
+            ),
+            "source": "clip",
+            "age": self.age,
+            "request": request,
+            "candidate": candidate,
+            "candidate_value": float(
+                candidate_value
+            ),
+            "layer": candidate
         }
         
         

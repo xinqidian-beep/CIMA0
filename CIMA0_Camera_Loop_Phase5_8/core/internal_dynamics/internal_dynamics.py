@@ -715,7 +715,14 @@ class InternalDynamics:
             "allocation":
                 winner.get(
                     "allocation"
-                )
+                ),
+                
+            "winner": winner.get(
+                "name"
+            ),
+            "state": winner.get(
+                "state"
+            )    
 
         }
         

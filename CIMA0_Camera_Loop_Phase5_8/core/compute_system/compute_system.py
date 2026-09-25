@@ -206,52 +206,6 @@ class ComputeSystem:
                 continue
 
 
-            #
-            # Internal candidate.
-            #
-
-            candidate = state.get(
-                "candidate"
-            )
-
-
-            #
-            # Internal candidate strength.
-            #
-
-            candidate_value = state.get(
-                "candidate_value",
-                0.0
-            )
-
-
-            #
-            # Compute owns candidate eligibility.
-            #
-            # No candidate:
-            #     no competition.
-            #
-            # Non-positive candidate value:
-            #     currently treated as no valid
-            #     compute candidate.
-            #
-
-            #if candidate is None:
-            #    continue
-
-            try:
-                candidate_value = float(
-                    candidate_value
-                )
-            except (
-                TypeError,
-                ValueError
-            ):
-                candidate_value = 0.0  
-            #    continue
-
-            #if candidate_value <= 0.0:
-            #    continue
             
 
             #
