@@ -542,9 +542,7 @@ class InternalDynamics:
                 )
 
                 observed = self.observer.observe(
-                    {
-                        "planet": observation
-                    }
+                    observation
                 )
                 
 
@@ -579,6 +577,7 @@ class InternalDynamics:
                     observation
                 )
                 
+                print("PLANET CHANGE:", change)                
                 
             #
             # AttentionField

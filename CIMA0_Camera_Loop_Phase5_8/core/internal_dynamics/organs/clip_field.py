@@ -309,6 +309,7 @@ class CLIPField:
         if (
             self.input_packet is not None
             and self.dirty
+            and self.cloud is None
         ):
             return {
                 "activity": float(self.input_activity),
@@ -1140,13 +1141,11 @@ class CLIPField:
                 winner
             ]
         )
-
-        self.internal_activity = (
-            self.winner_response
-        )
         
         self.matrix_coordinate = (
             self._sample_matrix_coordinate(
+                new_cloud,
+                self.cloud,
                 self.winner_layer
             )
         )
@@ -1156,6 +1155,8 @@ class CLIPField:
 
     def _sample_matrix_coordinate(
         self,
+        current_cloud,
+        previous_cloud,
         layer
     ):
 

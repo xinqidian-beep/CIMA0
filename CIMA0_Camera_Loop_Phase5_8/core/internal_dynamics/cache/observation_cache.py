@@ -89,40 +89,219 @@ class ObservationCache:
         Compare current observation
         with cached previous observation.
 
-        Returns:
+        The relation remains structured:
 
-        {
-            "changed": bool,
-            "delta": value,
-            "signal": value
-        }
+            TIME
+            SPACE
+            STATE
 
+        Only STATE produces the change signal.
         """
 
-        if self.previous is None:
+        if current is None:
 
             return {
 
                 "changed": False,
 
-                "delta": None,
+                "time": {
+                    "previous": None,
+                    "current": None,
+                    "delta": None
+                },
+
+                "space": {
+                    "previous": None,
+                    "current": None,
+                    "changed": False
+                },
+
+                "state": {
+                    "delta": None,
+                    "signal": 0.0,
+                    "changed": False
+                },
 
                 "signal": 0.0
 
             }
 
 
+        #
+        # first observation
+        #
+
+        if self.previous is None:
+
+            current_space = {
+                "level": current.get(
+                    "level"
+                ),
+                "region": self._copy(
+                    current.get("region")
+                ),
+                "path": self._copy(
+                    current.get("path")
+                )
+            }
+
+            return {
+
+                "changed": False,
+
+                "time": {
+                    "previous": None,
+                    "current": current.get(
+                        "age"
+                    ),
+                    "delta": None
+                },
+
+                "space": {
+                    "previous": None,
+                    "current": current_space,
+                    "changed": False
+                },
+
+                "state": {
+                    "delta": None,
+                    "signal": 0.0,
+                    "changed": False
+                },
+
+                "signal": 0.0
+
+            }
+
 
         previous = self.previous
 
 
-
         try:
 
-            delta = self._difference(
-                previous,
-                current
+            #
+            # TIME
+            #
+
+            previous_age = previous.get(
+                "age"
             )
+
+            current_age = current.get(
+                "age"
+            )
+
+            time_delta = None
+
+            if (
+                self._is_numeric(
+                    previous_age
+                )
+                and
+                self._is_numeric(
+                    current_age
+                )
+            ):
+
+                time_delta = (
+                    np.asarray(current_age)
+                    -
+                    np.asarray(previous_age)
+                )
+
+
+            #
+            # SPACE
+            #
+
+            previous_space = {
+                "level": previous.get(
+                    "level"
+                ),
+                "region": self._copy(
+                    previous.get("region")
+                ),
+                "path": self._copy(
+                    previous.get("path")
+                )
+            }
+
+            current_space = {
+                "level": current.get(
+                    "level"
+                ),
+                "region": self._copy(
+                    current.get("region")
+                ),
+                "path": self._copy(
+                    current.get("path")
+                )
+            }
+
+            space_changed = (
+                previous_space
+                !=
+                current_space
+            )
+
+
+            #
+            # STATE
+            #
+
+            previous_state = previous.get(
+                "exact"
+            )
+
+            current_state = current.get(
+                "exact"
+            )
+
+            state_delta = self._difference(
+                previous_state,
+                current_state
+            )
+
+            state_signal = self._magnitude(
+                state_delta
+            )
+
+            state_changed = (
+                state_signal
+                >
+                self.threshold
+            )
+
+
+            return {
+
+                "changed": state_changed,
+
+                "time": {
+                    "previous": previous_age,
+                    "current": current_age,
+                    "delta": time_delta
+                },
+
+                "space": {
+                    "previous": previous_space,
+                    "current": current_space,
+                    "changed": space_changed
+                },
+
+                "state": {
+                    "delta": state_delta,
+                    "signal": state_signal,
+                    "changed": state_changed
+                },
+
+                #
+                # compatibility / derived signal
+                #
+
+                "signal": state_signal
+
+            }
 
 
         except Exception:
@@ -131,33 +310,27 @@ class ObservationCache:
 
                 "changed": False,
 
-                "delta": None,
+                "time": {
+                    "previous": None,
+                    "current": None,
+                    "delta": None
+                },
+
+                "space": {
+                    "previous": None,
+                    "current": None,
+                    "changed": False
+                },
+
+                "state": {
+                    "delta": None,
+                    "signal": 0.0,
+                    "changed": False
+                },
 
                 "signal": 0.0
 
             }
-
-
-
-        signal = self._magnitude(
-            delta
-        )
-
-
-
-        return {
-
-            "changed":
-                signal > self.threshold,
-
-            "delta":
-                delta,
-
-            "signal":
-                signal
-
-        }
-
 
 
     def step(

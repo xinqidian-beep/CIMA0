@@ -87,19 +87,22 @@ class AttentionField:
 
         if change is not None:
 
-            delta = change.get(
-                "delta"
+            state = change.get(
+                "state"
             )
 
-            if delta is None:
+            if state is None:
                 return
 
-            intensity = self._extract_intensity(
-                delta
+            intensity = state.get(
+                "signal",
+                0.0
             )
-            
 
-            self._update_source(
+            if intensity <= 0:
+                return
+
+            self._update_scalar(
                 source,
                 intensity
             )
@@ -213,9 +216,6 @@ class AttentionField:
         field = self.fields[source]
 
 
-        field *= self.decay_rate
-
-
         active = (
             intensity
             >
@@ -249,10 +249,6 @@ class AttentionField:
 
 
         field = self.fields[source]
-
-
-        field *= self.decay_rate
-
 
         field[0] += (
             value *
