@@ -238,20 +238,6 @@ class InternalDynamics:
                 "camera_raw"
             ] = packet
 
-        disturbance = self._packet_to_array(
-            packet
-        )
-
-        if disturbance is not None:
-
-            if hasattr(
-                self.planet,
-                "receive"
-            ):
-
-                self.planet.receive(
-                    disturbance
-                )
 
         #
         # Broadcast unchanged packet.
@@ -330,45 +316,7 @@ class InternalDynamics:
                     state = organ.debug_state()
 
         return clouds  
-
-    def _packet_to_array(
-        self,
-        packet
-    ):
-
-        if packet is None:
-            return None
-
-        if packet.data is None:
-            return None
-
-        if packet.shape is None:
-            return None
-
-        if packet.dtype is None:
-            return None
-
-        try:
-
-            array = np.frombuffer(
-                packet.data,
-                dtype=np.dtype(packet.dtype)
-            )
-
-            array = array.reshape(
-                packet.shape
-            )
-
-            return array.copy()
-
-        except (
-            TypeError,
-            ValueError
-        ):
-
-            return None
-
-                               
+                             
     #
     # main evolution cycle
     #
@@ -477,22 +425,7 @@ class InternalDynamics:
 
         #
         # -------------------------------------------------
-        # 8. accept collision relation
-        #
-        # Collision describes a relation only.
-        # It does not enter or modify PlanetField.
-        # -------------------------------------------------
-        #
-        
-        self._apply_collision(
-            collision
-        )
-        
-
-
-        #
-        # -------------------------------------------------
-        # 9. sample AFTER the event
+        # 8. sample AFTER the event
         #
         # The next observation is therefore post-event.
         # -------------------------------------------------
@@ -796,49 +729,10 @@ class InternalDynamics:
         if consumed <= 0.0:
 
             return
-
-
-
-        #
-        # -------------------------------------------------
-        # grant local compute opportunity
-        # -------------------------------------------------
-        #
-
-        if hasattr(
-            organ,
-            "apply_compute"
-        ):
-
-
-            organ.apply_compute(
-                consumed
-            )
-
-            return
-
-
-        #
-        # -------------------------------------------------
-        # alternate execution interface
-        # -------------------------------------------------
-        #
-
-        if hasattr(
-            organ,
-            "execute_compute"
-        ):
-
-
-            organ.execute_compute(
-                {
-                    "amount":
-                        consumed
-                }
-            )
-
-            return
-
+            
+        organ.apply_compute(
+            consumed
+        )    
 
 
     def _collision(
@@ -935,51 +829,7 @@ class InternalDynamics:
             return None
 
         return collision_result
-
-
-
-    def _apply_collision(
-        self,
-        collision
-    ):
-        """
-        Accept collision relations.
-
-        Collision describes local relations only.
-        It does not define Planet dynamics.
-
-        No Planet disturbance is generated here.
-        """
-
-        if collision is None:
-            return False
-
-        if not collision.get(
-            "collision"
-        ):
-            return False
-
-        collision_result = collision.get(
-            "collision_result"
-        )
-
-        if collision_result is None:
-            return False
-
-        if not collision_result.get(
-            "exists"
-        ):
-            return False
-
-        relations = collision_result.get(
-            "responses"
-        )
-
-        if not relations:
-            return False
-
-        return True
-    
+   
     #
     # internal organ evolution
     #

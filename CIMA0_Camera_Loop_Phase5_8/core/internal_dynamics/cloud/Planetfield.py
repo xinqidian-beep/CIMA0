@@ -1,17 +1,19 @@
 """
-CIMA0 Phase5_7
+CIMA0 Phase5_8
 
 PlanetField
 
-Local continuous evolution field.
+Local observation field over the Planet state.
 
 Responsibility:
 
-    hold planetary local state
+    hold the current Planet state
 
-    receive external disturbance
+    mirror the current Planet state
 
-    delegate evolution to Planet rule
+    preserve observation-time state
+
+    expose temporal change
 
     provide activity signal
 
@@ -33,47 +35,54 @@ Does NOT know:
 Architecture:
 
 
-external disturbance
+Planet
 
-        |
+    |
 
-        v
-
-
-PlanetField.receive()
+    v
 
 
-        |
-
-        v
+Planet.step()
 
 
-pending disturbance
+    |
+
+    v
 
 
-        |
-
-        v
+Planet.snapshot()
 
 
-Planet.evolve()
+    |
+
+    v
 
 
-        |
-
-        v
+PlanetField.state
 
 
-PlanetField state
+    |
+
+    +----> previous_state
+    |
+    +----> temporal change
+    |
+    +----> activity / glimpse
+    |
+    +----> collision projection
 
 
-        |
+PlanetField does not:
 
-        v
+    control Planet evolution
 
+    receive external input
 
-collision projection
+    modify Planet rules
 
+    select compute
+
+    execute Organ behavior
 
 """
 
@@ -129,15 +138,6 @@ class PlanetField:
             )
 
 
-
-        #
-        # external disturbance buffer
-        #
-
-        self.pending_disturbance = None
-
-
-
         #
         # history
         #
@@ -166,46 +166,6 @@ class PlanetField:
             "level": 0,
             "observation": None
         }
-
-
-    #
-    # external input
-    #
-
-    def receive(
-        self,
-        disturbance
-    ):
-
-
-        if disturbance is None:
-
-            return
-
-
-
-        if not isinstance(
-            disturbance,
-            np.ndarray
-        ):
-
-            return
-
-
-
-        self.pending_disturbance = (
-
-            disturbance
-            .astype(
-                np.float32,
-                copy=True
-            )
-
-        )
-
-
-
-
 
 
     #
@@ -706,7 +666,6 @@ class PlanetField:
         Diagnostic version: 
             current contribution 
             temporal change contribution 
-            disturbance contribution 
             
         Calculation semantics are unchanged.
         """
@@ -740,8 +699,6 @@ class PlanetField:
         current_total = 0.0 
         
         temporal_total = 0.0 
-        
-        disturbance_total = 0.0
 
         count = 0
 
@@ -775,32 +732,6 @@ class PlanetField:
                     current - previous
                 )
 
-            #
-            # external disturbance
-            #
-            
-            disturbance_value = 0.0
-
-            if self.pending_disturbance is not None:
-
-                try:
-
-                    disturbance_value = abs(
-                        float(
-                            self.pending_disturbance[
-                                x,
-                                y
-                            ]
-                        )
-                    )
-
-                except (
-                    TypeError,
-                    IndexError,
-                    ValueError
-                ):
-                    disturbance_value = 0.0
-
             # 
             # original total 
             # 
@@ -809,13 +740,10 @@ class PlanetField:
                 current_value 
                 + 
                 temporal_value 
-                + 
-                disturbance_value 
             ) 
             
             current_total += current_value 
             temporal_total += temporal_value 
-            disturbance_total += disturbance_value 
             
             signal += value 
             count += 1 
@@ -830,10 +758,6 @@ class PlanetField:
             temporal_total / count 
         ) 
         
-        disturbance_average = ( 
-            disturbance_total / count 
-        ) 
-        
         signal_average = ( 
             signal / count 
         ) 
@@ -844,9 +768,7 @@ class PlanetField:
         #    "current=", 
         #    current_average, 
         #    "temporal=", 
-        #    temporal_average, 
-        #    "disturbance=", 
-        #    disturbance_average, 
+        #    temporal_average,
         #    "total=", 
         #    signal_average 
         #) 
@@ -907,33 +829,6 @@ class PlanetField:
                 np.max(delta)
             )
 
-        if self.pending_disturbance is not None:
-
-            try:
-
-                disturbance = (
-                    self.pending_disturbance[
-                        x0:x1,
-                        y0:y1
-                    ]
-                )
-
-                result[
-                    "disturbance"
-                ] = float(
-                    np.mean(
-                        np.abs(
-                            disturbance
-                        )
-                    )
-                )
-
-            except (
-                TypeError,
-                IndexError,
-                ValueError
-            ):
-                pass
 
         return result
         
@@ -968,53 +863,18 @@ class PlanetField:
         # Planet owns evolution
         #
 
-        if hasattr(
-            self.planet,
-            "evolve"
-        ):
+        self.planet.step()
 
+        self.state = (
 
-            self.state = (
-
-                self.planet.evolve(
-
-                    self.state,
-
-                    self.pending_disturbance
-
-                )
-
-            ).astype(
-
+            self.planet
+            .snapshot()
+            .astype(
                 np.float32,
-
                 copy=True
-
             )
 
-
-
-        else:
-
-
-            #
-            # compatibility fallback
-            #
-
-            self.planet.step()
-
-
-            self.state = (
-
-                self.planet
-                .snapshot()
-                .astype(
-                    np.float32,
-                    copy=True
-                )
-
-            )
-
+        )
 
 
         delta = np.mean(
@@ -1042,15 +902,6 @@ class PlanetField:
 
 
         self.age += 1
-
-
-
-        #
-        # disturbance consumed
-        #
-
-        self.pending_disturbance = None
-
 
 
         self.compute_budget = 0
