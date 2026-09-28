@@ -3,88 +3,123 @@ CIMA0 Phase5_8
 
 PlanetField
 
-Local observation field over the Planet state.
+Local observation-time field over Planet state.
 
 Responsibility:
 
-    hold the current Planet state
+```
+hold the observed Planet state
 
-    mirror the current Planet state
+preserve observation-time state
 
-    preserve observation-time state
+record temporal change
 
-    expose temporal change
+provide activity signal
 
-    provide activity signal
+provide sparse glimpse
 
-    export collision projection
+export visual packet
 
+export collision projection
+```
 
 Does NOT know:
 
-    camera
-    bytes
-    image
-    RGB
-    CLIP
-    display
-    compute policy
-    CloudField
-
+```
+camera
+bytes
+image
+RGB
+CLIP
+display
+compute policy
+CloudField
+```
 
 Architecture:
 
-
 Planet
 
-    |
+```
+|
 
-    v
-
+v
+```
 
 Planet.step()
 
+```
+|
 
-    |
-
-    v
-
+v
+```
 
 Planet.snapshot()
 
+```
+|
 
-    |
-
-    v
-
+v
+```
 
 PlanetField.state
 
+```
+|
 
-    |
++----> previous_state
+|
++----> temporal change
+|
++----> activity
+|
++----> sparse glimpse
+|
++----> visual packet
+|
++----> collision projection
+```
 
-    +----> previous_state
-    |
-    +----> temporal change
-    |
-    +----> activity / glimpse
-    |
-    +----> collision projection
+Temporal model:
 
+```
+Planet
+    |
+    | one evolution step
+    v
+PlanetField observation
+    |
+    +----> current state
+    |
+    +----> previous observation
+    |
+    +----> observed change
+```
+
+PlanetField observes Planet
+through its own observation time.
+
+It does not interpret or synchronize
+Planet's internal time.
 
 PlanetField does not:
 
-    control Planet evolution
+```
+control Planet evolution
 
-    receive external input
+receive external input
 
-    modify Planet rules
+modify Planet rules
 
-    select compute
+select compute
 
-    execute Organ behavior
+allocate compute
+
+execute Organ behavior
+```
 
 """
+
 
 
 
@@ -145,22 +180,12 @@ class PlanetField:
         self.previous_state = None
 
         self.age = 0
-
-
-
-        #
-        # compute
-        #
-
-        self.compute_budget = 0
-        
         
         #
         # sparse glimpse state
         #
                 
         self.glimpse_state = {
-            "pending": False,
             "path": [],
             "region": None,
             "level": 0,
@@ -256,59 +281,6 @@ class PlanetField:
         }
 
 
-
-
-
-    #
-    # compute allocation
-    #
-
-    def execute_compute(
-        self,
-        allocation
-    ):
-        
-        """
-        Planet does not consume compute to gate its evolution.
-
-        Receiving a compute opportunity here is intentionally
-        inert. Planet's evolution is sovereign and unconditional
-        (see CONSTITUTION.md §8, Planet Sovereignty).
-
-        This method exists only so ComputeSystem's dispatch
-        interface remains uniform across organs; it must not
-        be extended to control Planet.step().
-        """
-        
-
-        if allocation is None:
-            return
-            
-        if isinstance(
-            allocation,
-            dict
-        ):    
-            
-            amount = allocation.get(
-                "amount",
-                0.0
-            )
-        else:
-            amount = allocation
-
-        try:
-            amount = float(
-                amount
-            )
-        except Exception:
-            return
-
-        if amount <= 0.0:
-            return
-
-        self.compute_budget += amount
-        
-    
     #
     # sparse recursive glimpse
     #
@@ -409,7 +381,6 @@ class PlanetField:
         ].copy()
 
         self.glimpse_state = {
-            "pending": True,
             "path": path,
             "region": region,
             "level": level,
@@ -470,190 +441,6 @@ class PlanetField:
                 child[1] < child[3]
             )
         ]
-        
-    def local_variance(
-        self,
-        region
-    ):
-        """
-        Measure local state variance inside a region.
-
-        region:
-            (x0, y0, x1, y1)
-
-        Read-only observation.
-        Does not modify Planet or PlanetField state.
-        """
-
-        x0, y0, x1, y1 = region
-
-        local = self.state[
-            x0:x1,
-            y0:y1
-        ]
-
-        if local.size == 0:
-
-            return 0.0
-
-        return float(
-            np.var(local)
-        )
-
-
-
-    def sign_structure(
-        self,
-        region
-    ):
-        """
-        Observe positive / negative structure inside a region.
-
-        region:
-            (x0, y0, x1, y1)
-
-        Returns:
-            positive_ratio
-            negative_ratio
-            balance
-
-        balance measures the degree of positive/negative
-        asymmetry.
-        """
-
-        x0, y0, x1, y1 = region
-
-        local = self.state[
-            x0:x1,
-            y0:y1
-        ]
-
-        if local.size == 0:
-
-            return {
-                "positive_ratio": 0.0,
-                "negative_ratio": 0.0,
-                "balance": 0.0
-            }
-
-        positive = np.count_nonzero(
-            local > 0
-        )
-
-        negative = np.count_nonzero(
-            local < 0
-        )
-
-        total = local.size
-
-        positive_ratio = (
-            positive / total
-        )
-
-        negative_ratio = (
-            negative / total
-        )
-
-        balance = abs(
-            positive_ratio
-            -
-            negative_ratio
-        )
-
-        return {
-            "positive_ratio": float(
-                positive_ratio
-            ),
-            "negative_ratio": float(
-                negative_ratio
-            ),
-            "balance": float(
-                balance
-            )
-        }
-
-
-
-    def energy_observation(
-        self
-    ):
-        """
-        Observe the current global state energy.
-
-        This is an observation metric only.
-        It does not modify the internal state.
-        """
-
-        if self.state is None:
-
-            return 0.0
-
-        if self.state.size == 0:
-
-            return 0.0
-
-        return float(
-            np.mean(
-                np.square(
-                    self.state
-                )
-            )
-        )
-
-
-
-    def observe_region(
-        self,
-        region
-    ):
-        """
-        Produce one finite observation of a region.
-
-        region:
-            (x0, y0, x1, y1)
-
-        This function only observes.
-        It does not evolve, select, or modify the state.
-        """
-
-        variance = self.local_variance(
-            region
-        )
-
-        sign = self.sign_structure(
-            region
-        )
-
-        energy = self.energy_observation()
-
-        return {
-            "region": region,
-
-            "level": self.glimpse_state[
-                "level"
-            ],
-
-            "variance": variance,
-
-            "positive_ratio":
-                sign[
-                    "positive_ratio"
-                ],
-
-            "negative_ratio":
-                sign[
-                    "negative_ratio"
-                ],
-
-            "sign_balance":
-                sign[
-                    "balance"
-                ],
-
-            "energy": energy,
-
-            "age": self.age
-        }     
 
         
     def _region_hand(
@@ -902,9 +689,6 @@ class PlanetField:
 
 
         self.age += 1
-
-
-        self.compute_budget = 0
 
 
 

@@ -199,9 +199,7 @@ def main():
 
         observation_cache=observation_cache,
 
-        attention_field=attention_field,
-
-        transport=transport
+        attention_field=attention_field
 
     )
 

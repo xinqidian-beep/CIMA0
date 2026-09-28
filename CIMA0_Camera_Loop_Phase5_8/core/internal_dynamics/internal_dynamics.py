@@ -3,7 +3,6 @@ import time
 import numpy as np
 
 
-from .cloud.cloud_state import CloudState
 from core.memory.observation_memory import ObservationMemory
 from core.internal_dynamics.cloud_collision import CloudCollision
 
@@ -84,11 +83,9 @@ class InternalDynamics:
         collision=None,
         observer=None,
         observation_cache=None,
-        attention_field=None,
-        transport=None
+        attention_field=None
     ):
-        
-        self.step_count = 0
+
         
         #
         # dynamical core
@@ -97,10 +94,6 @@ class InternalDynamics:
         self.planet = planet
         
         self.planet_clock = LocalClock(interval=1.0)
-        
-        self.cloud = CloudState()
-        
-
         
         #
         # computation system
@@ -121,15 +114,6 @@ class InternalDynamics:
 
         self.attention_field = attention_field
 
-                             
-        #
-        # information transport
-        #
-
-        self.transport = transport
-
-
-
         #
         # internal entities
         #
@@ -137,17 +121,8 @@ class InternalDynamics:
         self.organs = {}
 
 
-
         #
-        # attention output
-        #
-
-        self.last_signals = []
-
-
-
-        #
-        # packet cache
+        # current internal fields
         #
 
         self.internal_fields = {}
@@ -208,18 +183,6 @@ class InternalDynamics:
 
         if packet is None:
             return
-
-
-        #
-        # preserve original physical stream
-        #
-
-        if not hasattr(
-            self,
-            "external_packets"
-        ):
-
-            self.external_packets = {}
 
 
         #
@@ -891,10 +854,6 @@ class InternalDynamics:
         
         }
 
-        
-
-        self.last_snapshot = snapshot
-
         return snapshot
                 
     #
@@ -976,15 +935,11 @@ class InternalDynamics:
             },
 
 
-            "attention":
-
-                self.last_signals,
-
-
-
             "fields":
 
-                self.internal_fields,
+                copy.deepcopy(
+                    self.internal_fields
+                ),
 
             "external":
                 self.external_packets,  
