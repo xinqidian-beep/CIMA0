@@ -222,63 +222,6 @@ class InternalDynamics:
                 organ.receive(
                     packet
                 )
-    
-
-
-
-    
-    def _collect_clouds(
-        self
-    ):
-        
-        clouds = {}
-        #
-        # planet
-        #
-
-        if self.planet is not None:
-           
-
-            if hasattr(
-                self.planet,
-                "collision_projection"
-            ):
-
-                clouds["planet"] = (
-                    self.planet
-                    .collision_projection()
-                )
-
-            else:
-
-                clouds["planet"] = (
-                    self.planet.snapshot()
-                )
-        #
-        # organs
-        #
-
-        for name, organ in self.organs.items():
-
-            if hasattr(
-                organ,
-                "collision_projection"
-            ):
-
-                cloud =(
-                    organ
-                    .collision_projection()
-                )
-                
-                clouds[name] = cloud
-                
-                if hasattr(
-                    organ,
-                    "debug_state"
-                ):
-                    state = organ.debug_state()
-
-        return clouds  
                              
     #
     # main evolution cycle

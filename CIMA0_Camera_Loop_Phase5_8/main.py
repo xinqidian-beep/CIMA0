@@ -243,12 +243,7 @@ def main():
         dynamics
 
     )
-    transport.subscribe(
-        "camera_raw",
-        display
-    )
-
-
+    
     #
     # output visual field to display
     #
@@ -369,29 +364,17 @@ def main():
 
         dynamics.step()
 
-        #
-        # Planet visual output to display
-        #
-
-        packet = planet.packet()
-        print(
-            "PLANET PACKET:",
-            packet is not None,
-            getattr(packet, "schema", None)
-        )
-        if packet is not None:
-
-            transport.publish(
-                packet
-            )
 
         #
         # display
         #
 
         snapshot = dynamics.snapshot()
-
-
+        
+        display.receive_snapshot(
+            snapshot
+        )
+        
         if snapshot is not None:
             
 
