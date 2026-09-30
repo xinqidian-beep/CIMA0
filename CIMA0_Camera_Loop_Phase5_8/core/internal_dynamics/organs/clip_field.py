@@ -1160,18 +1160,18 @@ class CLIPField:
         layer
     ):
 
-        if self.cloud is None:
+        if current_cloud is None:
             return None
 
-        if self.previous_cloud is None:
+        if previous_cloud is None:
             return None
 
         current = np.asarray(
-            self.cloud[layer]
+            current_cloud[layer]
         )
 
         previous = np.asarray(
-            self.previous_cloud[layer]
+            previous_cloud[layer]
         )
 
         if current.shape != previous.shape:
