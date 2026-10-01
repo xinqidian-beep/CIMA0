@@ -270,7 +270,7 @@ class DisplayIO:
         # Framebuffer is RGB.
         #
 
-        return data[:, :, ::-1].copy()
+        return data.copy()
 
     #
     # ------------------------------------------------------------
@@ -523,14 +523,12 @@ class DisplayIO:
             )
 
         #
-        # Camera provides color.
+        # Camera provides BGR color.
         #
-        # Convert BGR -> RGB only for framebuffer output.
+        # Preserve BGR through the final OpenCV framebuffer.
         #
 
-        color = camera_data[
-            :, :, ::-1
-        ].astype(
+        color = camera_data.astype(
             np.float32
         ) / 255.0
 
