@@ -6230,7 +6230,239 @@ age 是成功次数，而 dirty 是未完成输入状态。
 用后即弃，不把过程永久化。
 自我审视，使长期结构能够自行趋于平衡。
 
+                  ┌──────────────┐
+                  │    源动力     │
+                  └──────┬───────┘
+                         │
+              ┌──────────┴──────────┐
+              ↓                     ↓
+           Planet                 Camera
+              │                     │
+              ↓                     ↓
+        PlanetField              CameraIO
+              │                     │
+              ↓                     ↓
+           【采样】              【传递】
+              │                     │
+       Planet glimpse               │
+              │                     │
+              └─────────┐           │
+                        │           │
+                        ↓           ↓
+                     CLIPField ← Transport
+                        │
+                     forward
+                        │
+                        ↓
+                     【采样】
+                        │
+              winner / coordinate
+                        │
+                        ├─────────────┐
+                        │             │
+                        ↓             ↓
+                   Planet local   CLIP local
+                        │             │
+                        └──────┬──────┘
+                               ↓
+                         CloudCollision
+                               │
+                               ↓
+                            【计算】
+                               │
+                               ↓
+                         collision result
+                               │
+                               ↓
+                            【传递】
+采样决定“拿到什么”；计算决定“这些东西发生了什么关系”；传递决定“这个信息继续往哪里流”。
+
+InternalDynamics 的职责边界
+InternalDynamics
+│
+├── 源动力承接
+│     └── Planet.step()
+│
+├── 采样
+│     ├── Planet.glimpse()
+│     ├── Observer.observe()
+│     ├── ObservationCache.step()
+│     └── Organ.activity()
+│
+├── 计算
+│     ├── ComputeSystem.select()
+│     ├── ComputeSystem.consume()
+│     ├── Organ.apply_compute()
+│     └── CloudCollision.collide()
+│
+├── 演化
+│     └── Organ.step()
+│
+└── 传递
+      └── ❌ 没有主动输出	
+
+┌──────────────┐
+│    源动力     │
+├──────────────┤
+│ Planet.step  │
+│ Organ.step   │
+│ CLIP forward │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│     采样      │
+├──────────────┤
+│ Planet.glimpse│
+│ Observer      │
+│ Cache         │
+│ Organ.activity│
+│ CLIP winner   │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│     计算      │
+├──────────────┤
+│ ComputeSystem │
+│ Sampler       │
+│ CloudCollision│
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│     传递      │
+├──────────────┤
+│ BitPacket     │
+│ TransportRouter│
+│ receiver      │
+└──────────────┘
+CloudCollision 不一定属于“计算资源分配”意义上的 Compute。
+计算
+├── 资源计算
+│     └── ComputeSystem / Sampler
+│
+└── 状态关系计算
+      └── CloudCollision
+
+                    CIMA0
+                      │
+       ┌──────────────┼──────────────┐
+       │              │              │
+       ▼              ▼              ▼
+    源动力           采样           计算
+       │              │              │
+    Planet         glimpse        ComputeSystem
+    Organ          Observer       Sampler
+    CLIP           Cache          Collision
+       │              │              │
+       └──────────────┴──────────────┘
+                      │
+                      ▼
+                  状态 / 结果
+                      │
+                      │
+             ┌────────┴────────┐
+             │                 │
+             ▼                 ▼
+          snapshot          packet
+             │                 │
+             ▼                 ▼
+       DisplayIO         TransportRouter
+             │                 │
+             ▼                 ▼
+       最终视觉合流          receiver
+“采样”并不等于“输出”
+
+                 ┌───────────────┐
+                 │    源动力      │
+                 │               │
+                 │ Planet        │
+                 │ Organ         │
+                 │ CLIP forward  │
+                 └───────┬───────┘
+                         │
+                         ▼
+                 ┌───────────────┐
+                 │     采样       │
+                 │               │
+                 │ glimpse       │
+                 │ observer      │
+                 │ activity      │
+                 │ winner        │
+                 └───────┬───────┘
+                         │
+                         ▼
+                 ┌───────────────┐
+                 │     计算       │
+                 │               │
+                 │ Compute       │
+                 │ Sampler       │
+                 │ Collision     │
+                 └───────┬───────┘
+                         │
+             ┌───────────┴───────────┐
+             │                       │
+             ▼                       ▼
+        持续状态                   瞬时关系
+             │                       │
+             ▼                       ▼
+         snapshot               collision result
+             │                       │
+             ▼                       ▼
+        DisplayIO                当前 step
+             │                       │
+             ▼                       ▼
+        最终视觉                 生命周期结束
+
+
+外部传递：
+Camera → BitPacket → Router → InternalDynamics / Organ
+
+内部传递：
+BitPacket / Router 已存在，
+但目前没有被 InternalDynamics 主动调用。
+
+                    一个 step()
+
+┌─────────────────────────────┐
+│ 1. ComputeSystem 恢复资源   │
+└──────────────┬──────────────┘
+               ↓
+┌─────────────────────────────┐
+│ 2. Planet 自己演化          │
+└──────────────┬──────────────┘
+               ↓
+┌─────────────────────────────┐
+│ 3. Observe                  │
+│    当前 Planet + Organ 状态 │
+└──────────────┬──────────────┘
+               ↓
+┌─────────────────────────────┐
+│ 4. Compute / Sampler        │
+│    选择一个计算机会         │
+└──────────────┬──────────────┘
+               ↓
+┌─────────────────────────────┐
+│ 5. Commit                   │
+│    系统资源 → Organ 权限    │
+└──────────────┬──────────────┘
+               ↓
+┌─────────────────────────────┐
+│ 6. Organ.step()             │
+│    权限 → 一次真实计算      │
+└──────────────┬──────────────┘
+               ↓
+┌─────────────────────────────┐
+│ 7. Collision                │
+│    Organ状态 × Planet材料   │
+└──────────────┬──────────────┘
+               ↓
+┌─────────────────────────────┐
+│ 8. Sample                   │
+│    当前状态快照             │
+└─────────────────────────────┘
 
 
 
-					
+	  
