@@ -6463,6 +6463,159 @@ BitPacket / Router 已存在，
 │    当前状态快照             │
 └─────────────────────────────┘
 
+Camera → Router 已经形成完整闭环
+                 ┌─────────────────────┐
+                 │       Camera        │
+                 │     原始产生        │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │      CameraIO       │
+                 │       封装          │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │      BitPacket      │
+                 │     完整信息载体     │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │   PacketEnvelope    │
+                 │   identity/schema   │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │  TransportRouter    │
+                 │   按 tag 建立传递     │
+                 └──────────┬──────────┘
+                            │
+                  原始 packet 不变
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │       Receiver      │
+                 └─────────────────────┘
+				 
+                    ┌──────────────┐
+                    │    源动力     │
+                    │   Planet      │
+                    └──────┬───────┘
+                           │
+                        evolve
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │     采样      │
+                    │ PlanetField   │
+                    │   glimpse     │
+                    └──────┬───────┘
+                           │
+                         observe
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │     观察      │
+                    │ Observer      │
+                    │ Cache         │
+                    │ Attention     │
+                    └──────┬───────┘
+                           │
+                       request
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │     计算      │
+                    │ ComputeSystem │
+                    │    Sampler    │
+                    └──────┬───────┘
+                           │
+                       permission
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │    Organ      │
+                    │    CLIP       │
+                    └──────┬───────┘
+                           │
+                         evolve
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │   Collision   │
+                    │   transient   │
+                    └──────────────┘
 
+Camera
+  │
+  ▼
+CameraIO
+  │
+  ▼
+BitPacket
+  │
+  ▼
+PacketEnvelope
+  │
+  ▼
+TransportRouter
+  │
+  ▼
+InternalDynamics.receive()
+  │
+  ├──────────────► external_packets
+  │
+  └──────────────► Organ.receive()
+                         │
+                         ▼
+                       CLIP
+					
+InternalDynamics
+      │
+      ▼
+   snapshot()
+      │
+      ├── planet
+      ├── organs
+      ├── fields
+      └── external
+             │
+             ▼
+       DisplayIO
+             │
+             ▼
+       最终 merge
+             │
+             ▼
+          display				 
+				 
+camera packet
+     │
+     ▼
+InternalDynamics.receive()
+     │
+     ├── 原 packet 保存到 external_packets["camera_raw"]
+     │
+     └── 原 packet 广播给 organ
+     
+     ↓
 
+InternalDynamics.snapshot()
+
+    "external":
+        self.external_packets
+
+     ↓
+
+DisplayIO.receive_snapshot()
+
+    snapshot["external"]
+        ↓
+    camera_raw
+        ↓
+    _merge_planet_camera()				 
+				 
 	  
