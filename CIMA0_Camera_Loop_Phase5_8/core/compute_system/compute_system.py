@@ -146,26 +146,9 @@ class ComputeSystem:
         if not signals:
             return None
 
-
         #
         # --------------------------------------------------
-        # 1. Compute evaluates pending memory
-        #
-        #    Memory observes/records the competition context.
-        #    It does not grant permission.
-        # --------------------------------------------------
-        #
-
-        if self.memory is not None:
-
-            self.memory.evaluate_pending(
-                signals
-            )
-
-
-        #
-        # --------------------------------------------------
-        # 2. Build eligible compute requests
+        # 1. Build eligible compute requests
         #
         #    Organ only says:
         #
@@ -220,7 +203,7 @@ class ComputeSystem:
 
         #
         # --------------------------------------------------
-        # 3. No eligible candidate
+        # 2. No eligible candidate
         # --------------------------------------------------
         #
 
@@ -230,7 +213,7 @@ class ComputeSystem:
 
         #
         # --------------------------------------------------
-        # 4. Compute resource availability
+        # 3. Compute resource availability
         # --------------------------------------------------
         #
 
@@ -240,7 +223,7 @@ class ComputeSystem:
 
         #
         # --------------------------------------------------
-        # 5. Convert eligible requests into
+        # 4. Convert eligible requests into
         #    Sampler-compatible generic states.
         #
         #    Sampler remains semantically blind.
@@ -292,7 +275,7 @@ class ComputeSystem:
 
         #
         # --------------------------------------------------
-        # 6. Debug: show candidates entering Compute
+        # 5. Debug: show candidates entering Compute
         #
         #    This is deliberately before Sampler.
         # --------------------------------------------------
@@ -350,7 +333,7 @@ class ComputeSystem:
 
         #
         # --------------------------------------------------
-        # 7. Sampler performs selection only
+        # 6. Sampler performs selection only
         # --------------------------------------------------
         #
 
@@ -370,7 +353,7 @@ class ComputeSystem:
 
         #
         # --------------------------------------------------
-        # 8. Recover the actual winner
+        # 7. Recover the actual winner
         #
         #    Sampler only returned an index.
         #    Compute maps it back to the actual
@@ -389,7 +372,7 @@ class ComputeSystem:
 
         #
         # --------------------------------------------------
-        # 9. Record selection
+        # 8. Record selection
         #
         #    Memory records what Compute selected.
         #    Memory does not make the decision.
@@ -425,45 +408,9 @@ class ComputeSystem:
                 }
             )
 
-            self.memory.record_selection(
-                [
-                    {
-                        "name":
-                            s.get(
-                                "name"
-                            ),
-
-                        "state":
-                            s.get(
-                                "state"
-                            )
-                    }
-
-                    for s in requests
-                ],
-
-                {
-                    "index":
-                        winner_index,
-
-                    "name":
-                        winner.get(
-                            "name"
-                        ),
-
-                    "state":
-                        winner.get(
-                            "state"
-                        )
-                },
-
-                step=self.step_count
-            )
-
-
         #
         # --------------------------------------------------
-        # 10. Compute allocates resource
+        # 9. Compute allocates resource
         #
         #     This is the actual permission boundary.
         # --------------------------------------------------
@@ -479,7 +426,7 @@ class ComputeSystem:
 
         #
         # --------------------------------------------------
-        # 11. Return the Compute decision
+        # 10. Return the Compute decision
         #
         #     No execution here.
         #
