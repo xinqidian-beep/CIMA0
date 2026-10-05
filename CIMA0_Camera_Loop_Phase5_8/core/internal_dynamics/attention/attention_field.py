@@ -21,7 +21,13 @@ class AttentionField:
         - accumulate repeated changes
         - decay inactive regions
         - provide attention state
-
+    or
+    AttentionField
+        input: ObservationCache change
+        state: fields
+        evolution: growth + decay
+        output: snapshot()
+        consumer: none
 
     Does NOT:
 

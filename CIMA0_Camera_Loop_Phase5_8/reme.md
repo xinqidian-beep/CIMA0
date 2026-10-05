@@ -6618,4 +6618,20 @@ DisplayIO.receive_snapshot()
         ↓
     _merge_planet_camera()				 
 				 
+Sampler 这一层
+目前真正有意义的三个 sampler.select()：
+
+core/compute_system/compute_system.py
+        ↓
+选择 Organ
+core/internal_dynamics/organs/clip_field.py
+        ↓
+选择 Organ 内部候选
+core/terminal/camera/camera_compute.py
+        ↓
+选择 Camera Compute 的局部 score indices
+三个选择器互不越界。
+
+
+
 	  

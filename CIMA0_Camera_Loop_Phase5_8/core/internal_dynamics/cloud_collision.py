@@ -56,24 +56,11 @@ class CloudCollision:
 
     def __init__(
         self,
-        change_threshold=1e-6,
-        bounce_threshold=0.0,
-        association_radius=1
+        bounce_threshold=0.0
     ):
-
-        self.change_threshold = float(
-            change_threshold
-        )
 
         self.bounce_threshold = float(
             bounce_threshold
-        )
-
-        self.association_radius = int(
-            max(
-                association_radius,
-                0
-            )
         )
 
         self.last_result = None
@@ -305,68 +292,6 @@ class CloudCollision:
                     0
             }
         ]
-
-    def _winner_layer(
-        self,
-        winner,
-        levels
-    ):
-        """
-        Accept the current CLIP winner representation.
-
-        Supported:
-
-            11
-
-            {"coordinate": 11}
-
-            {"layer": 11}
-
-            {"winner": 11}
-        """
-
-        if isinstance(
-            winner,
-            dict
-        ):
-
-            if "coordinate" in winner:
-                winner = winner[
-                    "coordinate"
-                ]
-
-            elif "layer" in winner:
-                winner = winner[
-                    "layer"
-                ]
-
-            elif "winner" in winner:
-                winner = winner[
-                    "winner"
-                ]
-
-            else:
-                return None
-
-
-        try:
-            layer = int(
-                winner
-            )
-
-        except Exception:
-            return None
-
-
-        if layer < 0:
-            return None
-
-        if layer >= levels:
-            return None
-
-
-        return layer
-
 
     # ==========================================================
     # Planet local states

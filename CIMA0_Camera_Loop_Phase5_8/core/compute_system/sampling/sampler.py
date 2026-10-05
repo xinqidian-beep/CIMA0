@@ -46,17 +46,7 @@ class Sampler:
 
 
     It only selects.
-    
-    
-    
-    adapt_weights
-    DEFERRED
-    Endogenous adaptation mechanism
 
-    Definition: active
-    Runtime call: none
-    Purpose: evolve selection preference from internal history
-    Status: intentionally disconnected
     """
 
 
@@ -74,15 +64,6 @@ class Sampler:
         self.w_activity = 0.35
 
         self.w_delta = 0.40
-        
-        self.memory = None
-
-    def attach_memory(
-        self,
-        memory
-    ):
-
-        self.memory = memory
 
     #
     # calculate priority
@@ -156,38 +137,6 @@ class Sampler:
 
 
         return score
-        
-    def adapt(self):
-
-        if self.memory is None:
-            return
-
-
-        state=self.memory.statistics()
-
-
-        print(
-            "MEMORY STATE:",
-            state
-        )    
-        
-
-    def adapt_weights(
-        self
-    ):
-
-        if self.memory is None:
-            return
-
-
-        pressure = self.memory.pressure()
-
-
-        if pressure > 0.8:
-
-            self.w_delta *= 0.99
-
-            self.w_activity *= 1.01
 
     #
     # select top priority

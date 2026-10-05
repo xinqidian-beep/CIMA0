@@ -2,8 +2,6 @@ import copy
 import time
 import numpy as np
 
-
-from core.memory.observation_memory import ObservationMemory
 from core.internal_dynamics.cloud_collision import CloudCollision
 
 class LocalClock:

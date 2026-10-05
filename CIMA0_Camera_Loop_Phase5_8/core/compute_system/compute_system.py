@@ -1,5 +1,4 @@
 from .sampling.sampler import Sampler
-from core.memory.observation_memory import ObservationMemory
 
 
 class ComputeSystem:
@@ -37,7 +36,6 @@ class ComputeSystem:
     def __init__(
         self,
         capacity=1024,
-        memory_capacity=32,
         recovery_rate=1.0,
         sampler=None
     ):
@@ -56,19 +54,11 @@ class ComputeSystem:
         #
         # observation / selection memory
         #
-
-        self.memory = ObservationMemory(
-            capacity=memory_capacity
-        )
         
         if sampler is None:
             sampler = Sampler()
 
         self.sampler = sampler
-
-        self.sampler.attach_memory(
-            self.memory
-        )
 
         self.step_count = 0
         
@@ -369,48 +359,9 @@ class ComputeSystem:
             winner_index
         ]
 
-
         #
         # --------------------------------------------------
-        # 8. Record selection
-        #
-        #    Memory records what Compute selected.
-        #    Memory does not make the decision.
-        # --------------------------------------------------
-        #
-
-        if self.memory is not None:
-
-            self.memory.receive(
-                {
-                    "type":
-                        "selection_input",
-
-                    "signals":
-                        [
-                            {
-                                "name":
-                                    s.get(
-                                        "name"
-                                    ),
-
-                                "state":
-                                    s.get(
-                                        "state"
-                                    )
-                            }
-
-                            for s in requests
-                        ],
-
-                    "available":
-                        self.available
-                }
-            )
-
-        #
-        # --------------------------------------------------
-        # 9. Compute allocates resource
+        # 8. Compute allocates resource
         #
         #     This is the actual permission boundary.
         # --------------------------------------------------
@@ -426,7 +377,7 @@ class ComputeSystem:
 
         #
         # --------------------------------------------------
-        # 10. Return the Compute decision
+        # 9. Return the Compute decision
         #
         #     No execution here.
         #

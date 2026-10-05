@@ -101,14 +101,6 @@ from core.internal_dynamics.organs.clip_field import (
 )
 
 
-#
-# memory
-#
-
-from core.memory.observation_memory import (
-    ObservationMemory
-)
-
 def main():
 
 
@@ -141,10 +133,6 @@ def main():
     #
 
     observation_cache = ObservationCache()
-    
-    observation_memory = ObservationMemory()
-
-
 
     #
     # Compute
