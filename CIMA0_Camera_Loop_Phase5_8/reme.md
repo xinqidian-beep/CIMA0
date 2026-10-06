@@ -6632,6 +6632,208 @@ core/terminal/camera/camera_compute.py
 选择 Camera Compute 的局部 score indices
 三个选择器互不越界。
 
+AttentionField 定位
+                  ┌────────────────────┐
+                  │    PlanetField     │
+                  └─────────┬──────────┘
+                            │ glimpse
+                            ▼
+                  ┌────────────────────┐
+                  │     Observer       │
+                  └─────────┬──────────┘
+                            │ observation
+                            ▼
+                  ┌────────────────────┐
+                  │ ObservationCache   │
+                  │ compare only       │
+                  └─────────┬──────────┘
+                            │ change
+                            ▼
+                  ┌────────────────────┐
+                  │   AttentionField   │
+                  │                    │
+                  │ growth + decay     │
+                  │ own internal state │
+                  └─────────┬──────────┘
+                            │
+                            X
+                       no consumer
+另一条真正参与决策的路径是：
+Organ.activity()
+      │
+      ▼
+InternalDynamics._compute()
+      │
+      ▼
+ComputeSystem
+      │
+      ▼
+Sampler
+      │
+      ▼
+allocation
+      │
+      ▼
+commit
+      │
+      ▼
+Organ.apply_compute()
+这两条路径目前没有重新汇合。
+
+目前 ComputeSystem
+             Organ.activity()
+                    │
+                    │
+          {age, activity, delta,
+           request="compute"}
+                    │
+                    ▼
+        ┌──────────────────────┐
+        │    ComputeSystem     │
+        │                      │
+        │  request filtering   │
+        │          │           │
+        │          ▼           │
+        │       Sampler        │
+        │          │           │
+        │      priority        │
+        │          │           │
+        │          ▼           │
+        │       winner         │
+        │          │           │
+        │          ▼           │
+        │      allocate()      │
+        │          │           │
+        └──────────┼───────────┘
+                   │
+             allocation
+                   │
+                   ▼
+             commit()
+                   │
+                   ▼
+        Organ.apply_compute()
+                   │
+                   ▼
+             Organ.step()
+这条链里面目前没有隐藏的第二个 Compute 决策中心。
+                    ComputeSystem
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+          resource              selection
+              │                     │
+          available               Sampler
+              │                     │
+              │                   winner
+              │                     │
+              └──────────┬──────────┘
+                         │
+                      allocate
+                         │
+                    permission
+                         │
+                       commit
+                         │
+                      consume
+                         │
+                 actual consumed
+
+Organ 在外面：
+Organ
+ │
+ ├─ activity()
+ │      ↓
+ │   raise hand
+ │
+ │   ComputeSystem
+ │      ↓
+ │   permission
+ │
+ └─ apply_compute()
+        ↓
+      step()
+
+Organ 内部可以产生自己的局部选择；系统层只决定哪个 Organ 获得有限计算机会。
+              ClipField
+                  │
+          ┌───────┴────────┐
+          │                │
+       内部演化          外部 Compute
+          │                │
+      new_cloud            │
+          ↓                │
+    layer_activity         │
+          ↓                │
+      max(layer)            │
+          ↓                │
+    winner_layer            │
+          ↓                │
+      candidate             │
+          ↓                │
+    request="compute" ─────┘
+                           ↓
+                    ComputeSystem
+                           ↓
+                      Sampler
+                           ↓
+                    winner Organ
+
+主链					
+                    ┌───────────────┐
+                    │    Planet     │
+                    └───────┬───────┘
+                            │
+                            ▼
+                     planet_glimpse
+                            │
+                            ▼
+                       Observer
+                            │
+                            ▼
+                    ObservationCache
+                            │
+                            ▼
+                     AttentionField
+                            │
+                            └──────► 自身演化
+                                     
+                                     
+ Organ ──────► activity()
+   │               │
+   │               ▼
+   │          request="compute"
+   │               │
+   └──────────────►signals
+                    │
+                    ▼
+              InternalDynamics
+                 _compute()
+                    │
+                    ▼
+             ComputeSystem.select()
+                    │
+                    ▼
+                  winner
+                    │
+                    ▼
+                allocation
+                    │
+                    ▼
+                 commit()
+                    │
+                    ▼
+          ComputeSystem.consume()
+                    │
+                    ▼
+          organ.apply_compute()
+                    │
+                    ▼
+                 _evolve()
+                    │
+                    ▼
+               organ.step()
 
 
+			   
 	  

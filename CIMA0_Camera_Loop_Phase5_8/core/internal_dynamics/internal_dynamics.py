@@ -643,6 +643,9 @@ class InternalDynamics:
         self,
         result
     ):
+        
+        if self.collision is None:
+            return None
 
         if result is None:
             return None
