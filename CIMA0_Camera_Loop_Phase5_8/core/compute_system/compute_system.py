@@ -36,7 +36,6 @@ class ComputeSystem:
     def __init__(
         self,
         capacity=1024,
-        recovery_rate=1.0,
         sampler=None
     ):
 
@@ -45,11 +44,7 @@ class ComputeSystem:
         )
 
         self.available = self.capacity
-        
-        self.recovery_rate = max(
-            float(recovery_rate),
-            0.0
-        )
+
         
         #
         # observation / selection memory

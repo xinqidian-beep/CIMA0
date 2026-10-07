@@ -6834,6 +6834,34 @@ Organ 内部可以产生自己的局部选择；系统层只决定哪个 Organ �
                     ▼
                organ.step()
 
+① 系统资源状态
+   capacity
+   available
+   compute_budget
+   handles
 
+② 动力学状态
+   Planet.state
+   CloudField.field
+   Cell.value/delta/activity
+   ClipField.cloud
+
+③ 瞬时观察/缓存状态
+   ObservationCache.previous
+   CameraObserver.previous
+   DisplayIO.previous
+
+④ 局部选择状态
+   winner_layer
+   winner_response
+   matrix_coordinate
+   layer_activity
+
+⑤ 关系/结果状态
+   CloudCollision.last_result
+   collision events
+
+⑥ 已确认死状态
+   ClipField.self.winner   ← 已删除
 			   
 	  

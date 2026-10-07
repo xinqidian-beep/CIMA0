@@ -34,8 +34,6 @@ class CameraObserver:
 
         calculate change
 
-        raise compute request
-
 
 
     No:
@@ -55,9 +53,6 @@ class CameraObserver:
 
     def __init__(
         self,
-        w_delta=0.5,
-        w_age=0.3,
-        w_activity=0.2
     ):
 
 
@@ -68,14 +63,6 @@ class CameraObserver:
         self.age = None
         
         self.raw_frame = None
-        
-
-        self.w_delta = w_delta
-
-        self.w_age = w_age
-
-        self.w_activity = w_activity
-
 
 
     def observe(
@@ -223,97 +210,7 @@ class CameraObserver:
 
         }
 
-
-
-        observation["request"] = self.raise_hand(
-
-            observation
-
-        )
-
-
-
         return observation
-
-
-
-    def raise_hand(
-        self,
-        observation
-    ):
-        """
-        Automatic attention request.
-
-        Only report demand.
-        """
-
-
-
-        delta = observation["delta"]
-
-        age = observation["age"]
-
-        activity = observation["activity"]
-
-
-
-        age_norm = (
-
-            age /
-
-            max(
-                np.max(age),
-                1.0
-            )
-
-        )
-
-
-
-        score = (
-
-            self.w_delta * delta
-
-            +
-
-            self.w_age * age_norm
-
-            +
-
-            self.w_activity * activity
-
-        )
-
-
-
-        return {
-
-
-            "type":
-
-                "compute_request",
-
-
-
-            "source":
-
-                "camera",
-
-
-
-            "score":
-
-                score.astype(
-                    np.float32
-                ),
-
-
-
-            "shape":
-
-                score.shape
-
-        }
 
 
 

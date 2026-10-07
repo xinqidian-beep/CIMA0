@@ -132,8 +132,7 @@ class CLIPField:
         # -------------------------------------------------
 
         self.layer_response = {}
-        
-        self.winner = None
+
         self.winner_layer = None
         self.matrix_coordinate = None
         self.winner_response = 0.0

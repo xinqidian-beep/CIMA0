@@ -79,12 +79,6 @@ class CloudField:
 
         self.response_events = []
 
-        #
-        # compute bookkeeping
-        #
-
-        self.last_allocation = {}
-
     # -------------------------------------------------
 
     def receive(
@@ -207,107 +201,6 @@ class CloudField:
         return float(
             self.delta
         )
-
-    # -------------------------------------------------
-
-    def request_compute(
-        self
-    ):
-        """
-        Report local compute demand.
-
-        CloudField reports state pressure only.
-
-        It does not allocate compute.
-        """
-
-        if self.field is None:
-
-            return {
-                "cloud": {
-                    "collision": 0.0,
-                    "decay": 0.0
-                }
-            }
-
-        occupied = sum(
-            1
-            for cell in self.cells
-            if not cell.empty
-        )
-
-        return {
-            "cloud": {
-
-                #
-                # complete field exists
-                #
-
-                "collision":
-                    float(
-                        self.delta
-                    ),
-
-                #
-                # local occupied cells
-                #
-
-                "decay":
-                    float(
-                        occupied
-                    )
-            }
-        }
-
-    # -------------------------------------------------
-
-    def execute_compute(
-        self,
-        allocation
-    ):
-        """
-        Execute only the operations permitted
-        by ComputeSystem.
-        """
-
-        if allocation is None:
-
-            return
-
-        cloud = allocation.get(
-            "cloud",
-            {}
-        )
-
-        collision_budget = int(
-            cloud.get(
-                "collision",
-                0
-            )
-        )
-
-        decay_budget = int(
-            cloud.get(
-                "decay",
-                0
-            )
-        )
-
-        self.last_allocation = dict(
-            cloud
-        )
-
-        if collision_budget > 0:
-
-            self.collision(
-                limit=collision_budget
-            )
-
-        if decay_budget > 0:
-
-            self.decay(
-                limit=decay_budget
-            )
 
     # -------------------------------------------------
 
