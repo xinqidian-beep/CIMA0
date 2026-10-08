@@ -6864,4 +6864,136 @@ Organ 内部可以产生自己的局部选择；系统层只决定哪个 Organ �
 ⑥ 已确认死状态
    ClipField.self.winner   ← 已删除
 			   
-	  
+InternalDynamics
+│
+├── Planet
+│   └── planet_clock
+│       └── 只控制 Planet 推进时机
+│
+├── ComputeSystem
+│   └── 计算机会 / Organ permission
+│
+├── CloudCollision
+│   └── 关系计算
+│
+├── Observer
+│   └── 描述当前状态
+│
+├── ObservationCache
+│   └── 前后快照比较
+│
+├── AttentionField
+│   └── 变化后的自身动态场
+│
+├── organs
+│   └── Organ 集合
+│
+├── internal_fields
+│   └── planet_glimpse
+│
+├── glimpse versions
+│   └── 观察同步标记
+│
+└── external_packets
+    └── 原始外部 packet 保留
+这个结构目前没有出现一个明显的越权状态容器。
+
+compute.step()
+      ↓
+planet_clock.due()
+      ↓
+_planet_step()
+      ↓
+_observe()
+      ↓
+_compute()
+      ↓
+commit()
+      ↓
+_evolve()
+      ↓
+_collision()
+      ↓
+_sample()
+对应核心公理：
+推进/承接内部演化
+        ↓
+观察当前变化
+        ↓
+计算并选择一个候选
+        ↓
+commit 一次
+        ↓
+继续内部演化
+        ↓
+关系发生/被计算
+        ↓
+sample
+
+核心职责冻结
+┌────────────────────────────────────────────┐
+│             InternalDynamics               │
+│                                            │
+│ receive                                     │
+│   └─ 保留原 packet + 原样广播              │
+│                                            │
+│ step                                        │
+│   ├─ Compute opportunity recovery           │
+│   ├─ Planet own clock → Planet.step()      │
+│   ├─ Observe                               │
+│   │   ├─ Planet → Observer → Cache         │
+│   │   └─ Organ → activity → signals        │
+│   ├─ Compute.select()                      │
+│   ├─ commit → Compute.consume              │
+│   │           → Organ.apply_compute         │
+│   ├─ Organ.step()                          │
+│   ├─ Collision relation                    │
+│   └─ Sample                                │
+└────────────────────────────────────────────┘
+
+最重要的所有权关系
+Planet
+  └─ owns its evolution
+
+Observer
+  └─ describes
+
+ObservationCache
+  └─ compares
+
+AttentionField
+  └─ evolves its own attention field
+
+ComputeSystem
+  └─ owns computational permission
+
+Sampler
+  └─ selects computational winner
+
+Organ
+  └─ executes / evolves itself
+
+CloudCollision
+  └─ computes relation
+
+InternalDynamics
+  └─ coordinates the sequence
+
+                  ┌────────────────────┐
+                  │  AttentionField    │
+                  │  legacy / dormant  │
+                  └─────────┬──────────┘
+                            │
+                         未实例化
+                            │
+                            X
+                            │
+Planet → Observer → Cache → Compute → Organ
+----------------------------------------------
+Planet → Observer → ObservationCache
+                              │
+                              └ - - - → AttentionField
+                                         (未实例化)
+
+
+										 

@@ -68,9 +68,9 @@ class InternalDynamics:
 
     Observation:
 
-        InternalDynamics owns observation context.
-
-        Observer only describes current state.
+        #InternalDynamics owns observation context.
+        InternalDynamics owns the observation flow/context boundary.
+        #Observer only describes current state.
 
     """
 
@@ -501,36 +501,9 @@ class InternalDynamics:
         # existing compute-selection path
         # -------------------------------------------------
         #
-
-        if self.compute.available <= 0:
-
-            return None
-
-        requests = []
-
-        for signal in signals:
-
-            state = signal.get(
-                "state",
-                {}
-            )
-
-            request = state.get(
-                "request"
-            )
-
-            if request == "compute":
-
-                requests.append(
-                    signal
-                )
-
-        if not requests:
-
-            return None
-
+        
         winner = self.compute.select(
-            requests
+            signals
         )
         if winner is None:
 
