@@ -1,3 +1,5 @@
+import copy
+
 class CloudState:
     """
     Temporary internal state cloud.
@@ -72,7 +74,6 @@ class CloudState:
 
     def snapshot(self):
 
-        return [
-            cell.copy()
-            for cell in self.cells
-        ]
+        return copy.deepcopy(
+            self.cells
+        )

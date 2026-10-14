@@ -3,6 +3,7 @@ import time
 import numpy as np
 
 from core.internal_dynamics.cloud_collision import CloudCollision
+from core.internal_dynamics.cloud.cloud_state import CloudState
 
 class LocalClock:
 
@@ -124,6 +125,7 @@ class InternalDynamics:
         #
 
         self.internal_fields = {}
+        self.cloud_state = CloudState()
         self.planet_glimpse_version = 0
         self.planet_glimpse_observed_version = -1
         
@@ -228,6 +230,8 @@ class InternalDynamics:
     def step(
         self
     ):
+        
+        self.cloud_state.step()
 
         #
         # -------------------------------------------------
@@ -704,11 +708,24 @@ class InternalDynamics:
             matrix_coordinate
         )
 
-
         if collision_result is None:
             return None
 
+        details = collision_result.get(
+            "collision_result",
+            {}
+        )
+
+        for relation in details.get(
+            "responses",
+            []
+        ):
+            self.cloud_state.receive(
+                relation
+            )
+
         return collision_result
+
    
     #
     # internal organ evolution
@@ -767,7 +784,9 @@ class InternalDynamics:
             "fields":
                 copy.deepcopy(
                     self.internal_fields
-                )    
+                ),
+
+            "cloud_state": self.cloud_state.snapshot()
         
         }
 
@@ -870,8 +889,8 @@ class InternalDynamics:
                     "snapshot"
                 )
 
-                else None
+                else None,
                 
-              
+            "cloud_state": self.cloud_state.snapshot()  
 
         }

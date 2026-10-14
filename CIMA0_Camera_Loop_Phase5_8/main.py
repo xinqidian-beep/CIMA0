@@ -351,6 +351,17 @@ def main():
         #
 
         dynamics.step()
+        
+        # text
+        cloud = dynamics.cloud_state.snapshot()
+
+        print(
+            "CLOUD STATE:",
+            "count =", len(cloud),
+            "latest_age =", cloud[-1]["age"] if cloud else None,
+            "step_count =", dynamics.cloud_state.step_count,
+        )
+
 
 
         #
