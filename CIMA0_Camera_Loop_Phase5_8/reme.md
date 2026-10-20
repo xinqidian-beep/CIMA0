@@ -6995,5 +6995,596 @@ Planet → Observer → ObservationCache
                               └ - - - → AttentionField
                                          (未实例化)
 
+后续工作的约束：
+1. 不要求全局可见。 不为了方便调试，就让所有模块暴露全部内部状态。
+2. 不把观察结果当作完整现实。 snapshot()、glimpse() 和采样结果都是有限表达。
+3. 不把日志缺失当作状态缺失。 必须区分“没有观察证据”和“代码明确没有执行”。
+4. 不为了证明变化而强制记录变化。 记录机制本身不能反过来成为所有内部演化的控制条件。
+5. 允许不可见的内部变化存在。 只要符合系统的演化规则，就不必要求每个变化都被外部观察者识别、命名或解释。
+6. 审计接口和规则，而不是强求解释一切。 我们要确认系统具有什么能力、哪些路径已被代码证实，而不是建立一个掌握所有状态的全局解释器。
+这里有一个尤其重要的区别：有限观察不是人为随机隐藏数据，也不是故意制造信息缺失；它意味着观察者的能力本来就有限，不能把观察者的边界等同于系统的边界。
 
-										 
+
+20261020
+外部世界
+  │
+  ▼
+CameraPlanet（硬件事实封装）
+  │
+  ▼
+CameraIO（ndarray → BitPacket）
+  │
+  ▼
+TransportRouter（按 tag 分发）── 未在 InternalDynamics 里被调用
+  │
+  ▼
+InternalDynamics.receive(packet)（原样广播给 organs + 存 external_packets）
+  │
+  ├── CLIPField（自持 organ：cloud 12×50×768，compute budget，activity）
+  │
+  ├── PlanetField（自持 organ：state 128×128，glimpse，activity）
+  │     │
+  │     ▼
+  │   Planet（动力源，archive）
+  │
+  └── 其他 organs（未知）
+  
+InternalDynamics.step():
+  1. cloud_state.step()      ← CloudState（瞬态容器，capacity 32，age<80 丢弃）
+  2. compute.step()          ← ComputeSystem（资源池，capacity 1024，恢复 1%）
+  3. planet_clock.due() → _planet_step() → planet.step() + planet.glimpse()
+  4. _observe():
+     - Planet glimpse → InternalDynamicsObserver.observe → ObservationCache.step → AttentionField.receive+step
+     - organ.activity() → signals
+  5. _compute(signals)       ← ComputeSystem.select → Sampler.select（比较筛选）
+  6. commit(result)          ← ComputeSystem.consume + organ.apply_compute
+  7. _evolve()               ← organ.step()（所有 organ，自检 budget）
+  8. _collision(result)      ← CloudCollision.collide(planet_cloud, clip_cloud, ...)
+     └── cloud_state.receive(relation)
+  9. _sample()               ← snapshot
+
+输出端（独立）:
+  InternalDynamics.snapshot() → DisplayIO.receive_snapshot() → framebuffer
+
+
+未接入/无消费者的：
+
+TransportRouter（InternalDynamics 自己广播，不走 Router）
+
+AttentionField（docstring 自认 "consumer: none"）
+
+InternalDynamicsObserver.description（无消费者）
+
+CloudField（InternalDynamics 里没实例化）
+
+ObservationMemory（还没读）
+
+DisplayIO（不知道谁调它）  
+
+记录：
+
+DisplayIO = 纯输出边界：decode + complete + merge + resize + render，不合流回流、不控制、不修改
+
+_merge_planet_camera 是唯一合流点：planet 强度 × camera 颜色，符合"内部不合流，输出才合流"
+
+注释说 RGB、代码用 BGR——可能是注释笔误，代码保持 BGR 同构优先
+
+_resize 是最近邻索引，不插值——和采样层"不插值"精神一致
+
+DisplayIO 的调用方未知（main.py？还没接？）
+
+全模块地图完整了，未接入/无消费者的模块清单：Router / AttentionField / description / CloudField / ObservationMemory（未读）/ DisplayIO 调用方
+
+还差：
+
+core/memory/observation_memory.py（记忆）
+
+core/debug/attention_history.py / compute_history.py（调试）
+
+hardware/（display_device.py / usb_camera.py）
+
+tests/
+*************************************************
+main.py
+初始化：
+
+Planet(size=128) → PlanetField(planet_rule)
+
+ObservationCache()、Sampler()、ComputeSystem(capacity=1024, sampler)、CloudCollision()、InternalDynamicsObserver()、AttentionField()、TransportRouter()
+
+InternalDynamics(planet, compute, collision, observer, observation_cache, attention_field)
+
+DisplayIO()
+
+CLIPField(weight_path=CLIP_WEIGHT, sampler) → dynamics.register("clip", clip_field)
+
+Transport 订阅：
+
+transport.subscribe("camera_raw", dynamics)
+
+transport.subscribe("visual", display)
+
+Camera：cv2.VideoCapture(0, CAP_DSHOW)，失败则 camera_available=False
+
+主循环：
+
+cv2.waitKey(1)，Esc 退出
+
+若相机可用：cap.read() → camera_state = {"field": frame} → camera_io.encode(camera_state) → transport.publish(packet)（display.receive(packet) 被注释掉）
+
+dynamics.step()
+
+打印 cloud_state.snapshot() 的 count / latest_age / step_count
+
+snapshot = dynamics.snapshot() → display.receive_snapshot(snapshot)
+
+若 display.frame is not None → cv2.imshow("CIMA0", display.frame)
+
+cv2.waitKey(1)，Esc 退出
+
+shutdown：cap.release() + cv2.destroyAllWindows()
+************************************************************
+关键接线（纯记录）
+1. Camera 路径
+text
+cap.read() → frame
+  ↓
+camera_state = {"field": frame}
+  ↓
+camera_io.encode(camera_state) → BitPacket(source="camera", tag="camera_raw", schema="media.bgr")
+  ↓
+transport.publish(packet)
+  ↓
+transport.subscribers["camera_raw"] = [dynamics]
+  ↓
+dynamics.receive(packet)
+  ↓
+external_packets["camera_raw"] = packet
+  +
+广播给 organs（clip_field.receive(packet)）
+关键：camera_observer 不在路径里。camera_io 直接从 raw frame 编 BitPacket，跳过 camera_planet → camera_observer → camera_compute 那条链。
+
+这印证了我上一轮报的"camera_observer 采样还没接进来"——不仅没接采样，连 camera_observer 本身都没接。
+
+2. Internal 路径
+text
+dynamics.step()
+  ↓
+cloud_state.step()
+compute.step()
+planet_clock.due() → _planet_step() → planet.step() + planet.glimpse()
+  ↓
+_observe():
+  - Planet glimpse → InternalDynamicsObserver.observe → ObservationCache.step → AttentionField.receive+step
+  - organ.activity() → clip_field.activity() → signals
+  ↓
+_compute(signals) → compute.select → sampler.select
+  ↓
+commit(result) → compute.consume + clip_field.apply_compute
+  ↓
+_evolve() → clip_field.step()
+  ↓
+_collision(result) → CloudCollision.collide(planet_cloud, clip_cloud, winner, matrix_coordinate)
+  ↓
+cloud_state.receive(relation)
+  ↓
+_sample() → snapshot
+3. Display 路径
+text
+dynamics.snapshot()
+  ↓
+display.receive_snapshot(snapshot)
+  ↓
+snapshot["planet"] + snapshot["external"]["camera_raw"]
+  ↓
+_merge_planet_camera(planet, camera_packet)
+  ↓
+display.frame
+  ↓
+cv2.imshow("CIMA0", display.frame)
+关键：display.receive(packet) 被注释掉了，只用 receive_snapshot。
+
+四、我看到的三处，报给你（不裁决）
+点 1：camera_observer / camera_compute / camera_planet 都不在路径里
+main.py 里：
+
+camera_planet = CameraPlanet() 创建了但没用
+
+camera_observer 没 import
+
+camera_compute 没 import
+
+camera 路径是：cap.read() → camera_io.encode() → transport.publish() → dynamics.receive()。
+
+camera_planet / camera_observer / camera_compute 三件都不在路径里。
+
+这印证了采样汇编里说的"采样还没接进来"——不只是采样，整个 camera 中间层（planet/observer/compute）都没接。当前只有 camera_io（封装）+ dynamics.receive（广播）。
+
+这不是 bug，是"当前阶段只接了 CameraIO + 广播"。但意味着：
+
+camera 的 delta/age/activity 没算（那是 camera_observer 的事）
+
+camera 的采样没做（块平均、举手、精算都没接）
+
+CLIPField 直接收 raw camera packet，自己 _decode 成 224×224
+
+标注为待确认：这是 Phase5_8 的"当前进度"（camera 中间层待接），还是有意简化（camera 只做封装+广播，所有采样/观察在 CLIPField 内部做）？
+
+点 2：camera_planet 创建了但完全没用
+python
+camera_planet = CameraPlanet()
+后面没有任何地方用 camera_planet。它是死变量。
+
+标注为待确认：这是"预留"（未来接 camera 中间层时用），还是"遗忘的残留"？
+
+点 3：transport.subscribe("visual", display) 但 visual 包从没被 publish
+main.py 里：
+
+transport.subscribe("visual", display)——注册了 "visual" tag 的订阅者
+
+但整个文件里没有 transport.publish(visual_packet)
+
+PlanetField.packet() / CLIPField.packet() 产 tag="visual" 的 BitPacket，但 main.py 没调它们、没 publish。display 走的是 receive_snapshot(snapshot)，不是 receive(packet)。
+
+所以 "visual" 订阅是死的——注册了但永远不触发。
+
+标注为待确认：transport.subscribe("visual", display) 是预留（未来 publish visual packet 时用），还是遗漏（应该 publish 但没 publish）？
+
+五、main.py 里的"当前实际接线"
+去掉死代码/预留，main.py 实际跑的路径是：
+
+text
+Camera (cv2)
+  ↓
+camera_io.encode → BitPacket
+  ↓
+transport.publish → dynamics.receive
+  ↓
+internal_packets["camera_raw"] + 广播给 clip_field
+  ↓
+dynamics.step():
+  - planet.step() + glimpse()
+  - observer/cache/attention（planet 侧）
+  - clip_field.activity() → signals
+  - compute.select → sampler.select
+  - commit → clip_field.apply_compute
+  - clip_field.step()（forward）
+  - collision.collide(planet_glimpse, clip_cloud, winner, matrix_coordinate)
+  - cloud_state.receive(relations)
+  - snapshot
+  ↓
+display.receive_snapshot(snapshot)
+  ↓
+cv2.imshow
+死代码/预留：
+
+camera_planet（创建不用）
+
+camera_observer（没 import）
+
+camera_compute（没 import）
+
+CloudField（没实例化）
+
+ObservationMemory（没 import）
+
+transport.subscribe("visual", display)（无 publish）
+
+display.receive(packet)（注释掉）
+
+AttentionField.snapshot()（无消费者）
+
+六、我注意到的一处"分型"细节
+main.py 里 sampler = Sampler()，然后：
+
+ComputeSystem(capacity=1024, sampler=sampler)——传入同一个 sampler
+
+CLIPField(weight_path, sampler=sampler)——传入同一个 sampler
+
+ComputeSystem 和 CLIPField 共享同一个 Sampler 实例！
+
+这和我之前读 camera_compute.py（Phase5_7）时"两个 Sampler 实例"不同——Phase5_8 里 main.py 显式传同一个 sampler。
+
+这是"分型"的另一个细节：Sampler 是"比较筛选"职能，ComputeSystem 和 CLIPField 各用它一次（选 Organ / 选 matrix coordinate），但共享同一个实例（权重同步、经验共享）。
+
+标注为待确认：这是有意的（采样器共享经验，权重演化同步），还是"当前只有一个 sampler 方便"？
+********************************************
+"全模块地图"（Phase5_8）
+已接入主循环（main.py 实际跑）：
+
+Planet（archive）→ PlanetField
+
+CameraIO → TransportRouter → InternalDynamics.receive → 广播 CLIPField
+
+InternalDynamics.step()：CloudState / ComputeSystem / Sampler / InternalDynamicsObserver / ObservationCache / AttentionField / CLIPField / CloudCollision
+
+InternalDynamics.snapshot() → DisplayIO.receive_snapshot → cv2.imshow
+
+已实现、未接入：
+
+CameraPlanet（main.py 创建了但没用）
+
+CameraObserver（没 import）
+
+CameraCompute（没 import）
+
+CloudField（没实例化）
+
+USBCamera（main.py 直接 cv2）
+
+DisplayDevice（main.py 直接 cv2）
+
+transport.subscribe("visual", display)（无 publish）
+
+AttentionField.snapshot()（无消费者）
+
+InternalDynamicsObserver.description（无消费者）
+
+已删除：
+
+ObservationMemory（已删除）
+
+未读：
+
+core/debug/（attention_history.py / compute_history.py）（只有名字，无内容）
+
+tests/
+***********************************************************
+Phase5_8 的结构理解（主环）
+Camera (cv2)
+  ↓
+CameraIO.encode → BitPacket(camera_raw, media.bgr)
+  ↓
+TransportRouter.publish
+  ↓
+InternalDynamics.receive(packet)
+  ├─ external_packets["camera_raw"] = packet
+  └─ 广播给 organs → CLIPField.receive(packet)（dirty=True）
+  ↓
+InternalDynamics.step():
+  1. cloud_state.step()          ← 瞬态云老化
+  2. compute.step()              ← 资源恢复 1%
+  3. planet_clock.due() → _planet_step()
+       → PlanetField.step() → Planet.step() + snapshot
+       → PlanetField.glimpse() → internal_fields["planet_glimpse"]
+  4. _observe():
+       - Planet glimpse → Observer.observe → Cache.step → AttentionField.receive+step
+       - organs.activity() → signals（CLIPField.activity）
+  5. _compute(signals) → ComputeSystem.select → Sampler.select（比较筛选，选 1 个）
+  6. commit(result) → ComputeSystem.consume + organ.apply_compute
+  7. _evolve() → organ.step()（自检 budget，CLIPField forward）
+  8. _collision(result) → CloudCollision.collide(planet_cloud, clip_cloud, winner, matrix_coordinate)
+       → cloud_state.receive(relations)
+  9. _sample() → snapshot
+  ↓
+DisplayIO.receive_snapshot(snapshot)
+  → _merge_planet_camera(planet, camera_raw)
+  → framebuffer
+  ↓
+cv2.imshow
+*****************************************
+五个关键分离
+动力/状态分离：Planet 是动力，PlanetField/CLIPField 是状态
+
+观察/比较分离：Observer 只观察，Cache 只比较
+
+计算/执行分离：Compute 只给机会，organ 自己决定用不用（step() 自检 budget）
+
+碰撞/状态分离：Collision 只产关系，CloudState 承接，不回流 Planet
+
+内部/输出分离：内部不合流，DisplayIO 才合流
+*********************************************
+合规的（我判断为"符合涌现模型原则"）：
+CloudCollision 是纸壳筛选器机制的精确落地——负/零/空位直接决定 change/bounce/penetrate，无 _make_candidate() 裁判链
+
+CloudField 明确拒绝标量压缩——"Do NOT do: mean(field)"，完整 field 保留
+
+PlanetField.glimpse() 无外部 region——内部自动举手，递归逼近
+
+PacketView 保留原 packet——"不需要 ≠ 删除"的载体级落地
+
+AttentionField docstring 自认 "consumer: none"——最诚实的白名单声明
+
+DisplayIO._merge_planet_camera 是唯一合流点——内部不合流，输出才合流
+
+CLIPField.step() 自检 budget——commit 给权限，organ 自检用不用
+
+ObservationCache 只存一个 previous——观察者有限，不 store history
+********************************************
+已实现未接入（我判断为"写了但主环没接"）：
+CameraPlanet（main.py 创建不用）
+
+CameraObserver（没 import）
+
+CameraCompute（没 import）
+
+CloudField（没实例化）
+
+USBCamera / DisplayDevice（main.py 直接 cv2）
+
+transport.subscribe("visual", display)（无 publish）
+
+AttentionField.snapshot()（无消费者）
+
+InternalDynamicsObserver.description（无消费者）
+***********************************************
+写死占位（我判断为"临时措施，最终内生+自平衡"）：
+CloudState.capacity=32 / age<80
+
+CloudCollision.bounce_threshold=0.0
+
+Sampler.w_age/w_activity/w_delta = 0.25/0.35/0.40
+
+PlanetField.size=128 / 0.01
+
+ComputeSystem.capacity=1024 / 0.01
+
+AttentionField.growth=0.2 / decay=0.95 / threshold=0.0
+
+ObservationCache.threshold=0.0
+
+CloudField.capacity=32 / rate=0.95 / release_threshold=0.01 / 0.05
+
+Planet._split_region 四叉分割（结构还是占位，待确认）
+
+_region_hand 的 current + temporal 1:1 权重
+
+_magnitude 对 dict 取 max
+
+_extract_intensity 跳过列表、spatial 叠加/scalar max
+***************************************
+不确定 1：camera 中间层是"待接"还是"有意绕过"？
+main.py 里 camera 路径是：cap.read() → camera_io.encode() → transport.publish() → dynamics.receive() → 广播 CLIPField。
+
+camera_planet / camera_observer / camera_compute 三件都不在路径里。
+
+如果"待接"：当前 camera 的 delta/age/activity、块平均、举手、精算都没做，CLIPField 直接收 raw camera packet 自己 _decode 成 224×224。
+
+如果"有意绕过"：camera 只做封装+广播，所有采样/观察在 CLIPField 内部做（_decode 的 resize 是 CLIP 自己的输入适配）。
+
+这直接决定"采样汇编"里那套采样层（块平均、举手、精算）到底接在哪。
+***************************************
+不确定 2：CloudField 属于哪个层级？
+CloudField 已实现（保留完整 field + Cells + inject_local_response + decay），但 InternalDynamics 里只实例化了 CloudState，没有 CloudField。
+
+CloudState：瞬态容器，receive(relation) → cells
+
+CloudField：瞬态云，receive(field) → 保留 field + inject_local_response → Cell
+
+它们是两个不同的瞬态容器，CloudField 未来接在哪？ 是接在 CLIPField 内部（保留 CLIP cloud），还是接在 InternalDynamics（作为另一个云）
+******************************************
+不确定 3：Sampler 共享是有意还是方便？
+main.py 里 sampler = Sampler()，然后 ComputeSystem 和 CLIPField 共用同一个 sampler 实例。
+
+如果"有意"：采样器经验共享，权重演化同步（未来内生驱动时，两个选择共享同一套权重）
+
+如果"方便"：当前只创建了一个，避免多个实例
+
+这决定"分型"里 Sampler 是"每层独立实例"还是"共享一个实例"。
+***********************************************
+不确定 4：AttentionField 的产出将来接给谁？
+AttentionField 已实现、已接入（_observe() 里 receive + step），但 snapshot() 无消费者。docstring 自认 "consumer: none"。
+
+它是"只记录不消费"的观察场（永远无消费者，只是记录变化累积）？
+
+还是"未来接给 Sampler/Compute"（注意力强度参与选择）？
+
+这决定 AttentionField 是"死产出"还是"待接的选择输入"。
+****************************************
+不确定 5：InternalDynamicsObserver.describe() 的键不匹配
+describe() 找 snapshot["planet"]，但 _observe() 传的是 glimpse["observation"]（含 source/type/level/region/path/exact/age，没有 planet 键）。
+
+所以 description 目前是空 {}。
+
+这是"接口没对齐"（describe 应该改找 glimpse["observation"] 的键）？
+
+还是"未来 glimpse["observation"] 会加 planet 键"？
+
+这决定 description 是"bug 导致空"还是"预留待接"。
+********************************************
+不确定 6：PlanetField.step() 和 InternalDynamics._planet_step() 的关系
+main.py 里 planet = PlanetField(planet_rule)，InternalDynamics(planet=planet, ...)
+
+InternalDynamics._planet_step() 调 self.planet.step() → PlanetField.step() → self.planet.step()（Planet.step()）
+
+两层 step，不是重复（我上一轮确认过）
+
+但 PlanetField.step() 和 InternalDynamics._planet_step() 的职责边界是什么？
+
+PlanetField.step()：Planet.step() + snapshot + previous_state + age
+
+_planet_step()：PlanetField.step() + PlanetField.glimpse() → internal_fields["planet_glimpse"]
+
+glimpse() 在 _planet_step() 里调，不在 PlanetField.step() 里调——所以 PlanetField.step() 只演化，_planet_step() 演化+观察。这个分工是有意的吗？
+***********************************************
+已完成：
+
+主环跑通（Camera → 广播 → 内部演化 → 观察/选择/提交 → 碰撞 → 承接 → 输出）
+
+Planet 自主动力（PlanetField → Planet）
+
+CLIPField 自持 organ（cloud + budget + forward）
+
+Compute 三合一（筛选 + 选择 + 分配）
+
+CloudCollision 筛选器机制
+
+输出合流（DisplayIO）
+
+待接：
+
+camera 中间层（planet/observer/compute）
+
+CloudField
+
+USBCamera / DisplayDevice
+
+"visual" 订阅
+
+AttentionField 消费者
+
+description 消费者
+********************************
+┌─────────────────────────────────────────┐
+│ 容器（结构状态 + 动力源）                  │
+│   Planet / PlanetField / CLIPField / ...  │
+│   持有状态，自己演化                       │
+└──────────────────┬──────────────────────┘
+                   │ 状态/扰动
+                   ▼
+┌─────────────────────────────────────────┐
+│ 采样                                      │
+│   全局遍历 → 稀疏递归 → 焦点精算 → 过期压缩补算 │
+│   （camera 焦点采样、PlanetField.glimpse、   │
+│    CLIPField._sample_matrix_coordinate 都是实例）│
+└──────────────────┬──────────────────────┘
+                   │ 焦点/扰动
+                   ▼
+┌─────────────────────────────────────────┐
+│ 计算（筛选 + 分配算力）                    │
+│   Sampler（筛选）+ ComputeSystem（分配）    │
+│   = 把有限注意力放在需要看的地方             │
+└──────────────────┬──────────────────────┘
+                   │ 机会/资源
+                   ▼
+┌─────────────────────────────────────────┐
+│ IO（传递）                                │
+│   取所需 + 写回状态变化 + 打包未使用的      │
+│   同构信息流继续传递                       │
+└─────────────────────────────────────────┘
+四个模块各司其职，通过扰动互动，不改变对方内部规则。
+*********************************************
+┌──────────────────────────────────────────┐
+│ 容器（结构状态 + 动力源）                   │
+│   持有状态，自己演化，不理会全局             │
+└──────────────────┬───────────────────────┘
+                   │ 状态 / 扰动
+                   ▼
+┌──────────────────────────────────────────┐
+│ 采样                                       │
+│   全局遍历 → 稀疏递归 → 焦点精算 → 过期压缩补算 │
+│   自持 + 内部自动举手 + 按需调用，只做份内工作  │
+└──────────────────┬───────────────────────┘
+                   │ 焦点 / 扰动
+                   ▼
+┌──────────────────────────────────────────┐
+│ 计算（筛选 + 分配算力）                     │
+│   = 把有限注意力放在需要看的地方             │
+└──────────────────┬───────────────────────┘
+                   │ 机会 / 资源
+                   ▼
+┌──────────────────────────────────────────┐
+│ IO（传递）                                 │
+│   取所需 + 写回状态变化 + 打包未使用的        │
+│   同构信息流继续传递                        │
+└──────────────────────────────────────────┘
+四个关键词
+各司其职 — 每个模块只做自己的事，不替别人决定
+
+同构分型 — 同一个职能，在不同尺度重复，有各自的内部时序和规则
+
+自持 + 自动举手 + 按需调用 — 不预设数量/管理，被调用时只做份内工作
+
+扰动互动 — 模块间只投递扰动，不改对方内部规则
+*********************************************
+
