@@ -1,0 +1,350 @@
+import numpy as np
+
+
+
+class CameraObserver:
+    """
+    CIMA0 Camera Observer.
+
+
+    Input:
+
+        CameraPlanet packet
+
+        {
+            bytes,
+            shape,
+            dtype,
+            format,
+            channels
+        }
+
+
+
+    Output:
+
+        camera field observation
+
+
+
+    Responsibility:
+
+
+        maintain BGR field
+
+        calculate change
+
+
+
+    No:
+
+
+        sampling execution
+
+        compute allocation
+
+        semantic extraction
+
+        image understanding
+
+    """
+
+
+
+    def __init__(
+        self,
+    ):
+
+
+        self.previous = None
+
+        self.field = None
+
+        self.age = None
+        
+        self.raw_frame = None
+
+
+    def observe(
+        self,
+        packet
+    ):
+
+        frame = self._decode(packet)
+
+        if frame is None:
+            return None
+
+
+        self.raw_frame = frame.copy()
+
+
+        pixels = frame.reshape(
+            -1,
+            3
+        )
+
+        if pixels is None:
+
+            return None
+
+
+
+        #
+        # first frame
+        #
+
+        if self.previous is None:
+
+
+            self.previous = pixels.copy()
+
+            self.field = frame.copy()
+
+
+            self.age = np.zeros(
+
+                pixels.shape[0],
+
+                dtype=np.float32
+
+            )
+
+
+            delta = np.zeros(
+
+                pixels.shape[0],
+
+                dtype=np.float32
+
+            )
+
+
+
+        else:
+
+
+            delta = np.mean(
+
+                np.abs(
+
+                    pixels.astype(
+                        np.int16
+                    )
+
+                    -
+
+                    self.previous.astype(
+                        np.int16
+                    )
+
+                ),
+
+                axis=1
+
+            )
+
+            # subsequent frames
+
+            self.previous = pixels.copy()
+            
+            #
+            # maintain complete field
+            #
+            # no sampling here
+            #
+            
+            self.field = frame.copy()
+
+            self.age += 1
+
+
+
+            active = delta > 0
+
+
+            self.age[active] = 0
+
+
+        activity = delta + 1e-6
+
+
+
+        observation = {
+
+
+            "field":
+
+                self.field.copy(),
+                
+            "raw":
+                self.raw_frame.copy(),    
+
+            "delta":
+
+                delta.copy(),
+
+
+
+            "age":
+
+                self.age.copy(),
+
+
+
+            "activity":
+
+                activity.copy(),
+
+
+
+            "type":
+
+                "camera_observation",
+
+
+
+            "source":
+
+                "camera"
+
+        }
+
+        return observation
+
+
+
+    def _decode(
+        self,
+        packet
+    ):
+
+
+        if packet is None:
+
+            return None
+
+
+
+        try:
+
+
+            raw = np.frombuffer(
+
+                packet["bytes"],
+
+                dtype=np.dtype(
+                    packet["dtype"]
+                )
+
+            )
+
+
+            frame = raw.reshape(
+
+                packet["shape"]
+
+            )
+
+
+        except Exception:
+
+
+            return None
+
+
+
+        #
+        # preserve BGR structure
+        #
+
+        if frame.ndim != 3:
+
+            return None
+
+
+
+        if frame.shape[2] != 3:
+
+            return None
+
+        return frame
+
+        #
+        # pixel field
+
+        #
+
+        #return frame.reshape(
+
+        #    -1,
+
+        #    3
+
+        #)
+        
+
+
+    def encode_field(
+        self,
+        observation
+    ):
+
+
+        if observation is None:
+
+            return None
+
+
+
+        frame = observation["raw"]
+
+
+
+        return {
+
+
+            "bytes":
+
+                frame.tobytes(),
+
+
+            "shape":
+
+                frame.shape,
+
+
+
+            "dtype":
+
+                str(frame.dtype),
+
+
+
+            #
+            # preserve media identity
+            #
+
+            "type":
+
+                "media",
+
+
+
+            "format":
+
+                "BGR",
+
+
+
+            "channels":
+
+                3,
+
+
+
+            "source":
+
+                "camera_observer"
+
+        }
