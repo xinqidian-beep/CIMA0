@@ -54,7 +54,7 @@ class CameraSampling:
 
         # hand frame to the sampling module
         # the sampling module decides its own rules
-        observation = self.sampler.observe(frame)
+        observation = self.sampler.observe({"frame": frame})
 
         if observation is None:
             return None
