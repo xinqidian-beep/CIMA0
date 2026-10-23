@@ -131,10 +131,17 @@ class DisplayIO:
             external,
             dict
         ):
+            
+            #
+            # prefer camera_observation, fallback camera_raw
+            #
 
             camera_packet = external.get(
-                "camera_raw"
+                "camera_observation"
             )
+            
+            if camera_packet is None:
+                camera_packet = external.get("camera_raw")
 
         #
         # If both streams exist,

@@ -83,11 +83,11 @@ from core.io.transport import (
 #
 
 from core.terminal.camera import (
-    CameraPlanet
+    CameraPlanet,
+    CameraObserver,
 )
 
-
-from core.terminal.camera.camera_io import (
+from core.io.camera_io import (
     CameraIO
 )
 
@@ -232,6 +232,8 @@ def main():
 
     )
     
+    transport.subscribe("camera_observation", dynamics)
+    
     #
     # output visual field to display
     #
@@ -243,20 +245,6 @@ def main():
         display
 
     )
-
-
-
-    #
-    # Camera IO
-    #
-
-    camera_io = CameraIO()
-
-
-
-    camera_planet = CameraPlanet()
-
-
 
     #
     # camera
@@ -272,7 +260,14 @@ def main():
 
 
     camera_available = cap.isOpened()
-
+    # camera
+    camera_io = CameraIO()
+    camera_observer = CameraObserver()
+    
+    #
+    # 暂时保留，待后面随机删除
+    #
+    camera_planet = CameraPlanet()
 
 
     if not camera_available:
@@ -310,39 +305,14 @@ def main():
         #
 
         if camera_available:
-
-
             ret, frame = cap.read()
-
-
-
             if ret and frame is not None:
-
-                
-                camera_state = {
-
-                    "field":
-                        frame
-
-                }
-
-
-
-                packet = camera_io.encode(
-                    camera_state
-                )
-                
-
-                if packet is not None:
-
-
-                    transport.publish(
-                        packet
-                    )
-                    
-                    #display.receive(
-                    #    packet
-                    #)
+                camera_state = {"field": frame}
+                raw_packet = camera_io.encode(camera_state)          # camera_raw
+                if raw_packet is not None:
+                    observation_packet = camera_observer.observe(raw_packet)  # camera_observation
+                    if observation_packet is not None:
+                        transport.publish(observation_packet)         # 到 dynamics
 
 
 

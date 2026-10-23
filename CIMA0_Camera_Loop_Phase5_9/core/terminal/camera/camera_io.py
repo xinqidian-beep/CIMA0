@@ -1,3 +1,11 @@
+
+#
+# [已迁移] CameraIO 已迁移到 core/io/camera_io.py
+#
+# 此文件保留作为旧版参考，随机删除。
+# 新代码请使用 core.io.camera_io.CameraIO。
+#
+
 import numpy as np
 
 from core.io.transport import BitPacket

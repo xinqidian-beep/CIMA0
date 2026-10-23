@@ -191,21 +191,12 @@ class InternalDynamics:
         # Preserve the complete packet.
         #
 
-        if (
-            packet.source == "camera"
-            and
-            packet.tag == "camera_raw"
-        ):
-
-            self.external_packets[
-                "camera_raw"
-            ] = packet
-
+        if packet.source == "camera":
+            if packet.tag in ("camera_raw", "camera_observation"):
+                self.external_packets[packet.tag] = packet
 
         #
         # Broadcast unchanged packet.
-        #
-        # Each organ decides what it needs.
         #
 
         for organ in self.organs.values():

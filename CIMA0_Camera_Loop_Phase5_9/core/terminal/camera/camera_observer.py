@@ -1,350 +1,95 @@
 import numpy as np
 
+from core.io.transport.packet import BitPacket
+from core.observer.internal_dynamics_observer import InternalDynamicsObserver
 
 
 class CameraObserver:
     """
-    CIMA0 Camera Observer.
-
+    CIMA0 Camera Observer / sampling module.
 
     Input:
 
-        CameraPlanet packet
-
-        {
-            bytes,
-            shape,
-            dtype,
-            format,
-            channels
-        }
-
-
+        BitPacket(camera_raw)
 
     Output:
 
-        camera field observation
-
-
+        BitPacket(camera_observation)
 
     Responsibility:
 
+        decode incoming BitPacket
+        hand frame to the sampling module
+        pack sampling result back into BitPacket
 
-        maintain BGR field
+    Does NOT:
 
-        calculate change
+        define sampling rules
+        interpret frame
+        decide what downstream needs
+        discard unused information
 
+    The sampling module (InternalDynamicsObserver) owns its own
+    rules and timing.
 
-
-    No:
-
-
-        sampling execution
-
-        compute allocation
-
-        semantic extraction
-
-        image understanding
-
+    This is wiring only.
     """
 
+    def __init__(self, sampler=None):
+        self.sampler = sampler or InternalDynamicsObserver()
 
-
-    def __init__(
-        self,
-    ):
-
-
+        #
+        # self-reference / previous
+        #
+        # kept as an internal field.
+        # what it holds and how it evolves
+        # is left open.
+        #
         self.previous = None
 
-        self.field = None
+    def observe(self, packet):
+        if packet is None:
+            return None
 
-        self.age = None
-        
-        self.raw_frame = None
-
-
-    def observe(
-        self,
-        packet
-    ):
-
+        #
+        # 1. decode (BitPacket -> frame)
+        #
         frame = self._decode(packet)
-
         if frame is None:
             return None
 
-
-        self.raw_frame = frame.copy()
-
-
-        pixels = frame.reshape(
-            -1,
-            3
-        )
-
-        if pixels is None:
-
+        #
+        # 2. sampling (delegate to the sampling module, unchanged)
+        #
+        observation = self.sampler.observe({"frame": frame})
+        if observation is None:
             return None
 
-
-
         #
-        # first frame
+        # 3. encode (frame + observation -> BitPacket)
         #
+        return self._encode(observation, frame)
 
-        if self.previous is None:
-
-
-            self.previous = pixels.copy()
-
-            self.field = frame.copy()
-
-
-            self.age = np.zeros(
-
-                pixels.shape[0],
-
-                dtype=np.float32
-
-            )
-
-
-            delta = np.zeros(
-
-                pixels.shape[0],
-
-                dtype=np.float32
-
-            )
-
-
-
-        else:
-
-
-            delta = np.mean(
-
-                np.abs(
-
-                    pixels.astype(
-                        np.int16
-                    )
-
-                    -
-
-                    self.previous.astype(
-                        np.int16
-                    )
-
-                ),
-
-                axis=1
-
-            )
-
-            # subsequent frames
-
-            self.previous = pixels.copy()
-            
-            #
-            # maintain complete field
-            #
-            # no sampling here
-            #
-            
-            self.field = frame.copy()
-
-            self.age += 1
-
-
-
-            active = delta > 0
-
-
-            self.age[active] = 0
-
-
-        activity = delta + 1e-6
-
-
-
-        observation = {
-
-
-            "field":
-
-                self.field.copy(),
-                
-            "raw":
-                self.raw_frame.copy(),    
-
-            "delta":
-
-                delta.copy(),
-
-
-
-            "age":
-
-                self.age.copy(),
-
-
-
-            "activity":
-
-                activity.copy(),
-
-
-
-            "type":
-
-                "camera_observation",
-
-
-
-            "source":
-
-                "camera"
-
-        }
-
-        return observation
-
-
-
-    def _decode(
-        self,
-        packet
-    ):
-
-
-        if packet is None:
-
-            return None
-
-
-
+    def _decode(self, packet):
         try:
-
-
-            raw = np.frombuffer(
-
-                packet["bytes"],
-
-                dtype=np.dtype(
-                    packet["dtype"]
-                )
-
-            )
-
-
-            frame = raw.reshape(
-
-                packet["shape"]
-
-            )
-
-
+            raw = np.frombuffer(packet.data, dtype=np.dtype(packet.dtype))
+            frame = raw.reshape(packet.shape)
         except Exception:
-
-
             return None
-
-
-
-        #
-        # preserve BGR structure
-        #
 
         if frame.ndim != 3:
-
             return None
-
-
-
         if frame.shape[2] != 3:
-
             return None
-
         return frame
 
-        #
-        # pixel field
-
-        #
-
-        #return frame.reshape(
-
-        #    -1,
-
-        #    3
-
-        #)
-        
-
-
-    def encode_field(
-        self,
-        observation
-    ):
-
-
-        if observation is None:
-
-            return None
-
-
-
-        frame = observation["raw"]
-
-
-
-        return {
-
-
-            "bytes":
-
-                frame.tobytes(),
-
-
-            "shape":
-
-                frame.shape,
-
-
-
-            "dtype":
-
-                str(frame.dtype),
-
-
-
-            #
-            # preserve media identity
-            #
-
-            "type":
-
-                "media",
-
-
-
-            "format":
-
-                "BGR",
-
-
-
-            "channels":
-
-                3,
-
-
-
-            "source":
-
-                "camera_observer"
-
-        }
+    def _encode(self, observation, frame):
+        return BitPacket(
+            source="camera",
+            tag="camera_observation",
+            data=frame.tobytes(),
+            shape=frame.shape,
+            dtype=str(frame.dtype),
+            schema="media.bgr",
+            meta={"observation": observation},
+        )
