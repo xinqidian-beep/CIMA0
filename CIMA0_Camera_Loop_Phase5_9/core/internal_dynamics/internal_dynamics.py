@@ -4,6 +4,7 @@ import numpy as np
 
 from core.internal_dynamics.cloud_collision import CloudCollision
 from core.internal_dynamics.cloud.cloud_state import CloudState
+from core.io.transport.packet import BitPacket
 
 class LocalClock:
 
@@ -329,8 +330,48 @@ class InternalDynamics:
         # The next observation is therefore post-event.
         # -------------------------------------------------
         #
+        # 产 internal_drive
+        #
+        
+        planet_activity = 0.0
+        if self.planet is not None and hasattr(self.planet, "activity"):
+            p = self.planet.activity()
+            if isinstance(p, dict):
+                planet_activity = float(p.get("activity", 0.0))
 
-        return self._sample()
+        clip_activity = 0.0
+        if "clip" in self.organs:
+            c = self.organs["clip"].activity() if hasattr(self.organs["clip"], "activity") else None
+            if isinstance(c, dict):
+                clip_activity = float(c.get("activity", 0.0))
+
+        collision_count = 0
+        if self.collision is not None and getattr(self.collision, "last_result", None) is not None:
+            collision_count = self.collision.last_result.get("collision_result", {}).get("count", 0)
+
+        cloud_count = len(self.cloud_state.snapshot())
+
+        drive_packet = BitPacket(
+            source="internal",
+            tag="internal_drive",
+            data=b"",
+            shape=(),
+            dtype="uint8",
+            schema="drive",
+            meta={
+                "planet_activity": planet_activity,
+                "clip_activity": clip_activity,
+                "collision_count": int(collision_count),
+                "cloud_count": int(cloud_count),
+            },
+        )
+
+        #
+        # 9. sample AFTER the event
+        #
+        snapshot = self._sample()
+
+        return snapshot, drive_packet
 
 
   

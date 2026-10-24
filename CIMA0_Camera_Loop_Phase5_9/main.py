@@ -1,7 +1,7 @@
 import os
 import cv2
 
-
+from core.io.transport.packet import BitPacket
 
 
 BASE_DIR = os.path.abspath(
@@ -220,33 +220,6 @@ def main():
 
 
     #
-    # Transport route
-    # external camera_raw field enters dynamics
-    #
-
-    transport.subscribe(
-
-        "camera_raw",
-
-        dynamics
-
-    )
-    
-    transport.subscribe("camera_observation", dynamics)
-    
-    #
-    # output visual field to display
-    #
-
-    transport.subscribe(
-
-        "visual",
-
-        display
-
-    )
-
-    #
     # camera
     #
 
@@ -275,6 +248,35 @@ def main():
         print(
             "camera open failed, running without camera"
         )
+
+    #
+    # Transport route
+    # external camera_raw field enters dynamics
+    #
+
+    transport.subscribe(
+
+        "camera_raw",
+
+        dynamics
+
+    )
+    
+    transport.subscribe("camera_observation", dynamics)
+    
+    transport.subscribe("internal_drive", camera_observer)
+    
+    #
+    # output visual field to display
+    #
+
+    transport.subscribe(
+
+        "visual",
+
+        display
+
+    )
 
 
 
@@ -320,25 +322,54 @@ def main():
         # internal evolution
         #
 
-        dynamics.step()
+        snapshot_from_step, drive_packet = dynamics.step()
+        if drive_packet is not None:
+            transport.publish(drive_packet)
         
-        # text
-        cloud = dynamics.cloud_state.snapshot()
+        #
+        # produce internal_drive (综合动力)
+        #
+        planet_act = 0.0
+        if hasattr(planet, "activity"):
+            p = planet.activity()
+            if isinstance(p, dict):
+                planet_act = float(p.get("activity", 0.0))
 
-        print(
-            "CLOUD STATE:",
-            "count =", len(cloud),
-            "latest_age =", cloud[-1]["age"] if cloud else None,
-            "step_count =", dynamics.cloud_state.step_count,
+        clip_act = 0.0
+        if hasattr(clip_field, "activity"):
+            c = clip_field.activity()
+            if isinstance(c, dict):
+                clip_act = float(c.get("activity", 0.0))
+
+        collision_count = 0
+        if hasattr(collision, "last_result") and collision.last_result is not None:
+            collision_count = collision.last_result.get("collision_result", {}).get("count", 0)
+
+        cloud_count = len(dynamics.cloud_state.snapshot())
+
+        drive_packet = BitPacket(
+            source="internal",
+            tag="internal_drive",
+            data=b"",
+            shape=(),
+            dtype="uint8",
+            schema="drive",
+            meta={
+                "planet_activity": planet_act,
+                "clip_activity": clip_act,
+                "collision_count": int(collision_count),
+                "cloud_count": int(cloud_count),
+            },
         )
-
-
+        transport.publish(drive_packet)
+        
 
         #
         # display
         #
 
         snapshot = dynamics.snapshot()
+        display.receive_snapshot(snapshot)
         
         display.receive_snapshot(
             snapshot
