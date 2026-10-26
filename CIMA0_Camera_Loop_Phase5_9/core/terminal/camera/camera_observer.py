@@ -18,13 +18,12 @@ class CameraObserver:
     Function subdivision (module self-holding):
 
         activity()      : raise hand (signal)
-        _sample()       : local sampling (gray + layered sparse)
+        _sample()       : local sampling (downsample + layered sparse)
         _local_exact()  : focus exact (full delta)
 
     System internal drive:
 
         received via IO (receive), not held as references.
-        this keeps module self-holding.
 
     exact_rhythm_base:
 
@@ -37,6 +36,7 @@ class CameraObserver:
         - decide global consistency
         - discard unused information
         - change timing
+        - convert between representations (each module solves its own)
     """
 
     def __init__(self):
@@ -96,20 +96,24 @@ class CameraObserver:
         }
 
     #
-    # local sampling
+    # local sampling: downsample + layered sparse
     #
     def _sample(self):
         if self.field is None:
             return None
 
-        gray = self._to_gray(self.field)
-        prev_gray = (
-            self._to_gray(self.previous)
+        #
+        # her own rule: downsample 4x, keep 3 channels.
+        # no gray conversion. each module solves its own.
+        #
+        field_ds = self._downsample(self.field, factor=4)
+        prev_ds = (
+            self._downsample(self.previous, factor=4)
             if self.previous is not None
             else None
         )
 
-        height, width = gray.shape
+        height, width = field_ds.shape[:2]
 
         root = (0, 0, height, width)
         path = []
@@ -123,7 +127,7 @@ class CameraObserver:
 
             candidates = []
             for child in children:
-                signal = self._region_hand(gray, prev_gray, child)
+                signal = self._region_hand(field_ds, prev_ds, child)
                 candidates.append({"region": child, "signal": signal})
 
             winner = max(candidates, key=lambda item: item["signal"])
@@ -139,12 +143,31 @@ class CameraObserver:
             if x1 - x0 <= 1 and y1 - y0 <= 1:
                 break
 
-        return {"path": path, "region": region, "level": level}
+        return {
+            "path": path,
+            "region": region,
+            "level": level,
+            "downsample_factor": 4,
+        }
 
-    def _to_gray(self, frame):
-        if frame.ndim == 3 and frame.shape[2] == 3:
-            return frame.astype(np.float32).mean(axis=2)
-        return frame.astype(np.float32)
+    def _downsample(self, frame, factor=4):
+        if factor <= 1:
+            return frame
+
+        h, w = frame.shape[:2]
+        h2 = max(1, h // factor)
+        w2 = max(1, w // factor)
+
+        trimmed = frame[: h2 * factor, : w2 * factor]
+
+        if frame.ndim == 3:
+            return trimmed.reshape(
+                h2, factor, w2, factor, frame.shape[2]
+            ).mean(axis=(1, 3)).astype(np.float32)
+
+        return trimmed.reshape(
+            h2, factor, w2, factor
+        ).mean(axis=(1, 3)).astype(np.float32)
 
     def _split_region(self, region):
         x0, y0, x1, y1 = region
@@ -163,7 +186,7 @@ class CameraObserver:
 
         return [c for c in children if c[0] < c[2] and c[1] < c[3]]
 
-    def _region_hand(self, gray, prev_gray, region):
+    def _region_hand(self, frame, previous, region):
         x0, y0, x1, y1 = region
         if x1 <= x0 or y1 <= y0:
             return 0.0
@@ -176,13 +199,28 @@ class CameraObserver:
 
         total = 0.0
         count = 0
+
         for x, y in points:
-            if 0 <= x < gray.shape[0] and 0 <= y < gray.shape[1]:
-                current = abs(float(gray[x, y]))
+            if 0 <= x < frame.shape[0] and 0 <= y < frame.shape[1]:
+                current = frame[x, y]
+
+                #
+                # (3,) -> scalar via mean (brightness)
+                #
+                if current.ndim > 0:
+                    current_val = float(np.mean(current))
+                else:
+                    current_val = float(current)
+
                 temporal = 0.0
-                if prev_gray is not None and prev_gray.shape == gray.shape:
-                    temporal = abs(float(gray[x, y] - prev_gray[x, y]))
-                total += current + temporal
+                if previous is not None and previous.shape == frame.shape:
+                    prev = previous[x, y]
+                    if prev.ndim > 0:
+                        temporal = float(np.mean(np.abs(current - prev)))
+                    else:
+                        temporal = abs(current_val - float(prev))
+
+                total += abs(current_val) + temporal
                 count += 1
 
         if count == 0:
@@ -237,7 +275,6 @@ class CameraObserver:
             return
 
         mean_drive = drive / count
-
         target = 10.0 / (1.0 + max(0.0, mean_drive))
 
         current = float(self.exact_rhythm_base)
