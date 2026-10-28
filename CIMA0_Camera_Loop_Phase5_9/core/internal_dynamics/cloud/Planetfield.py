@@ -745,7 +745,9 @@ class PlanetField:
 
 
 
-
+    def observe_from_cloud(self, cloud_count):
+        """外部只可写观测层，不写核心。"""
+        self.glimpse_state.setdefault("observation", {})["cloud_count"] = cloud_count
 
 
     #
@@ -756,5 +758,6 @@ class PlanetField:
         self
     ):
 
-
-        return self.state.copy()
+        out = self.state.copy()
+        out["observation"] = dict(self.glimpse_state.get("observation", {}))
+        return out

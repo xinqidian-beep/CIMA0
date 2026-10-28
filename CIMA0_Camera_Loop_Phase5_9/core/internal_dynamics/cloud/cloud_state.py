@@ -63,7 +63,7 @@ class CloudState:
             cell["age"] += 1
 
 
-            if cell["age"] < 80:
+            if cell["age"] < 80 and cell["value"].get("clip"):
 
                 alive.append(cell)
 

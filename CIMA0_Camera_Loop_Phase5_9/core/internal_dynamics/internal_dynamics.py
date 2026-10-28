@@ -847,6 +847,10 @@ class InternalDynamics:
             return None
 
         self.planet.step()
+        
+        # 落点 3：写观测层（不碰核心）
+        if hasattr(self.planet, "observe_from_cloud"):
+            self.planet.observe_from_cloud(len(self.cloud_state.snapshot()))
 
         if not hasattr(
             self.planet,
