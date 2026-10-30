@@ -85,7 +85,8 @@ class InternalDynamics:
         observation_cache=None,
         attention_field=None
     ):
-
+        
+        self._last_winner = None
         
         #
         # dynamical core
@@ -544,6 +545,8 @@ class InternalDynamics:
         if winner is None:
 
             return None
+            
+        self._last_winner = winner.get("state", {}).get("candidate")    
 
         organ = winner.get(
             "organ"
@@ -791,6 +794,9 @@ class InternalDynamics:
     ):
 
         snapshot = {
+        
+            "winner_layer": getattr(self, "_last_winner", None),
+        
             "organs":
                 {
                     name:
@@ -884,7 +890,7 @@ class InternalDynamics:
 
 
         return {
-
+            "winner_layer": getattr(self, "_last_winner", None),
 
             "organs":
 

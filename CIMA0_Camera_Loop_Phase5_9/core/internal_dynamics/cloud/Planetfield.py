@@ -189,7 +189,7 @@ class PlanetField:
             "path": [],
             "region": None,
             "level": 0,
-            "observation": None
+            "observation": {}
         }
 
 
@@ -380,20 +380,24 @@ class PlanetField:
             y0:y1
         ].copy()
 
+        prev_obs = self.glimpse_state.get("observation")
+        if not isinstance(prev_obs, dict):
+            prev_obs = {}
+        prev_obs.update({
+            "source": "planet",
+            "type": "glimpse",
+            "level": level,
+            "region": region,
+            "path": path,
+            "exact": exact,
+            "age": self.age,
+        })
         self.glimpse_state = {
             "path": path,
             "region": region,
             "level": level,
             "local_state": local_state,
-            "observation": {
-                "source": "planet",
-                "type": "glimpse",
-                "level": level,
-                "region": region,
-                "path": path,
-                "exact": exact,
-                "age": self.age
-            }
+            "observation": prev_obs,
         }
 
         return {
@@ -747,8 +751,16 @@ class PlanetField:
 
     def observe_from_cloud(self, cloud_count):
         """外部只可写观测层，不写核心。"""
-        self.glimpse_state.setdefault("observation", {})["cloud_count"] = cloud_count
+        if not isinstance(self.glimpse_state.get("observation"), dict):
+            self.glimpse_state["observation"] = {}
+        self.glimpse_state["observation"]["cloud_count"] = cloud_count
 
+    def get_observation(self, key, default=None):
+        """外部只可读观测层，不可写。"""
+        obs = self.glimpse_state.get("observation")
+        if not isinstance(obs, dict):
+            return default
+        return obs.get(key, default)
 
     #
     # observer
@@ -757,7 +769,10 @@ class PlanetField:
     def snapshot(
         self
     ):
-
-        out = self.state.copy()
-        out["observation"] = dict(self.glimpse_state.get("observation", {}))
-        return out
+        obs = self.glimpse_state.get("observation")
+        if not isinstance(obs, dict):
+            obs = {}
+        return {
+            "state": self.state.copy(),
+            "observation": dict(obs),
+        }

@@ -563,4 +563,52 @@ tests/test_spark.py
 降维合法，消费端缺失。要补的不是“取消降维”，而是“给一个下游按需消费连续量”，
 且消费方式要符合极简（不引入新阈值/新状态）。
 
+20261030
+AttentionField
+已经检查完整的主要处理逻辑。
+项目	当前实际行为
+内部状态	按 source 保存注意力数组
+输入	普通字典、ObservationCache change
+空间处理	提取数值并转换成绝对值强度
+正负变化	丢失方向信息
+三维数据	沿最后一维压缩
+不同 shape	不参与同一空间场累积
+shape 改变	清空原场并重新创建
+累积	按增长率增加注意力
+衰减	按 decay_rate 衰减
+
+结论：AttentionField 当前是注意力强度记录器，不是同构云状态节点。AttentionField 的运行链路
+源码已经确认：
+PlanetField
+    ↓
+InternalDynamics 提取 observation
+    ↓
+ObservationCache.step()
+    ↓
+change
+    ↓
+判断 change.changed
+    ↓
+AttentionField.receive()
+    ↓
+AttentionField.step()
+
+
+这里发现一个关键依赖：
+
+AttentionField 的接收和衰减都被放在 change.changed 条件里面。
+全项目搜索确认：
+- ObservationCache.step() 只有 InternalDynamics 调用。
+- change 只有 InternalDynamics 生成并传递给 AttentionField。
+- CloudCollision.CHANGE 是另一套碰撞结果分类，不是 ObservationCache 的 change。
+- Cell、CloudField、PlanetField、CLIPField 中的 change 是各自局部变化概念，不能混为同一个信号。
+
+
+
+
+
+
+
+
+
 

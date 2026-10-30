@@ -81,25 +81,17 @@ class Sampler:
 
 
         age = state.get(
-            "age"
+            "age", 0.0
         )
 
         activity = state.get(
-            "activity"
+            "activity", 0.0
         )
 
         delta = state.get(
-            "delta"
+            "delta", 0.0
         )
 
-
-        if (
-            age is None
-            or activity is None
-            or delta is None
-        ):
-
-            return None
         #
         # local state only
         #
@@ -173,9 +165,7 @@ class Sampler:
         for candidate in candidates:
 
 
-            score = self.priority(
-                candidate
-            )
+            score = self.priority(candidate.get("state", {}))
 
 
             if score is None:

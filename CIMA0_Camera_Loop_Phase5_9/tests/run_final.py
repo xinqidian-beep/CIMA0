@@ -94,6 +94,8 @@ def choose_winner(
     total_resp = sum(local_response.values()) or 1.0
     n = len(local_response)
     scores = {k: v - penalty * (local_response[k] / total_resp - 1.0 / n) for k, v in local_response.items()}
+    # 落点 A：load ∈ [0,1] 抑制当前 winner，load=0 退化为原 argmax
+    scores = {k: (v * (1.0 - load) if k == current else v) for k, v in scores.items()}
     winner = max(scores, key=scores.get)
     return winner, scores
 
@@ -145,6 +147,7 @@ def simulate_winner_with_penalty(
             demand_before=out["demand_before"],
             demand_penalty=state.demand_penalty,
             prev_winner=prev_winner,
+            load=load,
         )
         prev_winner = winner
 
