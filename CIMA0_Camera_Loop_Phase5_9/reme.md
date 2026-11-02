@@ -602,12 +602,30 @@ AttentionField 的接收和衰减都被放在 change.changed 条件里面。
 - change 只有 InternalDynamics 生成并传递给 AttentionField。
 - CloudCollision.CHANGE 是另一套碰撞结果分类，不是 ObservationCache 的 change。
 - Cell、CloudField、PlanetField、CLIPField 中的 change 是各自局部变化概念，不能混为同一个信号。
+20261102
+CloudField 接入只做完整场持有 + 观测面维护 + 快照输出；局部响应注入等 collision 产出扰动强度再接，
+PlanetField 稀疏局部判定属于内部自持演化，观测面不写、不接、不越界。cells 为空是诚实的观测记录，不是待补的缺口。
 
+这个方案下，接入是干净的两步：先接完整场（可独立落地），后接局部响应（等 collision 侧）。
 
+改动清单汇总
+文件	位置	改动
+internal_dynamics.py	import 区	+ from ...cloud_field import CloudField
+internal_dynamics.py	__init__ :130 后	+ self.cloud_field = CloudField()
+internal_dynamics.py	:707 后	+ self.cloud_field.receive(clip_cloud)
+internal_dynamics.py	:762 后	+ inject_local_response（带 dict/None 检查）
+internal_dynamics.py	:227 后	+ self.cloud_field.step()
+internal_dynamics.py	:829、:938	+ "cloud_field": self.cloud_field.snapshot()
+tests/	新文件	test_cloud_field_integration.py
 
-
-
-
+改动清单
+文件	位置	改动
+internal_dynamics.py	import 区	+ from ...cloud_field import CloudField
+internal_dynamics.py	__init__ :130 后	+ self.cloud_field = CloudField()
+internal_dynamics.py	:707 后	+ self.cloud_field.receive(clip_cloud)
+internal_dynamics.py	:227 后	+ self.cloud_field.step()
+internal_dynamics.py	:829、:938	+ "cloud_field": self.cloud_field.snapshot()
+tests/	新文件	test_cloud_field_integration.py
 
 
 

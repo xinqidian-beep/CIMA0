@@ -1,3 +1,7 @@
+# STATUS: not wired into internal_dynamics main loop as of Phase 5.9.有人意识到它关着，并且把它当作"暂未接线"而非"遗漏"。
+# CloudState (cloud_state.py) is the active response queue."接在哪"这个层级决策还没做，所以暂不实例化。
+# See CIMA0_Phase5_4_架构备忘录.md for planned integration.
+
 import numpy as np
 
 from .cell import Cell
@@ -198,9 +202,14 @@ class CloudField:
         self
     ):
 
-        return float(
-            self.delta
-        )
+        d = float(self.delta)
+        return {
+            "activity": d,
+            "delta": d,
+            "request": "compute",
+            "candidate": None,
+            "candidate_value": d,
+        }
 
     # -------------------------------------------------
 

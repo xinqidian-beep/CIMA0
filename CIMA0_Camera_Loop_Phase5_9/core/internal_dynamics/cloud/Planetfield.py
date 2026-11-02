@@ -231,7 +231,11 @@ class PlanetField:
 
 
                 "age":
-                    self.age
+                    self.age,
+                    
+                "request": "compute",       # 补协议
+                "candidate": None,          # 不是层候选
+                "candidate_value": float(delta),
 
             }
 
@@ -276,7 +280,10 @@ class PlanetField:
 
 
             "age":
-                self.age
+                self.age,
+            "request": "compute",       # 补协议
+            "candidate": None,          # 不是层候选
+            "candidate_value": float(delta),
 
         }
 

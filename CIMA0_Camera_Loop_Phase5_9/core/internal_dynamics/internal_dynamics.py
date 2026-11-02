@@ -4,6 +4,7 @@ import numpy as np
 
 from core.internal_dynamics.cloud_collision import CloudCollision
 from core.internal_dynamics.cloud.cloud_state import CloudState
+from core.internal_dynamics.cloud.cloud_field import CloudField
 from core.io.transport.packet import BitPacket
 
 class LocalClock:
@@ -128,6 +129,10 @@ class InternalDynamics:
 
         self.internal_fields = {}
         self.cloud_state = CloudState()
+        #
+        # 凝固态的观测面容器
+        #
+        self.cloud_field = CloudField()
         self.planet_glimpse_version = 0
         self.planet_glimpse_observed_version = -1
         
@@ -225,6 +230,10 @@ class InternalDynamics:
     ):
         
         self.cloud_state.step()
+        #
+        # 凝固态的观测面维护（局部响应衰减）
+        #
+        self.cloud_field.step()
 
         #
         # -------------------------------------------------
@@ -546,7 +555,9 @@ class InternalDynamics:
 
             return None
             
-        self._last_winner = winner.get("state", {}).get("candidate")    
+        cand = winner.get("state", {}).get("candidate")
+        if cand in (10, 11):
+            self._last_winner = cand
 
         organ = winner.get(
             "organ"
@@ -704,6 +715,14 @@ class InternalDynamics:
 
         if clip_cloud is None:
             return None
+            
+        #
+        # 这次观测恰好露出完整场，先接住再消费
+        #    
+            
+        self.cloud_field.receive(
+            clip_cloud
+        )    
         
         #
         # Planet local material
@@ -758,6 +777,12 @@ class InternalDynamics:
             self.cloud_state.receive(
                 relation
             )
+            
+            clip = relation.get("clip")
+            if isinstance(clip, dict):
+                value = clip.get("value")
+                if value is not None:
+                    self.cloud_field.inject_local_response(value)
 
         return collision_result
 
@@ -824,7 +849,8 @@ class InternalDynamics:
                     self.internal_fields
                 ),
 
-            "cloud_state": self.cloud_state.snapshot()
+            "cloud_state": self.cloud_state.snapshot(),
+            "cloud_field": self.cloud_field.snapshot()
         
         }
 
@@ -933,6 +959,7 @@ class InternalDynamics:
 
                 else None,
                 
-            "cloud_state": self.cloud_state.snapshot()  
+            "cloud_state": self.cloud_state.snapshot(),  
+            "cloud_field": self.cloud_field.snapshot()
 
         }
